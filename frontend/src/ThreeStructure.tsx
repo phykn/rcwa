@@ -114,7 +114,7 @@ export function ThreeStructure({
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0xf1f5ed, 0);
+    renderer.setClearColor(0xfafafa, 0);
     renderer.shadowMap.enabled = false;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -149,12 +149,12 @@ export function ThreeStructure({
     // Vertical swipes keep page scrolling. Horizontal orbit and a two-touch
     // pinch stay in the viewport; pointer cancellation never opens a material.
     canvas.style.touchAction = "pan-y";
-    scene.add(new THREE.AmbientLight(0xf8fff0, 0.65));
-    scene.add(new THREE.HemisphereLight(0xfffcf2, 0x65794f, 0.6));
-    const keyLight = new THREE.DirectionalLight(0xfffcf0, 3.8);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x71717a, 0.6));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.8);
     keyLight.position.set(-3.5, 7, 3);
     scene.add(keyLight);
-    const fill = new THREE.DirectionalLight(0xd6e9c5, 0.7);
+    const fill = new THREE.DirectionalLight(0xeef2ff, 0.7);
     fill.position.set(5, 2, -4);
     scene.add(fill);
 
@@ -162,22 +162,22 @@ export function ThreeStructure({
     scene.add(group);
     const materials = {
       active: new THREE.MeshStandardMaterial({
-        color: 0x2d6552,
+        color: 0x4f46e5,
         roughness: 0.42,
         metalness: 0.025,
       }),
       context: new THREE.MeshStandardMaterial({
-        color: 0xb2c5a8,
+        color: 0xc7d2fe,
         roughness: 0.65,
       }),
-      base: new THREE.MeshStandardMaterial({ color: 0xccd9bc, roughness: 0.8 }),
+      base: new THREE.MeshStandardMaterial({ color: 0xe4e4e7, roughness: 0.8 }),
       edge: new THREE.LineBasicMaterial({
-        color: 0x36553b,
+        color: 0x71717a,
         transparent: true,
         opacity: 0.19,
       }),
       dimension: new THREE.LineBasicMaterial({
-        color: 0x6f8e57,
+        color: 0x6366f1,
         transparent: true,
         opacity: 0.62,
       }),
@@ -389,7 +389,7 @@ export function ThreeStructure({
       const end = new THREE.Vector3(-0.13, height + 0.06, -0.35);
       const origin = end.clone().sub(direction.clone().multiplyScalar(0.91));
       group.add(
-        new THREE.ArrowHelper(direction, origin, 0.87, 0xbba052, 0.1, 0.055),
+        new THREE.ArrowHelper(direction, origin, 0.87, 0xf59e0b, 0.1, 0.055),
       );
       if (refit) fitView();
       else redraw();

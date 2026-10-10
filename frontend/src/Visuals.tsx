@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { ForwardResult, Spectrum } from "./model";
 
 const series = [
-  { key: "R", label: "Reflectance", color: "#b1903f", dash: "" },
-  { key: "T", label: "Transmittance", color: "#3b6a57", dash: "" },
-  { key: "R_specular", label: "R₀ specular", color: "#91733d", dash: "6 4" },
-  { key: "T_specular", label: "T₀ specular", color: "#81977c", dash: "6 4" },
+  { key: "R", label: "Reflectance", color: "#c2410c", dash: "" },
+  { key: "T", label: "Transmittance", color: "#0e7490", dash: "" },
+  { key: "R_specular", label: "R₀ specular", color: "#9a3412", dash: "6 4" },
+  { key: "T_specular", label: "T₀ specular", color: "#155e75", dash: "6 4" },
 ] as const;
 export function SpectrumPlot({
   result,
@@ -135,7 +135,7 @@ export function SpectrumPlot({
                     x2={width - right}
                     y1={y(v)}
                     y2={y(v)}
-                    stroke="#e7eae5"
+                    stroke="#e4e4e7"
                   />
                   <text
                     x={left - 12}
@@ -200,7 +200,7 @@ export function SpectrumPlot({
               x2={x(waves[selected])}
               y1={top}
               y2={height + top}
-              stroke="#abb8b8"
+              stroke="#a1a1aa"
               strokeDasharray="3 4"
             />
             {active.map((s) => (

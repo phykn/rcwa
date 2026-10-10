@@ -111,3 +111,13 @@ The browser CI covers live forward/fitting calculations, snapshot provenance,
 360/390-pixel layouts, scene gestures, stale results, context loss and delayed
 responses. Rendered screenshots and JSON check reports are retained in the
 `browser-qa` artifact.
+
+## Interface styling and fonts
+
+The interface uses PipelinePro color, typography, spacing and control tokens in
+`frontend/src/styles.css`. The three font families are self-hosted: Outfit for
+headings, Inter for interface text, and Source Code Pro for numeric/code readouts.
+Font files, upstream package versions, checksums and OFL licenses live in
+`frontend/public/fonts`. No font service or external font request is required.
+The orange/cyan spectrum strokes use darker related colors for contrast on white;
+status badges retain their text labels in addition to color.

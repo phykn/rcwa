@@ -25,6 +25,74 @@ const deferred = () => {
   });
   return { promise, resolve };
 };
+function observeFonts(target) {
+  const evidence = { requests: [], failures: [] };
+  const isFont = (request) =>
+    request.resourceType() === "font" ||
+    /\.woff2?(?:\?|$)/i.test(request.url());
+  target.on("request", (request) => {
+    if (isFont(request)) evidence.requests.push(request.url());
+  });
+  target.on("requestfailed", (request) => {
+    if (isFont(request))
+      evidence.failures.push(
+        `${request.url()}: ${request.failure()?.errorText}`,
+      );
+  });
+  target.on("response", (response) => {
+    if (isFont(response.request()) && !response.ok())
+      evidence.failures.push(`${response.url()}: ${response.status()}`);
+  });
+  return evidence;
+}
+async function verifyFonts(target, evidence) {
+  const loaded = await target.evaluate(async () => {
+    const descriptors = [
+      '700 16px "Outfit"',
+      '400 16px "Inter"',
+      '600 16px "Inter"',
+      '500 16px "Source Code Pro"',
+    ];
+    const results = [];
+    for (const descriptor of descriptors) {
+      const faces = await document.fonts.load(descriptor, "RCWA 0123456789");
+      results.push({
+        descriptor,
+        count: faces.length,
+        loaded: faces.every((face) => face.status === "loaded"),
+        check: document.fonts.check(descriptor, "RCWA 0123456789"),
+      });
+    }
+    await document.fonts.ready;
+    return {
+      results,
+      title: getComputedStyle(document.querySelector("h1 input")).fontFamily,
+      body: getComputedStyle(document.body).fontFamily,
+      numbers: getComputedStyle(
+        document.querySelector(".dimension-rail strong"),
+      ).fontFamily,
+    };
+  });
+  for (const result of loaded.results)
+    assert.ok(
+      result.count > 0 && result.loaded && result.check,
+      `Requested font loaded: ${result.descriptor}`,
+    );
+  assert.match(loaded.title, /^['"]?Outfit['"]?(?:,|$)/);
+  assert.match(loaded.body, /^['"]?Inter['"]?(?:,|$)/);
+  assert.match(loaded.numbers, /^['"]?Source Code Pro['"]?(?:,|$)/);
+  assert.ok(
+    new Set(evidence.requests).size >= 3,
+    "All three self-hosted font files are requested",
+  );
+  for (const url of evidence.requests)
+    assert.equal(
+      new URL(url).origin,
+      new URL(target.url()).origin,
+      "Font requests stay on the app origin",
+    );
+  assert.deepEqual(evidence.failures, [], "No font request failed");
+}
 async function settle() {
   await page.evaluate(
     () =>
@@ -100,8 +168,13 @@ try {
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  const fontEvidence = observeFonts(page);
   await page.goto(appUrl);
   await expect(page.locator(".connection")).toHaveText("Solver connected");
+  await verifyFonts(page, fontEvidence);
+  checks.push(
+    "Live app loads Outfit 700, Inter 400/600 and Source Code Pro 500 from its own origin, with requested title/body/numeric typography and no failed font requests",
+  );
 
   const tableProject = structuredClone(reference.project);
   tableProject.name = "Contract table and exact inputs";
@@ -419,7 +492,9 @@ try {
     "Chromium should expose the WebGL context-loss test extension",
   );
   await expect(page.locator(".webgl-fallback")).toBeVisible();
-  await expect(page.locator(".gesture-note")).not.toContainText(/Drag the dots/i);
+  await expect(page.locator(".gesture-note")).not.toContainText(
+    /Drag the dots/i,
+  );
   await editDimension("width", 203.25);
   assert.equal((await exportProject()).project.layers[0].cd_nm, 203.25);
   checks.push(
@@ -439,7 +514,9 @@ try {
   });
   await fallback.goto(appUrl);
   await expect(fallback.locator(".webgl-fallback")).toBeVisible();
-  await expect(fallback.locator(".gesture-note")).not.toContainText(/Drag the dots/i);
+  await expect(fallback.locator(".gesture-note")).not.toContainText(
+    /Drag the dots/i,
+  );
   await fallback
     .locator(".dimension-rail")
     .getByRole("button", { name: /width/ })
@@ -582,6 +659,7 @@ try {
     viewport: { width: 390, height: 844 },
   });
   preview.on("pageerror", (error) => pageErrors.push(error.message));
+  const previewFontEvidence = observeFonts(preview);
   const previewApiRequests = [];
   preview.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/api/"))
@@ -605,6 +683,7 @@ try {
   referenceGate.resolve();
   await referenceResponse;
   await expect(preview.locator(".connection")).toHaveClass(/offline/);
+  await verifyFonts(preview, previewFontEvidence);
   await expect(preview.getByLabel("Project name")).toHaveValue(
     "Edited before reference finished",
   );
@@ -642,7 +721,7 @@ try {
   ).toHaveCount(0);
   assert.deepEqual(previewApiRequests, []);
   checks.push(
-    "Static preview resolves connection state after edits during startup, gives usable empty-state instructions, and labels stale imported spectra without claiming they are the reference",
+    "Static preview loads all three same-origin fonts, resolves connection state after edits during startup, gives usable empty-state instructions, and labels stale imported spectra without claiming they are the reference",
   );
   await preview.close();
 
