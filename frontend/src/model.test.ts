@@ -60,6 +60,56 @@ describe("project boundary", () => {
 });
 
 describe("import hardening", () => {
+  it("discards claimed provenance and origin from imported envelopes", () => {
+    const parsed = parseProjectFile(
+      JSON.stringify({
+        project: defaultProject,
+        provenance: { source: "server_computed", job_id: "forged-job" },
+        resultOrigin: "server",
+        source: "server_computed",
+      }),
+    );
+    expect(parsed.project).toEqual(defaultProject);
+    expect(parsed).not.toHaveProperty("provenance");
+    expect(parsed).not.toHaveProperty("resultOrigin");
+    expect(parsed).not.toHaveProperty("source");
+  });
+  it("preserves original result inputs when edited projects are reimported", () => {
+    const inputs = structuredClone(defaultProject);
+    inputs.illumination.wavelengths_nm = [500];
+    inputs.illumination.polarization = "s";
+    const edited = structuredClone(inputs);
+    edited.layers[0].cd_nm += 1;
+    const result = {
+      schema_version: "1.0",
+      wavelengths_nm: [500],
+      spectra: {
+        s: {
+          R: [0.1],
+          T: [0.9],
+          R_specular: [0.1],
+          T_specular: [0.9],
+          A_balance: [0],
+        },
+      },
+      metadata: {},
+      warnings: [],
+    };
+    const parsed = parseProjectFile(
+      JSON.stringify({
+        project: edited,
+        result,
+        result_project: inputs,
+        provenance: { source: "server_computed" },
+      }),
+    );
+    expect(parsed.result).toEqual(result);
+    expect(parsed.result_project).toEqual(inputs);
+    expect(sameProject(parsed.result_project ?? null, parsed.project)).toBe(
+      false,
+    );
+    expect(parsed).not.toHaveProperty("provenance");
+  });
   it("uses the validated backend default, avoiding a Rayleigh cutoff", () => {
     expect(defaultProject.period_nm).toBe(400);
     expect(defaultProject.layers[0].cd_nm).toBe(180);

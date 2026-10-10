@@ -8,7 +8,7 @@ from api.main import create_app
 
 @pytest.fixture
 def client(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'test.db'}")) as client:
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'test.db'}"), base_url="http://localhost") as client:
         yield client
 
 
@@ -80,7 +80,7 @@ def test_invalid_fit_is_rejected_before_launch(client):
 
 
 def test_hard_timeout(tmp_path):
-    with TestClient(create_app(f"sqlite:///{tmp_path / 'timeout.db'}", job_timeout=0)) as client:
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'timeout.db'}", job_timeout=0), base_url="http://localhost") as client:
         project = client.get("/api/example").json()
         job = client.post("/api/jobs", json={"project": project}).json()
         completed = client.get(f"/api/jobs/{job['id']}").json()
@@ -91,10 +91,10 @@ def test_hard_timeout(tmp_path):
 
 def test_projects_survive_restart(tmp_path):
     database_url = f"sqlite:///{tmp_path / 'restart.db'}"
-    with TestClient(create_app(database_url)) as client:
+    with TestClient(create_app(database_url), base_url="http://localhost") as client:
         project = client.get("/api/example").json()
         saved = client.post("/api/projects", json={"project": project}).json()
-    with TestClient(create_app(database_url)) as client:
+    with TestClient(create_app(database_url), base_url="http://localhost") as client:
         assert client.get(f"/api/projects/{saved['id']}").json()["project"] == project
 
 

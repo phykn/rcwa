@@ -5,6 +5,7 @@ completed project to retain its result. Every calculation has a hard deadline.
 """
 
 import json
+from copy import deepcopy
 import multiprocessing as mp
 import os
 import tempfile
@@ -13,6 +14,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+
+from api.storage import canonical_hash
 
 # Must be set before a spawned process imports NumPy/BLAS.
 for variable in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
@@ -32,9 +35,18 @@ def calculate(kind: str, project: dict, fit: dict | None, output: str) -> None:
             from rcwa_core.fitting import fit_cd
 
             result = fit_cd(model, fit)
-        payload = {"result": result, "error": None}
+        payload = {"result": result, "error": None, "error_code": None}
     except Exception as error:
-        payload = {"result": None, "error": f"{type(error).__name__}: {error}"}
+        from rcwa_core.preflight import EngineUnavailableError, PreflightError
+        from rcwa_core.solver import SolverError
+
+        # Only deliberately public numerical messages cross the HTTP boundary.
+        public = str(error) if isinstance(error, (SolverError, PreflightError)) else "Numerical calculation failed."
+        payload = {
+            "result": None,
+            "error": public,
+            "error_code": error.code if isinstance(error, EngineUnavailableError) else "numerical_failure",
+        }
     Path(output).write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
 
 
@@ -51,6 +63,7 @@ class JobManager:
         self.timeout = timeout
         self.jobs: dict[str, dict] = {}
         self.running: dict[str, Running] = {}
+        self.inputs: dict[str, dict] = {}
         self.directory = tempfile.TemporaryDirectory(prefix="rcwa-jobs-")
         self.context = mp.get_context("spawn")
 
@@ -64,6 +77,8 @@ class JobManager:
                 break
             if old_id not in self.running:
                 del self.jobs[old_id]
+                self.inputs.pop(old_id, None)
+        project, fit = deepcopy(project), deepcopy(fit)
         job_id = str(uuid4())
         output = Path(self.directory.name) / f"{job_id}.json"
         process = self.context.Process(target=calculate, args=(kind, project, fit, str(output)))
@@ -74,11 +89,15 @@ class JobManager:
             created_at=datetime.now(timezone.utc).isoformat(),
             result=None,
             error=None,
+            error_code=None,
+            completed_at=None,
+            input_hash=canonical_hash(project),
         )
         process.start()
         self.running[job_id] = Running(process, time.monotonic(), output)
         self.jobs[job_id] = job
-        return job.copy()
+        self.inputs[job_id] = {"project": project, "fit": fit}
+        return deepcopy(job)
 
     def poll(self) -> None:
         for job_id, active in list(self.running.items()):
@@ -89,10 +108,36 @@ class JobManager:
             active.process.join()
             job = self.jobs[job_id]
             try:
+                if active.output.stat().st_size > 8_000_000:
+                    raise ValueError("Worker output exceeds its limit")
                 payload = json.loads(active.output.read_text(encoding="utf-8"))
-                job.update(payload, status="failed" if payload["error"] else "succeeded")
-            except (OSError, ValueError):
-                job.update(status="failed", error="Numerical process exited without a result.")
+                if not isinstance(payload, dict) or set(payload) != {"result", "error", "error_code"}:
+                    raise ValueError("Invalid worker envelope")
+                if payload["error"] is not None:
+                    if (
+                        not isinstance(payload["error"], str)
+                        or payload["result"] is not None
+                        or payload["error_code"]
+                        not in {"numerical_failure", "engine_unavailable", "engine_version_mismatch"}
+                    ):
+                        raise ValueError("Invalid worker failure")
+                    job.update(result=None, error=payload["error"], error_code=payload["error_code"], status="failed")
+                else:
+                    if payload["error_code"] is not None:
+                        raise ValueError("Invalid worker success")
+                    inputs = self.inputs[job_id]
+                    from rcwa_core.contracts import validate_result
+
+                    result = validate_result(job["kind"], payload["result"], inputs["project"], inputs["fit"])
+                    job.update(result=result.model_dump(mode="json"), error=None, error_code=None, status="succeeded")
+            except (OSError, ValueError, TypeError, KeyError):
+                job.update(
+                    status="failed",
+                    result=None,
+                    error="Numerical process returned missing or invalid output.",
+                    error_code="invalid_worker_output",
+                )
+            job["completed_at"] = datetime.now(timezone.utc).isoformat()
             active.output.unlink(missing_ok=True)
             active.process.close()
             del self.running[job_id]
@@ -107,7 +152,13 @@ class JobManager:
                 active.process.join()
             active.process.close()
             active.output.unlink(missing_ok=True)
-            self.jobs[job_id].update(status=status, error=error)
+            self.jobs[job_id].update(
+                status=status,
+                error=error,
+                result=None,
+                error_code="timeout" if status == "failed" else "cancelled",
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
         return self.jobs.get(job_id)
 
     def close(self) -> None:

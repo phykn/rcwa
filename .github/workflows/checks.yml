@@ -103,7 +103,9 @@ jobs:
               exit 1
             fi
           done
+          timeout 60s python scripts/agent_example.py --deadline-seconds 45
           (cd frontend && timeout 240s node scripts/browser-qa.mjs)
+          (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs)
       - name: Retain screenshots and browser assertions
         if: always()
         uses: actions/upload-artifact@v4
@@ -112,5 +114,7 @@ jobs:
           path: |
             artifacts/*.png
             artifacts/browser-qa.json
+            artifacts/snapshot-browser-qa.json
+            artifacts/agent-report.json
           retention-days: 1
           if-no-files-found: warn

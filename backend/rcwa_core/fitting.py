@@ -107,6 +107,7 @@ def fit_cd(project: Project, fit: dict) -> dict:
         warnings.append("Different starts produced distinct CDs with small residuals; this example is ambiguous.")
     recovered = best["rmse"] < 1e-6 and abs(best["fit_cd_nm"] - request.target_cd_nm) < 0.01
     return {
+        "result_type": "synthetic_fit",
         "status": "converged" if recovered else "not_converged",
         "fit_cd_nm": best["fit_cd_nm"],
         "target_cd_nm": request.target_cd_nm,

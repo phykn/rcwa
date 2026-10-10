@@ -46,6 +46,7 @@ docs/              Physical conventions and validation evidence
 ## Documentation
 
 - [Development and checks](docs/development.md)
+- [Local agent HTTP API and bounded example](docs/agent-api.md)
 - [Physical model and conventions](docs/physics.md)
 - [Validation results](docs/validation.md)
 - [Independent S4 comparison](docs/independent-reference.md)

@@ -65,3 +65,22 @@ The workflow is prepared to publish the static preview after `Checks` succeeds o
 Run the API with **one worker**. It retains at most 100 job records in memory; restarting the API removes them. It accepts up to two simultaneous calculations and returns HTTP 429 when both slots are occupied. Each job has a 120-second deadline that terminates the numerical process. Save completed results to the database or export JSON to retain them. Saving creates a new snapshot rather than overwriting an existing project.
 
 Lengths are in nm. Public passive-material input uses n > 0 and k ≥ 0. Internal complex signs, diffraction-order conventions, and power normalization are documented in result metadata and [the physics contract](physics.md). Example optical constants are synthetic values, not a calibrated material database.
+
+## Programmatic local access
+
+The [agent API guide](agent-api.md) describes discovery, no-job admissibility
+checks, typed jobs, and server-owned snapshots. This is an HTTP/OpenAPI interface
+and a runnable candidate-evaluation example, not an integrated or deployed LLM
+agent. No keys or paid services are required.
+
+Mutation requests reject browser Origins outside `CORS_ORIGINS`; Host must be
+`localhost`, `127.0.0.1`, or `::1`. Origin-less local HTTP scripts are supported.
+These checks are defense in depth, not authentication. Keep loopback binding and
+one Uvicorn worker. Do not expose this service or loosen the host boundary for a
+remote agent.
+
+Existing `projects` rows and columns are preserved. An additive `run_provenance`
+table stores trusted local origin for new server-owned snapshots. There is no
+claim that SQLAlchemy `create_all()` migrates existing columns. Old rows and
+client-import saves remain unverified. Snapshot input/result JSON is append-only;
+saving the same completed forward job again returns its existing snapshot ID.

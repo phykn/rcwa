@@ -65,6 +65,9 @@ export interface SavedProject {
   updated_at: string;
   project: Project;
   result?: ForwardResult | null;
+  // This classification is meaningful only on a response from the local API.
+  // A downloaded or imported copy cannot establish its own provenance.
+  provenance?: { source: "server_computed" | "unverified_import" };
 }
 export interface ProjectFile {
   format?: string;
@@ -295,7 +298,14 @@ export function parseProjectFile(text: string): ProjectFile {
         "Saved result wavelengths/polarizations do not match its input project.",
       );
   }
-  return wrapped;
+  // Deliberately discard envelope provenance and other origin claims. Files
+  // are unverified imports even when copied from a server-computed snapshot.
+  return {
+    format: wrapped.format,
+    project: wrapped.project,
+    result: wrapped.result,
+    result_project: wrapped.result_project,
+  };
 }
 export function sameProject(a: Project | null, b: Project): boolean {
   return a !== null && JSON.stringify(a) === JSON.stringify(b);

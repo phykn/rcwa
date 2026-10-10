@@ -9,28 +9,18 @@ not been validated and are deliberately not exported.
 
 from __future__ import annotations
 
-from importlib.metadata import version
 from time import perf_counter
 
 import numpy as np
 
-from .schemas import Material, Project
-
-
-class SolverError(ValueError):
-    """A numerically invalid or unsupported solve, never a substitute spectrum."""
-
-
-def refractive_index(material: Material, wavelength_nm: float) -> complex:
-    """Linearly interpolate n and k separately, never epsilon or outside a table."""
-    if material.kind == "constant":
-        return complex(material.n, material.k)
-    if not material.wavelengths_nm[0] <= wavelength_nm <= material.wavelengths_nm[-1]:
-        raise SolverError(f"{material.name}: material extrapolation is forbidden")
-    return complex(
-        np.interp(wavelength_nm, material.wavelengths_nm, material.n_values),
-        np.interp(wavelength_nm, material.wavelengths_nm, material.k_values),
-    )
+from .preflight import (
+    ADAPTER_VERSION,
+    SolverError,
+    ensure_engine_available,
+    ensure_preflight,
+    refractive_index,
+)
+from .schemas import Project
 
 
 def rectangle_cell(project: Project, ridge: complex, background: complex):
@@ -85,11 +75,11 @@ def _solve_with_ports(kx, n0, ns, angle, polarization, wavelength, thickness, ep
 
 def forward(project: Project) -> dict:
     """Compute retained diffraction-order powers, with no clipping or fallback."""
+    project = Project.model_validate(project.model_dump())
+    diagnostics = ensure_preflight(project)
+    engine = ensure_engine_available()
     from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
 
-    project = Project.model_validate(project.model_dump())
-    if version("meent") != "0.13.2":
-        raise SolverError("This adapter is verified only with meent==0.13.2")
     started = perf_counter()
     layer = project.layers[0]
     harmonics = project.solver.harmonics
@@ -100,6 +90,7 @@ def forward(project: Project) -> dict:
         pol: {key: [] for key in ("R", "T", "R_specular", "T_specular", "A_balance", "orders")} for pol in polarizations
     }
     notices = ["Fourier convergence is not certified by a single run. Refine harmonics for your sample."]
+    notices.extend(dict.fromkeys(item.message for item in diagnostics if item.severity == "warning"))
     any_loss = False
     absorbing_substrate = False
     max_lossless_balance = 0.0
@@ -113,22 +104,8 @@ def forward(project: Project) -> dict:
         absorbing_substrate |= ns.imag != 0
         incident_kx = n0.real * np.sin(angle)
         kx = incident_kx + orders * wavelength / project.period_nm
-        kx_outside = incident_kx + np.array([-harmonics - 1, harmonics + 1]) * wavelength / project.period_nm
-        largest_lossless_port_index = max(n0.real, ns.real if ns.imag == 0 else n0.real)
-        if np.any(np.abs(kx_outside) <= largest_lossless_port_index):
-            raise SolverError(
-                "Harmonics are too small to retain all propagating diffraction orders; increase harmonics or reduce the period"
-            )
         q_top = n0.real**2 - kx**2
         q_bottom = ns**2 - kx**2
-        if np.min(np.abs(np.r_[q_top, q_bottom])) < 1e-10:
-            raise SolverError(
-                f"A diffraction order is exactly at a Rayleigh cutoff near {wavelength:g} nm; move the sampled wavelength slightly"
-            )
-        if np.min(np.abs(np.r_[q_top, q_bottom])) < 1e-4:
-            notice = "A sampled order is near a Rayleigh cutoff; refine wavelength and harmonic sampling."
-            if notice not in notices:
-                notices.append(notice)
 
         cells = rectangle_cell(project, nr.conjugate(), nb.conjugate())
         epx, epy, epz_inverse = to_conv_mat_vector(cells, harmonics, 0, type_complex=np.complex128, use_pinv=False)
@@ -187,12 +164,14 @@ def forward(project: Project) -> dict:
             "A_balance is 1-R-T, a flux deficit rather than an independently integrated absorption measurement."
         )
     return {
+        "result_type": "forward",
         "schema_version": "1.0",
         "wavelengths_nm": project.illumination.wavelengths_nm,
         "spectra": spectra,
         "metadata": {
             "engine": "meent",
-            "version": version("meent"),
+            "version": engine.installed_version,
+            "adapter_version": ADAPTER_VERSION,
             "backend": "numpy",
             "precision": "complex128",
             "method": "1D classical RCWA, continuous Fourier integrals, inverse-rule factorization, TMM",

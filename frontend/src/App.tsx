@@ -291,7 +291,7 @@ export default function App() {
   );
   const [result, setResult] = useState<ForwardResult | null>(null);
   const [resultOrigin, setResultOrigin] = useState<
-    "computed" | "imported" | "reference"
+    "computed" | "server" | "imported" | "reference"
   >("computed");
   const [resultProject, setResultProject] = useState<Project | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -581,7 +581,11 @@ export default function App() {
       const data = await api.load(id);
       const parsed = parseProjectFile(JSON.stringify(data));
       update(parsed.project);
-      setResultOrigin("imported");
+      // Trust only the API envelope here. The JSON import path below always
+      // uses "imported", regardless of provenance fields in the file.
+      setResultOrigin(
+        data.provenance?.source === "server_computed" ? "server" : "imported",
+      );
       setResult(parsed.result || null);
       setResultProject(parsed.result ? parsed.project : null);
       setPolarization(parsed.result?.spectra.s ? "s" : "p");
@@ -1122,6 +1126,13 @@ export default function App() {
                 </div>
                 <span
                   className={`result-badge ${stale ? "stale" : result ? "ready" : ""}`}
+                  title={
+                    result && resultOrigin === "server"
+                      ? "This result was computed and saved by the local server. Origin does not certify numerical convergence or scientific accuracy."
+                      : result && resultOrigin === "imported"
+                        ? "Unverified imported result. Origin claims in JSON files are not trusted."
+                        : undefined
+                  }
                 >
                   {stale
                     ? "Inputs changed"
@@ -1129,8 +1140,10 @@ export default function App() {
                       ? resultOrigin === "reference"
                         ? "Precomputed example"
                         : resultOrigin === "imported"
-                          ? "Imported result"
-                          : "Computed"
+                          ? "Unverified import"
+                          : resultOrigin === "server"
+                            ? "Server-computed"
+                            : "Computed"
                       : "No result yet"}
                 </span>
               </div>
@@ -1292,6 +1305,10 @@ export default function App() {
                       {new Date(
                         item.updated_at || item.created_at,
                       ).toLocaleString()}
+                      {" · "}
+                      {item.provenance?.source === "server_computed"
+                        ? "Server-computed"
+                        : "Unverified import"}
                     </small>
                   </span>
                   <Icon name="arrow" />

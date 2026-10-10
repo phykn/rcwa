@@ -112,7 +112,7 @@ try {
     .locator("input[type=file]")
     .first()
     .setInputFiles(`${output}/browser-export.json`);
-  await expect(page.locator(".result-badge")).toHaveText("Imported result");
+  await expect(page.locator(".result-badge")).toHaveText("Unverified import");
   checks.push("Full input/result export and JSON reload");
   mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },

@@ -1,11 +1,16 @@
-"""Small metadata store. PostgreSQL in deployment; SQLite for a zero-setup demo."""
+"""Append-only project storage, preserving the original database table.
 
+Provenance lives in a new sidecar table: old databases need no destructive column
+migration and old rows remain explicitly unverified. Never infer origin from JSON.
+"""
+
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Column, MetaData, String, Table, Text, create_engine, select
+from sqlalchemy import Column, ForeignKey, MetaData, String, Table, Text, create_engine, select
 
 metadata = MetaData()
 projects = Table(
@@ -18,6 +23,21 @@ projects = Table(
     Column("project", Text, nullable=False),
     Column("result", Text, nullable=True),
 )
+# Additive schema evolution. create_all creates this new table; it is not used to
+# pretend that columns of an existing projects table have been migrated.
+run_provenance = Table(
+    "run_provenance",
+    metadata,
+    Column("project_id", String(36), ForeignKey("projects.id"), primary_key=True),
+    Column("job_id", String(36), nullable=False, unique=True),
+    Column("data", Text, nullable=False),
+)
+
+
+def canonical_hash(project: dict) -> str:
+    """SHA-256 of normalized Project JSON, sorted keys, compact UTF-8, no NaN."""
+    encoded = json.dumps(project, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 class ProjectStore:
@@ -27,7 +47,7 @@ class ProjectStore:
         self.engine = create_engine(url)
         metadata.create_all(self.engine)
 
-    def save(self, project: dict, result: dict | None) -> dict:
+    def save(self, project: dict, result: dict | None, *, provenance: dict | None = None) -> dict:
         now = datetime.now(timezone.utc).isoformat()
         record = dict(
             id=str(uuid4()),
@@ -38,24 +58,51 @@ class ProjectStore:
             result=json.dumps(result, allow_nan=False) if result is not None else None,
         )
         with self.engine.begin() as connection:
+            if provenance is not None:
+                previous = connection.execute(
+                    select(run_provenance.c.project_id).where(run_provenance.c.job_id == provenance["job_id"])
+                ).scalar_one_or_none()
+                if previous:
+                    return self.get(previous)
             connection.execute(projects.insert().values(**record))
+            if provenance is not None:
+                connection.execute(
+                    run_provenance.insert().values(
+                        project_id=record["id"],
+                        job_id=provenance["job_id"],
+                        data=json.dumps(provenance, allow_nan=False),
+                    )
+                )
         return self.get(record["id"])
 
     def get(self, project_id: str) -> dict | None:
         with self.engine.connect() as connection:
             row = connection.execute(select(projects).where(projects.c.id == project_id)).mappings().first()
+            origin = connection.execute(
+                select(run_provenance.c.data).where(run_provenance.c.project_id == project_id)
+            ).scalar_one_or_none()
         if row is None:
             return None
         record = dict(row)
         record["project"] = json.loads(record["project"])
         record["result"] = json.loads(record["result"]) if record["result"] else None
+        record["provenance"] = json.loads(origin) if origin else {"source": "unverified_import"}
         return record
 
     def list(self) -> list[dict]:
         with self.engine.connect() as connection:
             rows = connection.execute(
-                select(projects.c.id, projects.c.name, projects.c.created_at, projects.c.updated_at)
+                select(
+                    projects.c.id, projects.c.name, projects.c.created_at, projects.c.updated_at, run_provenance.c.data
+                )
+                .outerjoin(run_provenance, projects.c.id == run_provenance.c.project_id)
                 .order_by(projects.c.updated_at.desc())
                 .limit(100)
             )
-            return [dict(row._mapping) for row in rows]
+            records = []
+            for row in rows.mappings():
+                record = dict(row)
+                origin = record.pop("data")
+                record["provenance"] = json.loads(origin) if origin else {"source": "unverified_import"}
+                records.append(record)
+            return records

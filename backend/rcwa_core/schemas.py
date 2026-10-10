@@ -75,7 +75,7 @@ class Project(StrictModel):
     period_nm: float = Field(default=400.0, ge=20, le=5000)
     ambient: Material = Field(default_factory=lambda: Material(name="Air", n=1.0))
     substrate: Material = Field(default_factory=lambda: Material(name="Synthetic substrate", n=1.5))
-    layers: list[Layer] = Field(default_factory=lambda: [Layer()], min_length=1, max_length=16)
+    layers: list[Layer] = Field(default_factory=lambda: [Layer()], min_length=1, max_length=1)
     illumination: Illumination = Field(default_factory=Illumination)
     solver: SolverSettings = Field(default_factory=SolverSettings)
 
@@ -89,12 +89,11 @@ class Project(StrictModel):
             self.ambient.kind == "tabulated" and any(k != 0 for k in self.ambient.k_values)
         ):
             raise ValueError("The incident ambient must be lossless")
-        wavelengths = self.illumination.wavelengths_nm
-        for material in (self.ambient, self.substrate, self.layers[0].material, self.layers[0].background):
-            if material.kind == "tabulated" and (
-                min(wavelengths) < material.wavelengths_nm[0] or max(wavelengths) > material.wavelengths_nm[-1]
-            ):
-                raise ValueError(f"{material.name}: wavelength outside material table; extrapolation is forbidden")
+        from .preflight import PreflightError, material_coverage_diagnostics
+
+        coverage = material_coverage_diagnostics(self)
+        if coverage:
+            raise PreflightError(coverage)
         return self
 
 
