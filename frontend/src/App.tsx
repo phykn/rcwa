@@ -18,6 +18,7 @@ import type {
   SavedProject,
 } from "./model";
 import { Geometry, SpectrumPlot } from "./Visuals";
+import type { Dimension } from "./Visuals";
 import { SyntheticFit } from "./SyntheticFit";
 
 function Icon({
@@ -74,6 +75,9 @@ function Field({
   max,
   step = 1,
   help,
+  id,
+  selected = false,
+  onFocus,
 }: {
   label: string;
   unit?: string;
@@ -83,14 +87,19 @@ function Field({
   max?: number;
   step?: number;
   help?: string;
+  id?: string;
+  selected?: boolean;
+  onFocus?: () => void;
 }) {
   return (
-    <label className="field">
+    <label className={`field ${selected ? "dimension-selected" : ""}`}>
       <span>
         {label}
         {unit && <small>{unit}</small>}
       </span>
       <input
+        id={id}
+        onFocus={onFocus}
         type="number"
         value={value}
         min={min}
@@ -112,10 +121,12 @@ function Section({
   open?: boolean;
 }) {
   return (
-    <details className="control-section" open={open}>
+    <details className="control-section" data-section={title} open={open}>
       <summary>
         {title}
-        <span className="chevron">⌄</span>
+        <span className="chevron" aria-hidden="true">
+          ⌄
+        </span>
       </summary>
       <div className="section-body">{children}</div>
     </details>
@@ -256,6 +267,25 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : "An unexpected error occurred.";
 
 export default function App() {
+  const [selectedDimension, setSelectedDimension] = useState<Dimension | null>(
+    null,
+  );
+  function selectDimension(dimension: Dimension) {
+    setSelectedDimension(dimension);
+    document.getElementById(`dimension-${dimension}`)?.focus();
+  }
+  function showSettings(title: string) {
+    const settings =
+      document.querySelector<HTMLDetailsElement>(".more-settings");
+    if (settings) settings.open = true;
+    const section = document.querySelector<HTMLDetailsElement>(
+      `[data-section="${title}"]`,
+    );
+    if (section) {
+      section.open = true;
+      section.querySelector<HTMLElement>("summary")?.focus();
+    }
+  }
   const [project, setProject] = useState<Project>(
     structuredClone(defaultProject),
   );
@@ -642,6 +672,81 @@ export default function App() {
           RCWA
         </a>
         <div className="header-right">
+          <details
+            className="project-menu"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.currentTarget.open = false;
+                event.currentTarget
+                  .querySelector<HTMLElement>("summary")
+                  ?.focus();
+              }
+            }}
+          >
+            <summary>
+              Project <span aria-hidden="true">⌄</span>
+            </summary>
+            <div
+              className="file-actions"
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest("button, a")) {
+                  const menu = event.currentTarget.closest("details");
+                  if (menu) menu.open = false;
+                }
+              }}
+            >
+              <button
+                disabled={busy || staticPreview}
+                onClick={openSaved}
+                title={
+                  staticPreview
+                    ? "Requires the local Python API"
+                    : "Open from local server"
+                }
+              >
+                <Icon name="folder" />
+                <span>Open</span>
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => inputFile.current?.click()}
+              >
+                <Icon name="upload" />
+                <span>Import JSON</span>
+              </button>
+              <button
+                disabled={!!errors.length}
+                onClick={() => downloadProject(project, result, resultProject)}
+              >
+                <Icon name="download" />
+                <span>Export</span>
+              </button>
+              <button
+                className="icon-button"
+                aria-label="Save project to local server"
+                title="Save to local server"
+                disabled={staticPreview || busy || saving || !!errors.length}
+                onClick={save}
+              >
+                <Icon name="save" /> Save to local server
+              </button>
+              <a
+                href="https://github.com/phykn/rcwa#quickstart"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Local solver setup ↗
+              </a>
+              <input
+                type="file"
+                ref={inputFile}
+                accept="application/json,.json"
+                hidden
+                onChange={importProject}
+              />
+            </div>
+          </details>
+
           <span className={`connection ${connection}`} title={apiDescription}>
             <i />
             {staticPreview
@@ -654,55 +759,18 @@ export default function App() {
           </span>
         </div>
       </header>
+      <nav className="task-nav" aria-label="Workbench sections">
+        <a href="#build">Build</a>
+        <a href="#spectrum">Spectrum</a>
+        <a href="#fit">Fit demo</a>
+      </nav>
       <main id="main">
-        <div className="page-heading">
-          <div>
-            <h1>Build a grating</h1>
-            <p>Adjust its shape and explore how it interacts with light.</p>
-          </div>
-          <div className="file-actions">
-            <button
-              disabled={busy || staticPreview}
-              onClick={openSaved}
-              title={
-                staticPreview
-                  ? "Requires the local Python API"
-                  : "Open from local server"
-              }
-            >
-              <Icon name="folder" />
-              <span>Open</span>
-            </button>
-            <button disabled={busy} onClick={() => inputFile.current?.click()}>
-              <Icon name="upload" />
-              <span>Import JSON</span>
-            </button>
-            <button
-              disabled={!!errors.length}
-              onClick={() => downloadProject(project, result, resultProject)}
-            >
-              <Icon name="download" />
-              <span>Export</span>
-            </button>
-            <input
-              type="file"
-              ref={inputFile}
-              accept="application/json,.json"
-              hidden
-              onChange={importProject}
-            />
-          </div>
-        </div>
         {connection === "offline" && (
           <div className="connection-banner">
             <span>
-              <b>
-                {staticPreview
-                  ? "Precomputed example."
-                  : "The calculation server is offline."}
-              </b>
+              <b>{staticPreview ? "" : "The calculation server is offline."}</b>
               {staticPreview
-                ? " Shape edits update the drawing only. New spectra need the local Python API."
+                ? "Edits change the drawing only. New calculations run locally."
                 : "You can edit inputs and import or export JSON. Calculations require the Python API."}
             </span>
             <button
@@ -714,11 +782,11 @@ export default function App() {
           </div>
         )}
         <div className="workspace">
-          <aside className="controls panel">
+          <aside className="controls panel" id="build">
             <div className="control-heading">
               <div>
                 <label htmlFor="project-name" className="project-label">
-                  Structure
+                  Build a grating
                 </label>
                 <input
                   id="project-name"
@@ -729,21 +797,19 @@ export default function App() {
                   onChange={(e) => update({ ...project, name: e.target.value })}
                 />
               </div>
-              <button
-                className="icon-button"
-                aria-label="Save project to local server"
-                title="Save to local server"
-                disabled={staticPreview || busy || saving || !!errors.length}
-                onClick={save}
-              >
-                <Icon name="save" />
-              </button>
             </div>
             <section
               className="geometry-panel"
               aria-label="Grating cross section"
             >
-              <Geometry project={project} />
+              <p className="builder-hint">
+                A repeating ridge pattern. Select a dimension to edit.
+              </p>
+              <Geometry
+                project={project}
+                selectedDimension={selectedDimension}
+                onSelectDimension={selectDimension}
+              />
               <div className="geometry-footer">
                 <span>
                   <i className="ridge-dot" />
@@ -762,6 +828,9 @@ export default function App() {
               <div className="geometry-inputs">
                 <Field
                   label="Pitch"
+                  id="dimension-pitch"
+                  selected={selectedDimension === "pitch"}
+                  onFocus={() => setSelectedDimension("pitch")}
                   unit="nm"
                   value={project.period_nm}
                   min={20}
@@ -770,6 +839,9 @@ export default function App() {
                 />
                 <Field
                   label="Width (CD)"
+                  id="dimension-width"
+                  selected={selectedDimension === "width"}
+                  onFocus={() => setSelectedDimension("width")}
                   unit="nm"
                   value={layer.cd_nm}
                   min={0}
@@ -778,6 +850,9 @@ export default function App() {
                 />
                 <Field
                   label="Height"
+                  id="dimension-height"
+                  selected={selectedDimension === "height"}
+                  onFocus={() => setSelectedDimension("height")}
                   unit="nm"
                   value={layer.thickness_nm}
                   min={0}
@@ -785,10 +860,40 @@ export default function App() {
                   onChange={(thickness_nm) => updateLayer({ thickness_nm })}
                 />
               </div>
+              <div className="setting-summaries">
+                <button
+                  type="button"
+                  onClick={() => showSettings("Materials")}
+                  aria-label="Edit materials"
+                >
+                  <strong>Materials</strong>
+                  <span>
+                    {layer.material.name} / {project.substrate.name}
+                  </span>
+                  <span aria-hidden="true">›</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => showSettings("Light")}
+                  aria-label="Edit light"
+                >
+                  <strong>Light</strong>
+                  <span>
+                    {waves[0]}–{waves.at(-1)} nm ·{" "}
+                    {project.illumination.angle_deg}° ·{" "}
+                    {project.illumination.polarization === "both"
+                      ? "s & p, separate"
+                      : project.illumination.polarization}
+                  </span>
+                  <span aria-hidden="true">›</span>
+                </button>
+              </div>
               <details className="more-settings">
                 <summary>
-                  Materials, light & solver settings{" "}
-                  <span className="chevron">⌄</span>
+                  More settings{" "}
+                  <span className="chevron" aria-hidden="true">
+                    ⌄
+                  </span>
                 </summary>
                 <Section title="Light" open={false}>
                   <div className="field-grid">
@@ -853,20 +958,23 @@ export default function App() {
                         })
                       }
                     >
-                      <option value="both">Both s + p</option>
+                      <option value="both">Separate s and p curves</option>
                       <option value="s">s / TE · E ∥ grooves</option>
                       <option value="p">p / TM · H ∥ grooves</option>
                     </select>
                   </label>
                   <p className="control-note">
-                    θ is measured from the surface normal. The incidence plane
-                    is x–z; grooves run along y.
+                    Polarization describes the electric-field direction: s is
+                    along the grooves; p lies in the cross section. θ is
+                    measured from the surface normal. The incidence plane is
+                    x–z; grooves run along y.
                   </p>
                 </Section>
                 <Section title="Materials" open={false}>
                   <p className="control-note">
-                    User-defined n and k. Defaults describe synthetic materials,
-                    not measured optical constants.
+                    n controls refraction; k controls absorption (0 = no
+                    absorption). Defaults describe synthetic materials, not
+                    measured optical constants.
                   </p>
                   <MaterialEditor
                     label="Ridge"
@@ -921,14 +1029,15 @@ export default function App() {
                 </ul>
               )}
               {staticPreview ? (
-                <a
-                  className="setup-link"
-                  href="https://github.com/phykn/rcwa#quickstart"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  className="export-inputs"
+                  disabled={!!errors.length}
+                  onClick={() =>
+                    downloadProject(project, result, resultProject)
+                  }
                 >
-                  Set up the local solver ↗
-                </a>
+                  Export inputs
+                </button>
               ) : (
                 <button
                   className="run-button"
@@ -1006,7 +1115,7 @@ export default function App() {
                 </button>
               </div>
             )}
-            <section className="panel spectrum-panel">
+            <section className="panel spectrum-panel" id="spectrum">
               <div className="panel-heading">
                 <div>
                   <h2>Spectrum</h2>
@@ -1028,7 +1137,7 @@ export default function App() {
               {stale && (
                 <div className="stale-note">
                   {staticPreview
-                    ? "Shape changed. This is still the reference spectrum; export your inputs to calculate locally."
+                    ? "Inputs changed. This is still the reference spectrum; export your inputs to calculate locally."
                     : "Inputs changed. Run again to update this spectrum."}
                 </div>
               )}
@@ -1062,7 +1171,9 @@ export default function App() {
             <details className="notes-panel">
               <summary>
                 Results details & model assumptions{" "}
-                <span className="chevron">⌄</span>
+                <span className="chevron" aria-hidden="true">
+                  ⌄
+                </span>
               </summary>
               {selectedSpectrum && (
                 <div className="metrics-row">
@@ -1152,7 +1263,7 @@ export default function App() {
           >
             <div className="panel-heading">
               <div>
-                <span className="eyebrow">LOCAL STORAGE</span>
+                <span className="eyebrow">Local storage</span>
                 <h2 id="saved-title">Saved projects</h2>
               </div>
               <button

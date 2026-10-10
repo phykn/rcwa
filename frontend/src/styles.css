@@ -941,3 +941,226 @@ h2 {
     font-size: 16px;
   }
 }
+/* Object-first editing and physically sized chart axes. */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.project-menu {
+  position: relative;
+}
+.project-menu > summary {
+  list-style: none;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.project-menu .file-actions {
+  position: absolute;
+  right: 0;
+  top: 46px;
+  z-index: 20;
+  width: 220px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px #25364c18;
+}
+.project-menu .file-actions button,
+.project-menu .file-actions a {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding: 10px;
+  border: 0;
+  font-size: 13px;
+}
+.task-nav {
+  display: flex;
+  gap: 24px;
+  max-width: 1224px;
+  margin: auto;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+}
+.task-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--ink);
+}
+.task-nav a:hover {
+  color: var(--accent);
+}
+#build,
+#spectrum,
+#fit {
+  scroll-margin-top: 20px;
+}
+.dimension-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 4px 12px 10px;
+}
+.dimension-controls button {
+  min-height: 44px;
+  border: 1px solid #d3dae3;
+  background: #fff;
+  font-size: 13px;
+}
+.dimension-controls button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: #eaf1fc;
+}
+.dimension-controls button span {
+  margin-left: auto;
+}
+.dimension-selected > span {
+  color: var(--accent);
+  font-weight: 600;
+}
+.dimension-selected input {
+  border: 2px solid var(--accent);
+  background: #f5f8fe;
+}
+.setting-summaries {
+  margin: 0 0 8px;
+}
+.setting-summaries button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  gap: 12px;
+  border: 0;
+  padding: 7px 0;
+  text-align: left;
+  font-size: 12px;
+}
+.setting-summaries strong {
+  font-weight: 500;
+  min-width: 58px;
+}
+.setting-summaries button > span:first-of-type {
+  flex: 1;
+  color: var(--muted);
+}
+.setting-summaries button > span:last-child {
+  font-size: 18px;
+}
+.export-inputs {
+  width: 100%;
+  min-height: 44px;
+  background: #f5f7fa;
+}
+.spectrum-svg {
+  height: 260px;
+  width: 100%;
+  margin-top: 12px;
+}
+.chart-axis,
+.chart-tick {
+  font-size: 12px;
+}
+.segmented button,
+.plot-toolbar select {
+  min-height: 44px;
+  height: 44px;
+}
+.sample-readout input {
+  height: 44px;
+}
+.fit-panel h2 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+@media (max-width: 700px) {
+  .topbar {
+    height: 56px;
+  }
+  .header-right {
+    gap: 16px;
+  }
+  .connection {
+    font-size: 12px;
+  }
+  .task-nav {
+    padding: 0 20px;
+    gap: 28px;
+  }
+  main {
+    padding-top: 8px;
+  }
+  .connection-banner {
+    padding: 4px 0 10px;
+    margin-bottom: 10px;
+  }
+  .connection-banner button {
+    min-height: 44px;
+  }
+  .geometry-svg {
+    max-height: 185px;
+  }
+  .geometry-svg text {
+    display: none;
+  }
+  .geometry-footer {
+    display: none;
+  }
+  .chart-axis,
+  .chart-tick {
+    font-size: 12px;
+  }
+  .project-label {
+    display: none;
+  }
+  .control-heading input {
+    height: 36px;
+  }
+  .project-menu .file-actions button {
+    flex: auto;
+  }
+  .setting-summaries button {
+    font-size: 12px;
+  }
+}
+.builder-hint {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px 12px 0;
+  line-height: 1.5;
+}
+.spectrum-help,
+.quantity-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.quantity-help {
+  margin-top: 10px;
+}
+@media (max-width: 700px) {
+  .project-label {
+    display: block;
+  }
+}
+.task-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+}
+#build,
+#spectrum,
+#fit {
+  scroll-margin-top: 60px;
+}

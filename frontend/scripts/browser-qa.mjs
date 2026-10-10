@@ -14,6 +14,11 @@ const page = await browser.newPage({
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 const checks = [];
+async function openProjectMenu(target = page) {
+  const menu = target.locator(".project-menu");
+  if (!(await menu.evaluate((node) => node.open)))
+    await menu.locator("summary").click();
+}
 let mobile;
 try {
   await page.goto("http://127.0.0.1:5173");
@@ -26,12 +31,14 @@ try {
     timeout: 90000,
   });
   await expect(page.locator(".spectrum-svg")).toBeVisible();
+  await expect(page.getByLabel("Spectrum quantity")).toHaveValue("total");
+  await expect(page.locator(".plot-legend")).toContainText("Reflectance");
   checks.push("Real API default forward solve and plotted output");
   await page.getByRole("button", { name: "p / TM", exact: true }).click();
   await page.getByLabel("Spectrum quantity").selectOption("specular");
   await expect(page.locator(".plot-legend")).toContainText("R₀ specular");
-  await expect(page.locator(".plot-legend")).not.toContainText("R total");
-  await page.getByLabel("Spectrum quantity").selectOption("all");
+  await expect(page.locator(".plot-legend")).not.toContainText("Reflectance");
+  await page.getByLabel("Spectrum quantity").selectOption("total");
   await page.getByRole("button", { name: "s / TE", exact: true }).click();
   checks.push("s/p selection and total/specular distinction");
   await page.screenshot({
@@ -67,8 +74,10 @@ try {
     "Malformed JSON result rejected without replacing current inputs/output",
   );
   await page.getByLabel("Project name").fill("Browser QA saved project");
+  await openProjectMenu();
   await page.getByLabel("Save project to local server").click();
   await expect(page.getByRole("status")).toContainText("Project saved");
+  await openProjectMenu();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: /Browser QA saved project/ }).click();
@@ -95,6 +104,7 @@ try {
   await page.getByRole("button", { name: /Load reference result/ }).click();
   await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
   const downloadPromise = page.waitForEvent("download");
+  await openProjectMenu();
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const download = await downloadPromise;
   await download.saveAs(`${output}/browser-export.json`);
@@ -124,7 +134,7 @@ try {
     fullPage: true,
   });
   await expect(
-    mobile.getByRole("link", { name: /Set up the local solver/ }),
+    mobile.getByRole("button", { name: "Export inputs", exact: true }),
   ).toBeVisible();
   await expect(
     mobile.getByRole("button", { name: /Run simulation/ }),
@@ -143,12 +153,70 @@ try {
   await mobile
     .locator(".spectrum-panel")
     .screenshot({ path: `${output}/workbench-mobile-spectrum.png` });
+  await mobile.evaluate(() => window.scrollTo(0, 0));
+  await mobile.screenshot({ path: `${output}/workbench-mobile-viewport.png` });
+  for (const dimension of ["pitch", "height", "width"]) {
+    await mobile
+      .getByRole("button", { name: `Edit ${dimension}`, exact: true })
+      .click();
+    await expect(mobile.locator(`#dimension-${dimension}`)).toBeFocused();
+    const touchBox = await mobile
+      .getByRole("button", { name: `Edit ${dimension}`, exact: true })
+      .boundingBox();
+    if (!touchBox || touchBox.height < 44 || touchBox.width < 44)
+      throw new Error("Dimension controls need 44px touch targets");
+    await expect(mobile.getByTestId(`${dimension}-highlight`)).toBeVisible();
+    await expect(
+      mobile.getByRole("button", { name: `Edit ${dimension}`, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
+  await mobile.locator("#dimension-width").fill("210");
+  await expect(mobile.locator(".geometry-svg")).toHaveAttribute(
+    "aria-label",
+    /CD 210 nanometers/,
+  );
+  await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
+  await mobile.locator("#dimension-width").press("Tab");
+  await mobile.evaluate(() => window.scrollTo(0, 0));
+  await mobile.screenshot({ path: `${output}/workbench-mobile-selected.png` });
+  await mobile.getByRole("link", { name: "Spectrum", exact: true }).click();
+  await mobile.screenshot({
+    path: `${output}/workbench-mobile-spectrum-viewport.png`,
+  });
+  const chart = mobile.locator(".spectrum-svg");
+  const chartBox = await chart.boundingBox();
+  if (!chartBox || chartBox.height < 240 || chartBox.height > 280)
+    throw new Error("Mobile chart must be physically readable (240–280 px)");
+  const tickSize = await mobile
+    .locator(".chart-tick")
+    .first()
+    .evaluate(
+      (node) =>
+        parseFloat(getComputedStyle(node).fontSize) * node.getScreenCTM().a,
+    );
+  if (tickSize < 11.99)
+    throw new Error(`Rendered chart labels are too small: ${tickSize}px`);
+  await mobile
+    .locator(".spectrum-panel")
+    .screenshot({ path: `${output}/workbench-mobile-stale-spectrum.png` });
+  await mobile.getByRole("link", { name: "Build", exact: true }).click();
+  await mobile
+    .getByRole("button", { name: "Edit materials", exact: true })
+    .click();
+  await expect(mobile.getByLabel("Ridge material name")).toBeVisible();
+  await mobile
+    .locator("[data-section=Materials]")
+    .screenshot({ path: `${output}/workbench-mobile-materials.png` });
+  await mobile.locator(".more-settings > summary").click();
   await mobile.locator(".more-settings > summary").click();
   await mobile
     .locator(".control-section > summary")
     .filter({ hasText: /^Light/ })
     .click();
   await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
+  await mobile
+    .locator("[data-section=Light]")
+    .screenshot({ path: `${output}/workbench-mobile-light.png` });
   await mobile.locator(".more-settings > summary").click();
   if (requests.length)
     throw new Error(`Static preview made API requests: ${requests}`);
@@ -163,6 +231,41 @@ try {
   await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
   checks.push(
     "390px static mobile preview: first-screen geometry and inputs, collapsed settings, no overflow or API calls, frozen reference and local-setup link",
+  );
+  await mobile.locator(".fit-panel > summary").click();
+  await mobile
+    .locator(".fit-panel")
+    .screenshot({ path: `${output}/workbench-mobile-fit.png` });
+  await mobile.locator(".notes-panel > summary").click();
+  await mobile
+    .locator(".notes-panel")
+    .screenshot({ path: `${output}/workbench-mobile-assumptions.png` });
+  await mobile.setViewportSize({ width: 360, height: 800 });
+  await mobile.reload();
+  await expect(mobile.locator(".result-badge")).toHaveText(
+    "Precomputed example",
+  );
+  await mobile.screenshot({
+    path: `${output}/workbench-mobile-360.png`,
+    fullPage: true,
+  });
+  await mobile.screenshot({
+    path: `${output}/workbench-mobile-360-viewport.png`,
+  });
+  const smallWidthBox = await mobile.locator("#dimension-width").boundingBox();
+  if (!smallWidthBox || smallWidthBox.y + smallWidthBox.height > 800)
+    throw new Error("Main geometry inputs must fit in 360px first viewport");
+  if (
+    await mobile.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    )
+  )
+    throw new Error("Horizontal overflow at 360px");
+  await mobile.getByRole("button", { name: "Edit width", exact: true }).focus();
+  await mobile.keyboard.press("Enter");
+  await expect(mobile.locator("#dimension-width")).toBeFocused();
+  checks.push(
+    "390/360px geometry selection, keyboard focus, edited drawing/stale example, 260px chart with 12px rendered axes, material access and task anchors",
   );
   // Keep cancellation deterministic: real solver coverage is above; these routes
   // hold jobs open so cancellation cannot race a fast completed calculation.
@@ -196,6 +299,7 @@ try {
   ).toBeEnabled();
   await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
   await page.unroute("**/api/jobs**");
+  await openProjectMenu();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");

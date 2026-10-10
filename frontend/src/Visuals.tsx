@@ -1,7 +1,16 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ForwardResult, Project, Spectrum } from "./model";
 
-export function Geometry({ project }: { project: Project }) {
+export type Dimension = "pitch" | "width" | "height";
+export function Geometry({
+  project,
+  selectedDimension,
+  onSelectDimension,
+}: {
+  project: Project;
+  selectedDimension: Dimension | null;
+  onSelectDimension: (dimension: Dimension) => void;
+}) {
   const id = useId().replace(/:/g, "");
   const layer = project.layers[0];
   const fill = Math.max(0, Math.min(1, layer.cd_nm / project.period_nm));
@@ -20,173 +29,235 @@ export function Geometry({ project }: { project: Project }) {
   const rayX = 267 - Math.sin(angle) * 96,
     rayY = top - Math.cos(angle) * 96;
   return (
-    <svg
-      className="geometry-svg"
-      viewBox="0 0 610 265"
-      role="img"
-      aria-label={`One-dimensional grating, period ${project.period_nm} nanometers, CD ${layer.cd_nm} nanometers, thickness ${layer.thickness_nm} nanometers. Schematic not to scale.`}
-    >
-      <defs>
-        <pattern
-          id={`${id}-hatch`}
-          width="9"
-          height="9"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(35)"
-        >
-          <line
-            x1="0"
-            y1="0"
-            x2="0"
-            y2="9"
-            stroke="#6d878b"
-            strokeWidth="1"
-            opacity=".22"
-          />
-        </pattern>
-        <marker
-          id={`${id}-arrow`}
-          viewBox="0 0 10 10"
-          refX="8"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#cf6838" />
-        </marker>
-        <marker
-          id={`${id}-dim`}
-          viewBox="0 0 10 10"
-          refX="5"
-          refY="5"
-          markerWidth="4"
-          markerHeight="4"
-          orient="auto-start-reverse"
-        >
-          <path
-            d="M 10 0 L 0 5 L 10 10"
-            fill="none"
-            stroke="#687a7e"
-            strokeWidth="1.5"
-          />
-        </marker>
-      </defs>
-      <rect x="36" y={top} width="528" height={depth} fill="#edf3f1" />
-      <rect x="36" y={bottom} width="528" height="35" fill="#d4dfe0" />
-      <rect
-        x="36"
-        y={bottom}
-        width="528"
-        height="35"
-        fill={`url(#${id}-hatch)`}
-      />
-      {[0, 1, 2, 3].map((i) => (
-        <rect
-          key={i}
-          x={36 + i * pitch + (pitch - ridgeWidth) / 2}
-          y={top}
-          width={ridgeWidth}
-          height={depth}
-          rx="1"
-          fill="#476c72"
-          stroke="#31545c"
-          strokeWidth="1"
-        />
-      ))}
-      <line x1="36" x2="564" y1={bottom} y2={bottom} stroke="#93aaaa" />
-      <line
-        x1="267"
-        x2="267"
-        y1={top - 95}
-        y2={top}
-        stroke="#c2caca"
-        strokeDasharray="4 4"
-      />
-      <line
-        x1={rayX}
-        y1={rayY}
-        x2="267"
-        y2={top - 4}
-        stroke="#cf6838"
-        strokeWidth="2.5"
-        markerEnd={`url(#${id}-arrow)`}
-      />
-      <text
-        x={rayX - 10}
-        y={Math.max(18, rayY - 12)}
-        textAnchor="end"
-        className="svg-accent"
+    <>
+      <svg
+        className="geometry-svg"
+        viewBox="0 0 610 265"
+        role="img"
+        aria-label={`One-dimensional grating, period ${project.period_nm} nanometers, CD ${layer.cd_nm} nanometers, thickness ${layer.thickness_nm} nanometers. Schematic not to scale.`}
       >
-        θ = {project.illumination.angle_deg}°
-      </text>
-      <text x="550" y="32" textAnchor="end" className="svg-label">
-        {project.ambient.name || "Ambient"} · ambient
-      </text>
-      <text x="550" y="228" textAnchor="end" className="svg-label">
-        {project.substrate.name || "Substrate"} · substrate
-      </text>
-      <line
-        x1="168"
-        x2="300"
-        y1="251"
-        y2="251"
-        stroke="#687a7e"
-        markerStart={`url(#${id}-dim)`}
-        markerEnd={`url(#${id}-dim)`}
-      />
-      <text x="234" y="244" textAnchor="middle" className="svg-small">
-        Λ {project.period_nm} nm
-      </text>
-      {ridgeWidth > 0 && (
-        <>
+        <defs>
+          <pattern
+            id={`${id}-hatch`}
+            width="9"
+            height="9"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(35)"
+          >
+            <line
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="9"
+              stroke="#6d878b"
+              strokeWidth="1"
+              opacity=".22"
+            />
+          </pattern>
+          <marker
+            id={`${id}-arrow`}
+            viewBox="0 0 10 10"
+            refX="8"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#cf6838" />
+          </marker>
+          <marker
+            id={`${id}-dim`}
+            viewBox="0 0 10 10"
+            refX="5"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
+            <path
+              d="M 10 0 L 0 5 L 10 10"
+              fill="none"
+              stroke="#687a7e"
+              strokeWidth="1.5"
+            />
+          </marker>
+        </defs>
+        <rect x="36" y={top} width="528" height={depth} fill="#edf3f1" />
+        <rect x="36" y={bottom} width="528" height="35" fill="#d4dfe0" />
+        <rect
+          x="36"
+          y={bottom}
+          width="528"
+          height="35"
+          fill={`url(#${id}-hatch)`}
+        />
+        {[0, 1, 2, 3].map((i) => (
+          <rect
+            key={i}
+            x={36 + i * pitch + (pitch - ridgeWidth) / 2}
+            y={top}
+            width={ridgeWidth}
+            height={depth}
+            rx="1"
+            fill="#476c72"
+            stroke="#31545c"
+            strokeWidth="1"
+          />
+        ))}
+        {selectedDimension === "pitch" && (
+          <rect
+            className="dimension-highlight"
+            data-testid="pitch-highlight"
+            x="168"
+            y={top - 6}
+            width={pitch}
+            height={depth + 12}
+            fill="none"
+            stroke="#3266b5"
+            strokeWidth="4"
+            strokeDasharray="7 4"
+          />
+        )}
+        {selectedDimension === "width" && (
           <line
+            className="dimension-highlight"
+            data-testid="width-highlight"
             x1={168 + (pitch - ridgeWidth) / 2}
             x2={168 + (pitch + ridgeWidth) / 2}
-            y1={top - 12}
-            y2={top - 12}
-            stroke="#687a7e"
-            markerStart={`url(#${id}-dim)`}
-            markerEnd={`url(#${id}-dim)`}
+            y1={top}
+            y2={top}
+            stroke="#3266b5"
+            strokeWidth="7"
           />
-          <text x="234" y={top - 20} textAnchor="middle" className="svg-small">
-            CD {layer.cd_nm} nm
-          </text>
-        </>
-      )}
-      {depth > 0 && (
-        <>
+        )}
+        {selectedDimension === "height" && (
           <line
-            x1="584"
-            x2="584"
+            className="dimension-highlight"
+            data-testid="height-highlight"
+            x1={168 + (pitch + ridgeWidth) / 2}
+            x2={168 + (pitch + ridgeWidth) / 2}
             y1={top}
             y2={bottom}
-            stroke="#687a7e"
-            markerStart={`url(#${id}-dim)`}
-            markerEnd={`url(#${id}-dim)`}
+            stroke="#3266b5"
+            strokeWidth="7"
           />
-          <text
-            x="591"
-            y={top + depth / 2 + 4}
-            className="svg-small"
-            transform={`rotate(90,591,${top + depth / 2 + 4})`}
+        )}
+        <line x1="36" x2="564" y1={bottom} y2={bottom} stroke="#93aaaa" />
+        <line
+          x1="267"
+          x2="267"
+          y1={top - 95}
+          y2={top}
+          stroke="#c2caca"
+          strokeDasharray="4 4"
+        />
+        <line
+          x1={rayX}
+          y1={rayY}
+          x2="267"
+          y2={top - 4}
+          stroke="#cf6838"
+          strokeWidth="2.5"
+          markerEnd={`url(#${id}-arrow)`}
+        />
+        <text
+          x={rayX - 10}
+          y={Math.max(18, rayY - 12)}
+          textAnchor="end"
+          className="svg-accent"
+        >
+          θ = {project.illumination.angle_deg}°
+        </text>
+        <text x="550" y="32" textAnchor="end" className="svg-label">
+          {project.ambient.name || "Ambient"} · ambient
+        </text>
+        <text x="550" y="228" textAnchor="end" className="svg-label">
+          {project.substrate.name || "Substrate"} · substrate
+        </text>
+        <line
+          x1="168"
+          x2="300"
+          y1="251"
+          y2="251"
+          stroke="#687a7e"
+          markerStart={`url(#${id}-dim)`}
+          markerEnd={`url(#${id}-dim)`}
+        />
+        <text x="234" y="244" textAnchor="middle" className="svg-small">
+          Λ {project.period_nm} nm
+        </text>
+        {ridgeWidth > 0 && (
+          <>
+            <line
+              x1={168 + (pitch - ridgeWidth) / 2}
+              x2={168 + (pitch + ridgeWidth) / 2}
+              y1={top - 12}
+              y2={top - 12}
+              stroke="#687a7e"
+              markerStart={`url(#${id}-dim)`}
+              markerEnd={`url(#${id}-dim)`}
+            />
+            <text
+              x="234"
+              y={top - 20}
+              textAnchor="middle"
+              className="svg-small"
+            >
+              CD {layer.cd_nm} nm
+            </text>
+          </>
+        )}
+        {depth > 0 && (
+          <>
+            <line
+              x1="584"
+              x2="584"
+              y1={top}
+              y2={bottom}
+              stroke="#687a7e"
+              markerStart={`url(#${id}-dim)`}
+              markerEnd={`url(#${id}-dim)`}
+            />
+            <text
+              x="591"
+              y={top + depth / 2 + 4}
+              className="svg-small"
+              transform={`rotate(90,591,${top + depth / 2 + 4})`}
+            >
+              h {layer.thickness_nm} nm
+            </text>
+          </>
+        )}
+        <text x="41" y="31" className="svg-axis">
+          z ↓
+        </text>
+        <text x="43" y="47" className="svg-axis">
+          x →
+        </text>
+      </svg>
+      <div
+        className="dimension-controls"
+        aria-label="Select a dimension to edit"
+      >
+        {(["pitch", "width", "height"] as const).map((dimension) => (
+          <button
+            type="button"
+            key={dimension}
+            aria-label={`Edit ${dimension}`}
+            aria-pressed={selectedDimension === dimension}
+            onClick={() => onSelectDimension(dimension)}
           >
-            h {layer.thickness_nm} nm
-          </text>
-        </>
-      )}
-      <text x="41" y="31" className="svg-axis">
-        z ↓
-      </text>
-      <text x="43" y="47" className="svg-axis">
-        x →
-      </text>
-    </svg>
+            {dimension[0].toUpperCase() + dimension.slice(1)}
+            <span aria-hidden="true">↗</span>
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 const series = [
-  { key: "R", label: "R total", color: "#ca653d", dash: "" },
-  { key: "T", label: "T total", color: "#267e80", dash: "" },
+  { key: "R", label: "Reflectance", color: "#ca653d", dash: "" },
+  { key: "T", label: "Transmittance", color: "#267e80", dash: "" },
   { key: "R_specular", label: "R₀ specular", color: "#b48953", dash: "6 4" },
   { key: "T_specular", label: "T₀ specular", color: "#839690", dash: "6 4" },
 ] as const;
@@ -200,7 +271,18 @@ export function SpectrumPlot({
   onPolarization: (value: "s" | "p") => void;
 }) {
   const [index, setIndex] = useState(0);
-  const [view, setView] = useState<"all" | "total" | "specular">("all");
+  const [view, setView] = useState<"all" | "total" | "specular">("total");
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(350);
+  useEffect(() => {
+    const node = plotRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setWidth(Math.max(280, entry.contentRect.width)),
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const spectrum: Spectrum | undefined = result?.spectra[polarization];
   const waves = result?.wavelengths_nm || [];
   const selected = Math.min(index, Math.max(0, waves.length - 1));
@@ -214,11 +296,11 @@ export function SpectrumPlot({
   const points = active.flatMap((s) => spectrum?.[s.key] || []);
   const ymin = Math.min(0, ...points),
     ymax = Math.max(1, ...points);
-  const width = 740,
-    left = 54,
+  const left = 55,
     right = 20,
-    top = 22,
-    height = 244;
+    top = 16,
+    height = 196;
+  const ticks = width < 420 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1];
   const x = (w: number) =>
     left +
     ((w - (waves[0] || 0)) /
@@ -226,7 +308,11 @@ export function SpectrumPlot({
       (width - left - right);
   const y = (v: number) => top + height - ((v - ymin) / (ymax - ymin)) * height;
   return (
-    <>
+    <div ref={plotRef} className="spectrum-content">
+      <p className="spectrum-help">
+        Reflectance: light sent back. Transmittance: light entering the
+        substrate.
+      </p>
       <div className="plot-toolbar">
         <div className="segmented" aria-label="Spectrum polarization">
           {(["s", "p"] as const).map((p) => (
@@ -253,30 +339,21 @@ export function SpectrumPlot({
           <option value="specular">Specular only</option>
         </select>
       </div>
+      <p className="quantity-help">
+        {view === "total"
+          ? "Total includes all diffraction directions."
+          : "Specular is the zeroth order: mirror reflection and the directly transmitted beam."}
+      </p>
       {!spectrum ? (
         <div className="empty-spectrum">
-          <div className="wave-icon" aria-hidden="true">
-            <svg width="96" height="45" viewBox="0 0 96 45">
-              <path
-                d="M1 28 C12 28 12 8 23 8 S35 37 47 37 S59 6 70 6 S82 24 95 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-          <h3>Calculate your first spectrum</h3>
-          <p>
-            Set the structure and illumination, then select Run simulation.
-            <br />
-            Only calculated results are shown here.
-          </p>
+          <h3>No spectrum yet</h3>
+          <p>Select Run simulation to calculate these inputs.</p>
         </div>
       ) : (
         <>
           <svg
             className="spectrum-svg"
-            viewBox={`0 0 ${width} 310`}
+            viewBox={`0 0 ${width} 260`}
             role="img"
             aria-label={`${polarization} polarized reflection and transmission spectra. Read individual values with the wavelength slider below.`}
             onPointerMove={(e) => {
@@ -296,7 +373,7 @@ export function SpectrumPlot({
               setIndex(nearest);
             }}
           >
-            {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+            {ticks.map((f) => {
               const v = ymin + f * (ymax - ymin);
               return (
                 <g key={f}>
@@ -318,7 +395,7 @@ export function SpectrumPlot({
                 </g>
               );
             })}
-            {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+            {ticks.map((f) => {
               const w = waves[0] + f * ((waves.at(-1) || 0) - waves[0]);
               return (
                 <text
@@ -334,7 +411,7 @@ export function SpectrumPlot({
             })}
             <text
               x={width / 2}
-              y="309"
+              y="256"
               textAnchor="middle"
               className="chart-axis"
             >
@@ -342,8 +419,8 @@ export function SpectrumPlot({
             </text>
             <text
               x="14"
-              y="146"
-              transform="rotate(-90,14,146)"
+              y="114"
+              transform="rotate(-90,14,114)"
               textAnchor="middle"
               className="chart-axis"
             >
@@ -422,6 +499,6 @@ export function SpectrumPlot({
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }

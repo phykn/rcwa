@@ -137,13 +137,17 @@ export function SyntheticFit({
   }
 
   return (
-    <details className="panel fit-panel">
+    <details className="panel fit-panel" id="fit">
       <summary>
         <div>
-          <h2>Synthetic CD recovery</h2>
+          <h2>
+            Fit width <span>· Synthetic demo</span>
+          </h2>
         </div>
         <span className="small-badge">
-          <span className="chevron">⌄</span>
+          <span className="chevron" aria-hidden="true">
+            ⌄
+          </span>
         </span>
       </summary>
       <div className="fit-body">
