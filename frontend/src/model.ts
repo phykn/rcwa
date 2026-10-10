@@ -40,6 +40,7 @@ export interface Spectrum {
   orders?: unknown[];
 }
 export interface ForwardResult {
+  result_type?: "forward";
   schema_version: "1.0";
   wavelengths_nm: number[];
   spectra: { s?: Spectrum; p?: Spectrum };
@@ -54,20 +55,31 @@ export interface Job {
   result: ForwardResult | FitResult | null;
   error: string | null;
   progress?: number;
+  input_hash: string;
+  completed_at?: string | null;
+  error_code?: string | null;
 }
 export interface FitResult {
   [key: string]: unknown;
 }
-export interface SavedProject {
+export interface SavedSummary {
   id: string;
   name: string;
   created_at: string;
   updated_at: string;
-  project: Project;
-  result?: ForwardResult | null;
   // This classification is meaningful only on a response from the local API.
   // A downloaded or imported copy cannot establish its own provenance.
-  provenance?: { source: "server_computed" | "unverified_import" };
+  provenance?: {
+    source: "server_computed" | "unverified_import";
+    job_id?: string | null;
+    input_hash?: string | null;
+    engine?: string | null;
+    engine_version?: string | null;
+  };
+}
+export interface SavedProject extends SavedSummary {
+  project: Project;
+  result?: ForwardResult | null;
 }
 export interface ProjectFile {
   format?: string;

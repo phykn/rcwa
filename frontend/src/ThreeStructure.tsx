@@ -66,20 +66,38 @@ export function ThreeStructure({
   onChange,
   onOpen,
   onFallbackChange,
+  onEditStart,
+  onEditEnd,
 }: {
   project: Project;
   disabled?: boolean;
   onChange: (dimension: StructureDimension, value: number) => void;
   onOpen: (sheet: StructureSheet) => void;
   onFallbackChange?: (failed: boolean) => void;
+  onEditStart?: () => void;
+  onEditEnd?: () => void;
 }) {
   const values = structureValues(project);
   const host = useRef<HTMLDivElement>(null);
   const engine = useRef<Engine | null>(null);
   // Native Three.js events always consult current props, including an edit lock
   // that can arrive halfway through a pointer gesture.
-  const current = useRef({ values, disabled, onChange, onOpen });
-  current.current = { values, disabled, onChange, onOpen };
+  const current = useRef({
+    values,
+    disabled,
+    onChange,
+    onOpen,
+    onEditStart,
+    onEditEnd,
+  });
+  current.current = {
+    values,
+    disabled,
+    onChange,
+    onOpen,
+    onEditStart,
+    onEditEnd,
+  };
   const drag = useRef<DimensionDrag | null>(null);
   const pointers = useRef(new Set<number>());
   const blockedHandleGesture = useRef(false);
@@ -94,6 +112,7 @@ export function ThreeStructure({
   function releaseDrag() {
     const previous = drag.current;
     drag.current = null;
+    if (previous) current.current.onEditEnd?.();
     setActive(null);
     if (previous?.target.hasPointerCapture(previous.id))
       previous.target.releasePointerCapture(previous.id);
@@ -512,7 +531,7 @@ export function ThreeStructure({
       failedRef.current = true;
       controls.enabled = false;
       pickGesture.suppress();
-      drag.current = null;
+      releaseDrag();
       setActive(null);
       setReady(false);
       setFailed(true);
@@ -640,6 +659,7 @@ export function ThreeStructure({
     const length = Math.hypot(screenX, screenY);
     if (length < 0.001) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    current.current.onEditStart?.();
     engine.current.controls.enabled = false;
     drag.current = {
       dimension,
@@ -711,6 +731,7 @@ export function ThreeStructure({
           : event.key === "End"
             ? max
             : clamp(current.current.values[dimension] + change, min, max);
+      current.current.onEditStart?.();
       current.current.onChange(dimension, value);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -807,7 +828,10 @@ export function ThreeStructure({
                   touchAction: "none",
                 }}
                 onFocus={() => setFocused(dimension)}
-                onBlur={() => setFocused(null)}
+                onBlur={() => {
+                  setFocused(null);
+                  current.current.onEditEnd?.();
+                }}
                 onPointerEnter={() => setFocused(dimension)}
                 onPointerLeave={() => setFocused(null)}
                 onPointerDown={(event) => start(event, dimension)}
@@ -822,6 +846,7 @@ export function ThreeStructure({
                   if (drag.current?.id === event.pointerId) releaseDrag();
                 }}
                 onKeyDown={(event) => keys(event, dimension)}
+                onKeyUp={() => current.current.onEditEnd?.()}
               >
                 <span className="handle-dot">
                   <svg viewBox="0 0 12 12" aria-hidden="true">

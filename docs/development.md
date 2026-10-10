@@ -121,3 +121,45 @@ Font files, upstream package versions, checksums and OFL licenses live in
 `frontend/public/fonts`. No font service or external font request is required.
 The orange/cyan spectrum strokes use darker related colors for contrast on white;
 status badges retain their text labels in addition to color.
+
+
+## Review edits and compare candidates
+
+Undo and Redo live in the Project menu. Keyboard shortcuts are Ctrl/Cmd+Z and
+Ctrl/Cmd+Shift+Z outside text fields; Ctrl+Y also redoes. Native text-field undo
+is preserved. A pointer drag or focused numeric edit is one history step. This
+history keeps at most 30 committed edits in the current browser session; reload
+clears it. Undo restores the input and displayed result/origin together, and
+never starts a calculation or saves a project.
+
+A live forward run is validated before submission. Its normalized input/hash,
+job ID, result wavelengths and polarization channels must match before display.
+Saving the current computed run uses the existing server-owned snapshot route.
+An expired job cannot be silently resaved as a trusted result: export a local
+JSON copy or run it again. Draft inputs and imported results retain the existing
+unverified save path. An unchanged server snapshot is already durable.
+
+To compare, open Project → Open, select two or three saved projects, then choose
+Compare. Each selected record needs a stored spectrum. The chart uses the exact
+stored wavelengths and selected polarization; different grids or missing channels
+are explicitly blocked, with no interpolation. Check each candidate's run details
+for optical materials, incidence angle, Fourier order and warnings. The comparison
+is descriptive and does not identify an optimum or establish convergence. Review
+candidate opens an explicit Apply/Cancel preview. Applying restores that saved
+input/result pair in one undoable step, without rerunning physics.
+
+An external AI tool can call the read-only geometry-preview HTTP/MCP operation
+and save its returned `rcwa-change-proposal/1.0` JSON. Import that file with the
+existing Import JSON action to inspect current/proposed geometry and all changed
+inputs before applying. Only width, height and pitch are supported in this
+proposal format. Imported diffs and diagnostics are checked/recomputed locally;
+files cannot establish server provenance. A proposal for different inputs or an
+older editor revision cannot be applied. Applying it leaves the previous spectrum
+paired with its original inputs and visibly stale. It does not call a language
+model or start a simulation. See the HTTP/MCP guides for the exact file handoff.
+
+The static preview supports session history and local proposal-file review/apply
+without any API requests. Server-saved comparison still requires the local API.
+No separate offline candidate library or newly generated static spectra are
+provided. The workflow browser script covers the live and static paths and stores
+screenshots/assertions alongside the existing browser CI artifacts.

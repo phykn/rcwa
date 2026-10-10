@@ -65,6 +65,7 @@ Explore the running API at `http://127.0.0.1:8000/docs` or fetch `http://127.0.0
 | Discover | `GET /api/capabilities` | Actual physics, units, observable conventions, limits, engine availability, versions, persistence, and local-only restrictions |
 | Seed | `GET /api/example` | Canonical Project 1.0 example; optical constants are synthetic |
 | Validate | `POST /api/validate` | Send a Project directly, without a `project` wrapper. Returns `{valid, project, diagnostics, input_hash}` for schema-valid inputs; `project` is normalized. Schema-invalid requests return HTTP 422 with structured diagnostics |
+| Preview edits | `POST /api/change-preview` | `{"base_project": Project, "changes": {"cd_nm": 140}}` → a versioned geometry proposal, normalized inputs, hashes, typed diff and candidate preflight diagnostics; no solve, save or apply |
 | Submit | `POST /api/jobs` | `{"kind":"forward","project":<normalized Project>}` → HTTP 202 job envelope with ID and status |
 | Poll | `GET /api/jobs/{job_id}` | Job status, typed result when successful, readable error and stable `error_code` on failure |
 | Cancel | `DELETE /api/jobs/{job_id}` | Cancels a known running job; repeated cancellation is safe |
@@ -77,6 +78,73 @@ Validation performs deterministic schema and preflight checks without launching 
 Errors use `{ "detail": "readable explanation", "error": { "code": "...", "message": "...", "diagnostics": [...] } }`. Relevant failures include invalid/unsupported input, unavailable engine, capacity, numerical failure, timeout, cancellation, and missing/expired jobs. An unavailable or wrong-version engine is reported explicitly; there is no approximate or synthetic fallback. Use the returned error code rather than matching human-readable messages.
 
 Job states are `running`, `succeeded`, `failed`, and `cancelled`; this local server does not maintain a durable queue. Forward results include wavelength lists, per-polarization spectra, per-order powers, metadata, and warnings. The synthetic-fit result is distinctly labeled and has a separate shape. A caller must check job status and kind before interpreting `result`.
+
+## Review a caller-specified geometry change
+
+`POST /api/change-preview` accepts exactly `base_project` and `changes`. Use the
+current editor's exported Project as the base. A Project/result export contains
+it under `project`; pass that member as `base_project`, not the export wrapper.
+The strict `changes` object accepts one or more of these finite numeric fields:
+
+- `period_nm`: 20–5000 nm
+- `cd_nm`: 0–5000 nm, also no greater than the final candidate period
+- `thickness_nm`: 0–2000 nm
+
+Booleans, numeric strings, nulls, an empty patch, nested paths, and unknown fields
+are rejected. The server copies the validated base, installs every supplied
+field together, and validates the complete candidate. For example, reducing
+period from 400 to 100 and CD from 180 to 90 is valid as one atomic patch even
+though reducing period alone would fail. Materials, illumination, solver
+settings, names and other Project fields cannot be changed through the patch.
+
+The response has exactly these top-level fields (the two Project objects below
+are abbreviated for readability; actual responses contain all normalized fields):
+
+```json
+{
+  "schema_version": "rcwa-change-proposal/1.0",
+  "base_project": {"...": "complete normalized Project 1.0"},
+  "candidate_project": {"...": "complete normalized Project 1.0"},
+  "changes": {"cd_nm": 140.0},
+  "base_input_hash": "<64 lowercase SHA-256 hex characters>",
+  "candidate_input_hash": "<64 lowercase SHA-256 hex characters>",
+  "diff": [{"field": "cd_nm", "before": 180.0, "after": 140.0}],
+  "diagnostics": [],
+  "valid": true
+}
+```
+
+`changes` retains only supplied keys. Diff entries are ordered `period_nm`,
+`cd_nm`, `thickness_nm` and omit equal values. A no-op has `diff: []`, typically
+equal hashes, and cannot be applied. `valid` describes candidate admissibility,
+not whether the diff is nonempty. Hashes use the same normalized Project
+canonicalization as validation and jobs.
+
+Schema errors, including invalid base geometry and the candidate's CD/period
+constraint, return structured HTTP 422 errors. Candidate preflight errors return
+HTTP 200 with `valid: false`; warnings stay visible in `diagnostics`. Diagnostic
+locations are relative to the candidate Project. A schema-valid base with a
+preflight error can be repaired by a valid geometry change. This endpoint does
+not inspect numerical-engine availability, run a solver, allocate a job, write
+storage, or apply inputs on the server. A successful preview predicts no optical
+improvement and does not certify numerical convergence.
+
+For the explicit local handoff, save the complete response object as a UTF-8 JSON
+file, then use **Import JSON** in the workbench. The proposal is shown for review
+before an explicit Apply; cancel changes nothing and applying does not compute.
+The file limit is 2 MB, matching the HTTP request limit. Imported proposals are
+untrusted: the UI reconstructs the candidate and diff from the allowlisted
+patch, checks the complete base against the current editor, and rejects stale
+or unrelated proposals rather than silently rebasing them. Supplied hashes and
+diagnostics cannot establish server provenance. No result or provenance field
+is accepted in a proposal. Export the current project again to request a new
+proposal when the editor has changed.
+
+The [MCP preview tool](mcp-tools.md#review-geometry-without-running-a-calculation)
+uses this same route. There is no built-in language model, live chat link,
+proposal database or server-side apply operation. Existing loopback Host,
+browser-Origin, finite JSON and 2 MB request boundaries still apply, including
+to this read-only POST operation.
 
 ## Identity, lifetime, and provenance
 
@@ -94,18 +162,17 @@ The input hash is SHA-256 over UTF-8 encoded compact JSON of the server-normaliz
 
 Keep the API loopback-only, with one worker. It is unauthenticated and local-development-only; no public tunnel, production security, paid service, or remote credential feature is provided. Host and browser-Origin checks reduce accidental exposure and cross-origin misuse; they do not make it production-secure. Authorized local scripts without an Origin header remain supported.
 
-## Verification status for this change
+## Verification
 
-Local checks passed: 193 backend tests (including physics/reference, strict result
-contracts, boundary/lifecycle/storage tests, and 42 HTTP-client tests), 11 frontend
-model tests, Ruff, frontend typecheck/lint, and live/static production builds.
-The real HTTP example evaluated all three default candidates, saved/reloaded the
-selected result, and verified exact input/result binding. A separate independent
-HTTP check also verified persistence after API restart.
+Local checks for the geometry-preview/editor workflow passed: 350 backend tests,
+117 frontend tests, Ruff, frontend typecheck/lint, and live/static production
+builds. The optional MCP suite includes a real SDK stdio exchange with the local
+API. Shared geometry fixtures exercise browser/server patch and diff agreement.
 
 Two PostgreSQL tests are skipped locally because no PostgreSQL test service is
-configured. Browser execution is blocked in the local executor. The existing
-GitHub Checks workflow includes PostgreSQL provenance/idempotence checks and both
-browser scripts, including saved-snapshot load/edit/stale/export and zero-API
-static-preview assertions. These CI stages must pass before final acceptance;
-local unit checks are not a claim that browser or PostgreSQL verification passed.
+configured. Browser execution is blocked in the local executor. GitHub Checks
+runs PostgreSQL provenance/idempotence checks and the live/static browser scripts,
+including real snapshot comparison, proposal review, edit history, delayed
+responses and zero-API static assertions. Those CI stages must pass for the exact
+published commit before final acceptance; local unit checks alone do not claim
+browser or PostgreSQL verification.

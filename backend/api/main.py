@@ -11,12 +11,15 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import model_validator
+from pydantic import ValidationError, model_validator
 
+from api.change_preview import preview_changes
 from api.jobs import JobManager
 from api.storage import ProjectStore, canonical_hash
 from api.contracts import (
     Capabilities,
+    ChangePreviewRequest,
+    ChangeProposal,
     ErrorResponse,
     JobRequest,
     JobResponse,
@@ -199,7 +202,10 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "project_schema_version": "1.0",
             "result_schema_version": "1.0",
             "engine": engine_info(),
-            "operations": ["validate", "forward", "synthetic_fit", "poll", "cancel", "save_snapshot", "import_project"],
+            "operations": [
+                "validate", "preview_changes", "forward", "synthetic_fit", "poll", "cancel",
+                "save_snapshot", "import_project",
+            ],
             "geometry": ["One isotropic rectangle_1d layer; centered ridge; invariant y; classical mounting"],
             "polarizations": ["s", "p", "both"],
             "materials": ["constant", "tabulated: linear n/k interpolation, no extrapolation; lossless ambient"],
@@ -265,6 +271,20 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "input_hash": canonical_hash(project.model_dump()),
             "diagnostics": diagnostics,
         }
+
+    @app.post("/api/change-preview", response_model=ChangeProposal)
+    async def change_preview(request: ChangePreviewRequest):
+        """Preview caller-specified geometry without solving, persisting or applying."""
+        try:
+            return preview_changes(request)
+        except ValidationError as error:
+            # The combined candidate can violate CD <= period even when each
+            # individual patch number is admissible. Preserve structured errors.
+            errors = [
+                {**item, "loc": ("body", "candidate_project", *item["loc"])}
+                for item in error.errors()
+            ]
+            raise RequestValidationError(errors) from error
 
     @app.post("/api/jobs", status_code=202, response_model=JobResponse)
     async def submit(request: JobRequest):

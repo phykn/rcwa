@@ -18,8 +18,10 @@ from mcp.types import (
 from pydantic import Field, TypeAdapter, ValidationError
 
 from api.contracts import (
-    Capabilities, ErrorResponse, JobRequest, JobResponse, SavedProject, ServerSnapshot, ValidationResponse,
+    Capabilities, ChangePreviewRequest, ChangeProposal, ErrorResponse, JobRequest, JobResponse,
+    SavedProject, ServerSnapshot, ValidationResponse,
 )
+from api.change_preview import validate_proposal_binding
 from rcwa_core.schemas import Project, StrictModel
 from .client import AdapterError, ID_PATTERN, LocalAPI, MAX_REQUEST_BYTES
 
@@ -88,6 +90,12 @@ OPERATIONS = [
     Operation("rcwa_validate", "Check project admissibility without solving. Inspect valid and diagnostics; "
               "validation does not certify numerical success or convergence.",
               ProjectArguments, ValidationResponse, "POST", "/api/validate", "project"),
+    Operation("rcwa_preview_changes", "Preview a caller-specified bounded geometry change to period, CD or thickness. "
+              "Returns a reviewable rcwa-change-proposal/1.0 JSON envelope, deterministic diff and preflight diagnostics. "
+              "Read-only: does not generate an AI design, solve physics, predict improvement, store or apply edits. "
+              "Inspect valid and diagnostics; an empty diff is a no-op. Save the returned JSON with your own client "
+              "and use the workbench Import JSON action to review it before explicitly applying.",
+              ChangePreviewRequest, ChangeProposal, "POST", "/api/change-preview"),
     Operation("rcwa_submit", "Start one bounded forward calculation or synthetic CD-recovery fit. "
               "Synthetic fit is not measured-data inversion or design optimization. "
               "Non-idempotent: never blindly repeat a submission with an uncertain outcome. "
@@ -152,11 +160,13 @@ def create_server(api: LocalAPI):
             values = parsed.model_dump()
             path = operation.path.format(**values)
             body = values[operation.body_field] if operation.body_field else (
-                values if operation.name == "rcwa_save_snapshot" else None
+                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes"} else None
             )
             payload = await api.request(operation.method, path, body)
             try:
                 operation.response.model_validate(payload, strict=True)
+                if operation.name == "rcwa_preview_changes":
+                    validate_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:
                     raise ValueError("API returned the wrong job kind")
                 if operation.name == "rcwa_get_snapshot" and payload["provenance"]["source"] == "server_computed":

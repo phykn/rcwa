@@ -372,6 +372,9 @@ try {
   let posts = 0;
   let polls = 0;
   let submitted;
+  const validation = await page.request.post("http://127.0.0.1:8000/api/validate", { data: beforeRun.project });
+  assert.ok(validation.ok());
+  const validated = await validation.json();
   const submitGate = deferred();
   const submitStarted = deferred();
   await page.route("**/api/jobs**", async (route) => {
@@ -384,7 +387,8 @@ try {
         json: {
           id: "contract-interrupted",
           kind: "forward",
-          status: "queued",
+          status: "running",
+          input_hash: validated.input_hash,
           result: null,
           error: null,
         },

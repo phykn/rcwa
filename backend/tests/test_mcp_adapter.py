@@ -51,7 +51,7 @@ def test_timeout_is_bounded(timeout):
 
 def test_tool_schemas_come_from_shared_models():
     tools = {operation.name: operation.tool() for operation in OPERATIONS}
-    assert len(tools) == 8
+    assert len(tools) == 9
     for tool in tools.values():
         Draft202012Validator.check_schema(tool.input_schema)
         Draft202012Validator.check_schema(tool.output_schema)
@@ -66,6 +66,13 @@ def test_tool_schemas_come_from_shared_models():
     assert tools["rcwa_cancel_job"].annotations.destructive_hint
     assert not tools["rcwa_save_snapshot"].annotations.read_only_hint
     assert tools["rcwa_validate"].annotations.read_only_hint
+    preview = tools["rcwa_preview_changes"]
+    assert preview.annotations.read_only_hint and preview.annotations.idempotent_hint
+    assert not preview.annotations.destructive_hint and not preview.annotations.open_world_hint
+    validator = Draft202012Validator(preview.input_schema)
+    assert validator.is_valid({"base_project": {}, "changes": {"cd_nm": 140}})
+    for changes in ({}, None, {"cd_nm": None}, {"cd_nm": True}, {"cd_nm": "140"}, {"path": "layers"}):
+        assert not validator.is_valid({"base_project": {}, "changes": changes})
 
 
 @pytest.mark.anyio

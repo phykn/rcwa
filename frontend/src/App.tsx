@@ -7,7 +7,6 @@ import {
   isForwardResult,
   linspace,
   parseProjectFile,
-  sameProject,
   validateProject,
 } from "./model";
 import type {
@@ -16,6 +15,7 @@ import type {
   Material,
   Project,
   SavedProject,
+  SavedSummary,
 } from "./model";
 import { SpectrumPlot } from "./Visuals";
 import { ThreeStructure } from "./ThreeStructure";
@@ -30,6 +30,35 @@ type Sheet =
   | "light"
   | "accuracy";
 import { SyntheticFit } from "./SyntheticFit";
+import { ComparisonPanel, ReviewPanel } from "./WorkflowPanels";
+import {
+  createHistory,
+  workspaceReducer,
+  createRunRecord,
+  semanticEqual,
+  normalizeProject,
+  parseChangeProposal,
+  resultCompatibilityError,
+} from "./workflow";
+import type { Workspace, RunRecord } from "./workflow";
+const validIdentifier = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(value);
+const validInputHash = (value: unknown): value is string =>
+  typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+class ForwardContractError extends Error {}
+function sameInputs(a: Project | null, b: Project) {
+  return a !== null && semanticEqual(normalizeProject(a), normalizeProject(b));
+}
+type ReviewState = {
+  title: string;
+  baseProject: Project;
+  workspace: Workspace;
+  revision: number;
+  actionVersion: number;
+  note: string;
+  blockedReason: string;
+  warnings: string[];
+};
 
 function Icon({
   name,
@@ -152,13 +181,35 @@ function DimensionEditor({
   max,
   min,
   onChange,
+  onEditStart,
+  onEditEnd,
 }: {
   dimension: Dimension;
   value: number;
   max: number;
   min: number;
   onChange: (value: number) => void;
+  onEditStart: () => void;
+  onEditEnd: () => void;
 }) {
+  const activePointer = useRef<number | null>(null);
+  const end = useRef(onEditEnd);
+  end.current = onEditEnd;
+  useEffect(() => {
+    function finish(event: globalThis.PointerEvent) {
+      if (event.pointerId === activePointer.current) {
+        activePointer.current = null;
+        end.current();
+      }
+    }
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    return () => {
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      if (activePointer.current !== null) end.current();
+    };
+  }, []);
   const help = {
     width: "The width of each ridge, also called critical dimension (CD).",
     height:
@@ -193,6 +244,13 @@ function DimensionEditor({
         max={max}
         step={1}
         value={value}
+        onPointerDown={(event) => {
+          onEditEnd();
+          onEditStart();
+          activePointer.current = event.pointerId;
+        }}
+        onKeyDown={() => onEditStart()}
+        onKeyUp={() => onEditEnd()}
         onChange={(e) => onChange(Number(e.target.value))}
       />
       <div className="range-labels">
@@ -360,14 +418,34 @@ export default function App() {
       previousFocus.current?.focus();
     }
   }, [sheet]);
-  const [project, setProject] = useState<Project>(
-    structuredClone(defaultProject),
+  const [history, setHistory] = useState(() =>
+    createHistory({
+      project: structuredClone(defaultProject),
+      displayedRun: null,
+    }),
   );
-  const [result, setResult] = useState<ForwardResult | null>(null);
-  const [resultOrigin, setResultOrigin] = useState<
-    "computed" | "server" | "imported" | "reference"
-  >("computed");
-  const [resultProject, setResultProject] = useState<Project | null>(null);
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  function dispatch(action: Parameters<typeof workspaceReducer>[1]) {
+    const next = workspaceReducer(historyRef.current, action);
+    historyRef.current = next;
+    setHistory(next);
+  }
+  const { project, displayedRun } = history.present;
+  const result = displayedRun?.result || null;
+  const resultOrigin = displayedRun?.origin || "computed";
+  const resultProject = displayedRun?.inputProject || null;
+  const [review, setReview] = useState<ReviewState | null>(null);
+  const [comparison, setComparison] = useState<SavedProject[] | null>(null);
+  const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
+  const savingRef = useRef(false);
+  const jobContext = useRef<{
+    project: Project;
+    hash: string;
+    version: number;
+    revision: number;
+  } | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [starting, setStarting] = useState(false);
   const [fitBusy, setFitBusy] = useState(false);
@@ -377,20 +455,19 @@ export default function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [polarization, setPolarization] = useState<"s" | "p">("s");
-  const [saved, setSaved] = useState<SavedProject[]>([]);
+  const [saved, setSaved] = useState<SavedSummary[]>([]);
   const [showSaved, setShowSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const inputFile = useRef<HTMLInputElement>(null);
   const inputsChanged = useRef(false);
-  const jobProject = useRef<Project | null>(null);
   const activeJob = useRef<string | null>(null);
   const jobStart = useRef(0);
   const forwardBusy =
     starting || job?.status === "queued" || job?.status === "running";
   const busy = forwardBusy || fitBusy;
   const errors = validateProject(project);
-  const stale = result !== null && !sameProject(resultProject, project);
+  const stale = result !== null && !sameInputs(resultProject, project);
   const layer = project.layers[0];
   const waves = project.illumination.wavelengths_nm;
   const mean = (values: number[]) =>
@@ -405,10 +482,10 @@ export default function App() {
           if (!alive) return;
           setConnection("offline");
           if (inputsChanged.current) return;
-          setProject(data.project);
-          setResult(data.result || null);
-          setResultProject(data.project);
-          setResultOrigin("reference");
+          dispatch({
+            type: "reset",
+            workspace: workspaceFromFile(data, "reference"),
+          });
           setConnection("offline");
         })
         .catch((error) => {
@@ -428,7 +505,11 @@ export default function App() {
         if (validateProject(example).length)
           throw new Error("The server returned an unsupported example.");
         setConnection("online");
-        if (!inputsChanged.current) setProject(example);
+        if (!inputsChanged.current)
+          dispatch({
+            type: "reset",
+            workspace: { project: example, displayedRun: null },
+          });
       })
       .catch(async () => {
         if (alive) {
@@ -437,10 +518,10 @@ export default function App() {
             try {
               const data = await readReference();
               if (alive && !inputsChanged.current) {
-                setProject(data.project);
-                setResult(data.result || null);
-                setResultProject(data.project);
-                setResultOrigin("reference");
+                dispatch({
+                  type: "reset",
+                  workspace: workspaceFromFile(data, "reference"),
+                });
               }
             } catch {
               /* Offline editing remains available if the bundled example is unavailable. */
@@ -480,7 +561,10 @@ export default function App() {
     document.addEventListener("keydown", trap);
     return () => {
       document.removeEventListener("keydown", trap);
-      previous?.focus();
+      if (previous?.isConnected && previous.getClientRects().length)
+        previous.focus();
+      else
+        document.querySelector<HTMLElement>(".project-menu > summary")?.focus();
     };
   }, [showSaved]);
   useEffect(() => {
@@ -510,21 +594,13 @@ export default function App() {
       try {
         const next = await api.job(id);
         if (stopped || activeJob.current !== id) return;
+        if (!acceptForward(next, id)) return;
         setConnection("online");
         setJob(next);
         if (next.status === "succeeded") {
           activeJob.current = null;
-          if (isForwardResult(next.result)) {
-            setResultOrigin("computed");
-            setResult(next.result);
-            setResultProject(jobProject.current);
-            setPolarization(next.result.spectra.s ? "s" : "p");
-            setError("");
-            setNotice("Calculation complete. Results are ready.");
-          } else
-            setError(
-              "The calculation returned an unsupported result. Your previous result is preserved.",
-            );
+          setError("");
+          setNotice("Calculation complete. Results are ready.");
           return;
         }
         if (next.status === "failed") {
@@ -551,6 +627,14 @@ export default function App() {
           );
           return;
         }
+        if (e instanceof ForwardContractError) {
+          activeJob.current = null;
+          setJob((previous) =>
+            previous ? { ...previous, status: "failed" } : previous,
+          );
+          setError(e.message);
+          return;
+        }
         setConnection("offline");
         setError(
           `Connection interrupted. Retrying job status… ${errorText(e)}`,
@@ -565,11 +649,140 @@ export default function App() {
     };
   }, [job?.id, job?.status]);
 
+  function beginEdit() {
+    dispatch({ type: "begin-edit" });
+  }
+  function endEdit() {
+    dispatch({ type: "end-edit" });
+  }
   function update(next: Project) {
+    if (semanticEqual(next, historyRef.current.present.project)) return;
     actionVersion.current += 1;
     inputsChanged.current = true;
-    setProject(next);
+    dispatch({ type: "replace-project", project: next });
     setNotice("");
+  }
+  function install(workspace: Workspace) {
+    actionVersion.current += 1;
+    inputsChanged.current = true;
+    endEdit();
+    dispatch({ type: "replace-workspace", workspace });
+    setPolarization(workspace.displayedRun?.result.spectra.s ? "s" : "p");
+    setJob(null);
+  }
+  function restoreHistory(direction: "undo" | "redo") {
+    if (busy || startingRef.current) return;
+    actionVersion.current += 1;
+    inputsChanged.current = true;
+    endEdit();
+    dispatch({ type: direction });
+    const restored = historyRef.current.present.displayedRun;
+    setPolarization(restored?.result.spectra.s ? "s" : "p");
+    setJob(null);
+    setNotice(direction === "undo" ? "Edit undone." : "Edit redone.");
+    setError("");
+  }
+  function workspaceFromFile(
+    data: {
+      project: Project;
+      result?: ForwardResult | null;
+      result_project?: Project | null;
+    },
+    origin: RunRecord["origin"],
+  ): Workspace {
+    return {
+      project: data.project,
+      displayedRun: data.result
+        ? createRunRecord({
+            inputProject: data.result_project || data.project,
+            result: data.result,
+            origin,
+          })
+        : null,
+    };
+  }
+  function workspaceFromSnapshot(
+    data: SavedProject,
+    expectedId: string,
+  ): Workspace {
+    if (!validIdentifier(expectedId) || data.id !== expectedId)
+      throw new Error("The server returned a different saved project.");
+    if ("result_project" in data)
+      throw new Error(
+        "A server snapshot cannot supply alternate result inputs.",
+      );
+    const parsed = parseProjectFile(
+      JSON.stringify({ project: data.project, result: data.result }),
+    );
+    const trusted = data.provenance?.source === "server_computed";
+    if (
+      trusted &&
+      (!data.result ||
+        data.result.result_type !== "forward" ||
+        !validIdentifier(data.provenance?.job_id) ||
+        !validInputHash(data.provenance?.input_hash))
+    )
+      throw new Error("The saved run is missing its server identity.");
+    const workspace = workspaceFromFile(
+      parsed,
+      trusted ? "server" : "imported",
+    );
+    if (workspace.displayedRun)
+      workspace.displayedRun = createRunRecord({
+        ...workspace.displayedRun,
+        snapshotId: data.id,
+        ...(trusted
+          ? {
+              sourceJobId: data.provenance!.job_id!,
+              inputHash: data.provenance!.input_hash!,
+            }
+          : {}),
+      });
+    return workspace;
+  }
+  function acceptForward(next: Job, id?: string) {
+    const context = jobContext.current;
+    if (
+      !context ||
+      context.version !== actionVersion.current ||
+      context.revision !== historyRef.current.revision
+    )
+      return false;
+    if (
+      !next ||
+      typeof next !== "object" ||
+      next.kind !== "forward" ||
+      (id && next.id !== id) ||
+      !validIdentifier(next.id) ||
+      next.input_hash !== context.hash ||
+      !["running", "succeeded", "failed", "cancelled"].includes(next.status)
+    )
+      throw new ForwardContractError(
+        "The server returned a different or invalid forward job. Your previous result is preserved. Check the server before starting another job.",
+      );
+    if (next.status === "succeeded") {
+      const mismatch = resultCompatibilityError(context.project, next.result);
+      if (
+        mismatch ||
+        !isForwardResult(next.result) ||
+        next.result.result_type !== "forward"
+      )
+        throw new ForwardContractError(
+          mismatch || "The forward result is invalid.",
+        );
+      dispatch({
+        type: "set-displayed-run",
+        run: createRunRecord({
+          inputProject: context.project,
+          result: next.result,
+          origin: "computed",
+          sourceJobId: next.id,
+          inputHash: context.hash,
+        }),
+      });
+      setPolarization(next.result.spectra.s ? "s" : "p");
+    }
+    return true;
   }
   function updateLayer(values: Partial<typeof layer>) {
     update({ ...project, layers: [{ ...layer, ...values }] });
@@ -586,22 +799,53 @@ export default function App() {
   async function run() {
     if (staticPreview || busy || startingRef.current || errors.length) return;
     startingRef.current = true;
-    actionVersion.current += 1;
+    endEdit();
+    const version = ++actionVersion.current;
+    const revision = historyRef.current.revision;
+    const submitted = structuredClone(historyRef.current.present.project);
     inputsChanged.current = true;
     setStarting(true);
     setError("");
     setNotice("");
-    jobStart.current = Date.now();
     setElapsed(0);
-    jobProject.current = structuredClone(project);
+    jobStart.current = Date.now();
     try {
-      const next = await api.start(project);
+      const validation = await api.validate(submitted);
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      if (
+        validation.valid !== true ||
+        validateProject(validation.project).length ||
+        !validInputHash(validation.input_hash) ||
+        !sameInputs(validation.project, submitted)
+      )
+        throw new Error(
+          validation.diagnostics?.map((item) => item.message).join(" ") ||
+            "The server could not validate these exact inputs.",
+        );
+      jobContext.current = {
+        project: validation.project,
+        hash: validation.input_hash,
+        version,
+        revision,
+      };
+      const next = await api.start(validation.project);
+      if (!acceptForward(next)) return;
       setConnection("online");
-      activeJob.current = next.id;
+      activeJob.current = next.status === "running" ? next.id : null;
       setJob(next);
+      if (next.status === "succeeded")
+        setNotice("Calculation complete. Results are ready.");
+      else if (next.status === "failed")
+        setError(next.error || "Calculation failed.");
     } catch (e) {
-      setError(errorText(e));
-      setConnection(e instanceof ApiError ? "online" : "offline");
+      if (version === actionVersion.current) {
+        setError(errorText(e));
+        setConnection(e instanceof ApiError ? "online" : "offline");
+      }
     } finally {
       startingRef.current = false;
       setStarting(false);
@@ -612,14 +856,10 @@ export default function App() {
     const id = job.id;
     try {
       const next = await api.cancel(id);
-      if (activeJob.current !== id) return;
+      if (activeJob.current !== id || !acceptForward(next, id)) return;
       setJob(next);
-      if (next.status === "succeeded" && isForwardResult(next.result)) {
+      if (next.status === "succeeded") {
         activeJob.current = null;
-        setResultOrigin("computed");
-        setResult(next.result);
-        setResultProject(jobProject.current);
-        setPolarization(next.result.spectra.s ? "s" : "p");
         setNotice("The calculation completed before cancellation.");
         setError("");
       } else if (next.status === "cancelled") {
@@ -631,20 +871,89 @@ export default function App() {
         setError(next.error || "Calculation failed.");
       }
     } catch (e) {
-      setError(`Could not confirm cancellation: ${errorText(e)}`);
+      if (activeJob.current === id)
+        setError(`Could not confirm cancellation: ${errorText(e)}`);
     }
   }
   async function save() {
-    if (errors.length) return;
+    if (staticPreview || busy || savingRef.current || errors.length) return;
+    savingRef.current = true;
     setSaving(true);
     setError("");
+    endEdit();
+    const version = actionVersion.current,
+      revision = historyRef.current.revision;
+    const frame = historyRef.current.present,
+      run = frame.displayedRun;
+    const currentResult = run && sameInputs(run.inputProject, frame.project);
     try {
-      await api.save(project, stale ? null : result);
-      setNotice("Project saved to the local server.");
+      if (currentResult && run.origin === "server" && run.snapshotId) {
+        setNotice("This server snapshot is already saved.");
+        return;
+      }
+      if (currentResult && run.origin === "computed") {
+        if (!run.sourceJobId || !run.inputHash)
+          throw new Error(
+            "This run has no server job identity. Export JSON to keep a local copy.",
+          );
+        const data = await api.snapshot(run.sourceJobId);
+        const savedWorkspace = workspaceFromSnapshot(data, data.id);
+        if (
+          data.provenance?.source !== "server_computed" ||
+          data.provenance.job_id !== run.sourceJobId ||
+          data.provenance.input_hash !== run.inputHash ||
+          !semanticEqual(data.project, run.inputProject) ||
+          !semanticEqual(data.result, run.result)
+        )
+          throw new Error("The saved snapshot does not match this exact run.");
+        if (
+          version !== actionVersion.current ||
+          revision !== historyRef.current.revision
+        )
+          return;
+        dispatch({
+          type: "set-displayed-run",
+          run: savedWorkspace.displayedRun,
+        });
+        setNotice("Project saved as an exact server-computed run.");
+      } else {
+        const saved = await api.save(
+          frame.project,
+          currentResult ? run.result : null,
+        );
+        workspaceFromSnapshot(saved, saved.id);
+        if (
+          saved.provenance?.source !== "unverified_import" ||
+          !semanticEqual(saved.project, normalizeProject(frame.project)) ||
+          !semanticEqual(saved.result, currentResult ? run.result : null)
+        )
+          throw new Error(
+            "The saved project does not match the inputs sent to the server.",
+          );
+        if (
+          version !== actionVersion.current ||
+          revision !== historyRef.current.revision
+        )
+          return;
+        setNotice(
+          currentResult
+            ? "Project saved with an unverified imported result."
+            : "Project saved with inputs only. No current result was included.",
+        );
+      }
       setConnection("online");
     } catch (e) {
-      setError(errorText(e));
+      if (
+        version === actionVersion.current &&
+        revision === historyRef.current.revision
+      )
+        setError(
+          e instanceof ApiError && e.status === 404
+            ? "This job expired before it could be saved. Export JSON to keep a local copy, or run again for a server snapshot."
+            : errorText(e),
+        );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -652,16 +961,26 @@ export default function App() {
     savedRequest.current += 1;
     setShowSaved(false);
     setLoadingProject(null);
+    setComparing(false);
   }
   async function openSaved() {
     const request = ++savedRequest.current;
     setShowSaved(true);
     setLoadingSaved(true);
     setSaved([]);
+    setSelectedCandidates([]);
     setError("");
     try {
       const list = await api.list();
       if (request !== savedRequest.current) return;
+      if (
+        !Array.isArray(list) ||
+        list.some(
+          (item) =>
+            !item || !validIdentifier(item.id) || typeof item.name !== "string",
+        )
+      )
+        throw new Error("The saved-project list is invalid.");
       setSaved(list);
       setConnection("online");
     } catch (e) {
@@ -672,26 +991,27 @@ export default function App() {
   }
   async function load(id: string) {
     const request = ++savedRequest.current;
-    const version = actionVersion.current;
+    const version = actionVersion.current,
+      revision = historyRef.current.revision;
     setLoadingProject(id);
     try {
       const data = await api.load(id);
-      if (request !== savedRequest.current || version !== actionVersion.current)
+      if (
+        request !== savedRequest.current ||
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
         return;
-      const parsed = parseProjectFile(JSON.stringify(data));
-      update(parsed.project);
-      // Only an API envelope can establish server-owned provenance.
-      setResultOrigin(
-        data.provenance?.source === "server_computed" ? "server" : "imported",
-      );
-      setResult(parsed.result || null);
-      setResultProject(parsed.result ? parsed.project : null);
-      setPolarization(parsed.result?.spectra.s ? "s" : "p");
+      install(workspaceFromSnapshot(data, id));
       closeSaved();
       setNotice("Project loaded.");
       setError("");
     } catch (e) {
-      if (request === savedRequest.current && version === actionVersion.current)
+      if (
+        request === savedRequest.current &&
+        version === actionVersion.current &&
+        revision === historyRef.current.revision
+      )
         setError(errorText(e));
     } finally {
       if (request === savedRequest.current) setLoadingProject(null);
@@ -699,27 +1019,65 @@ export default function App() {
   }
   async function importProject(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (!file) return;
-    const version = ++actionVersion.current;
+    if (!file || busy || startingRef.current) return;
+    endEdit();
+    const version = ++actionVersion.current,
+      revision = historyRef.current.revision;
     inputsChanged.current = true;
     try {
       if (file.size > 20 * 1024 * 1024)
         throw new Error("Project JSON must be smaller than 20 MB.");
-      const data = parseProjectFile(await file.text());
-      if (version !== actionVersion.current) return;
-      update(data.project);
-      setResultOrigin("imported");
-      setResult(data.result || null);
-      setResultProject(
-        data.result ? data.result_project || data.project : null,
-      );
-      setPolarization(data.result?.spectra.s ? "s" : "p");
+      const text = await file.text();
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      const envelope: unknown = JSON.parse(text);
+      if (
+        envelope &&
+        typeof envelope === "object" &&
+        "schema_version" in envelope &&
+        String(envelope.schema_version).startsWith("rcwa-change-proposal/")
+      ) {
+        const proposal = parseChangeProposal(text);
+        const mismatch = !sameInputs(
+          proposal.base_project,
+          historyRef.current.present.project,
+        );
+        setReview({
+          title: "Review geometry changes",
+          baseProject: historyRef.current.present.project,
+          workspace: {
+            project: proposal.candidate_project,
+            displayedRun: historyRef.current.present.displayedRun,
+          },
+          revision,
+          actionVersion: version,
+          note: "Review this external geometry proposal before applying it. Applying changes does not run the solver.",
+          warnings: proposal.diagnostics
+            .filter((item) => item.severity !== "error")
+            .map((item) => item.message),
+          blockedReason: mismatch
+            ? "This proposal was made for different inputs. Export the current project and request a new proposal."
+            : !proposal.valid
+              ? proposal.diagnostics
+                  .filter((item) => item.severity === "error")
+                  .map((item) => item.message)
+                  .join(" ")
+              : !proposal.diff.length
+                ? "This proposal contains no changes."
+                : "",
+        });
+        setError("");
+        return;
+      }
+      const data = parseProjectFile(text);
+      install(workspaceFromFile(data, "imported"));
       setNotice("JSON loaded. Review the inputs and saved results.");
       setError("");
-      setJob(null);
     } catch (e) {
-      if (version !== actionVersion.current) return;
-      setError(errorText(e));
+      if (version === actionVersion.current) setError(errorText(e));
     } finally {
       event.target.value = "";
     }
@@ -733,16 +1091,18 @@ export default function App() {
     return parseProjectFile(await response.text());
   }
   async function loadReference() {
-    const version = ++actionVersion.current;
+    endEdit();
+    const version = ++actionVersion.current,
+      revision = historyRef.current.revision;
     inputsChanged.current = true;
     try {
       const data = await readReference();
-      if (version !== actionVersion.current) return;
-      update(data.project);
-      setResult(data.result || null);
-      setResultProject(data.project);
-      setResultOrigin("reference");
-      setPolarization("s");
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      install(workspaceFromFile(data, "reference"));
       setNotice("Stored reference results loaded. No new calculation was run.");
       setError("");
     } catch (e) {
@@ -766,11 +1126,19 @@ export default function App() {
       await loadReference();
       return;
     }
-    const version = ++actionVersion.current;
+    endEdit();
+    const version = ++actionVersion.current,
+      revision = historyRef.current.revision;
     inputsChanged.current = true;
     try {
       const example = await api.example();
-      if (version !== actionVersion.current) return;
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      if (validateProject(example).length)
+        throw new Error("The server returned an unsupported example.");
       update(example);
       setConnection("online");
       setNotice("Example inputs loaded.");
@@ -782,6 +1150,107 @@ export default function App() {
     }
   }
 
+  async function compareSelected() {
+    if (
+      staticPreview ||
+      comparing ||
+      selectedCandidates.length < 2 ||
+      selectedCandidates.length > 3
+    )
+      return;
+    const ids = [...selectedCandidates],
+      request = ++savedRequest.current,
+      version = actionVersion.current,
+      revision = historyRef.current.revision;
+    setComparing(true);
+    setError("");
+    try {
+      const candidates = await Promise.all(
+        ids.map(async (id) => {
+          const data = await api.load(id);
+          const workspace = workspaceFromSnapshot(data, id);
+          if (!workspace.displayedRun)
+            throw new Error(
+              `${data.name} has no saved spectrum. Run and save it before comparison.`,
+            );
+          return data;
+        }),
+      );
+      if (
+        request !== savedRequest.current ||
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      closeSaved();
+      setComparison(candidates);
+    } catch (e) {
+      if (
+        request === savedRequest.current &&
+        version === actionVersion.current &&
+        revision === historyRef.current.revision
+      )
+        setError(errorText(e));
+    } finally {
+      if (request === savedRequest.current || !showSaved) setComparing(false);
+    }
+  }
+  function reviewCandidate(candidate: SavedProject) {
+    endEdit();
+    setComparison(null);
+    setReview({
+      title: "Review saved candidate",
+      baseProject: historyRef.current.present.project,
+      workspace: workspaceFromSnapshot(candidate, candidate.id),
+      revision: historyRef.current.revision,
+      actionVersion: actionVersion.current,
+      note: "Apply this candidate with its exact saved spectrum. You can undo this change without running the solver.",
+      blockedReason: "",
+      warnings: candidate.result?.warnings || [],
+    });
+  }
+  function applyReview() {
+    if (!review || busy || startingRef.current || review.blockedReason) return;
+    if (
+      review.revision !== historyRef.current.revision ||
+      review.actionVersion !== actionVersion.current ||
+      !sameInputs(review.baseProject, historyRef.current.present.project)
+    ) {
+      setReview({
+        ...review,
+        blockedReason:
+          "The project changed while this preview was open. Close it and review a new proposal.",
+      });
+      return;
+    }
+    install(review.workspace);
+    setReview(null);
+    setError("");
+    setNotice("Changes applied. Undo is available in the Project menu.");
+  }
+  useEffect(() => {
+    function shortcuts(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (
+        busy ||
+        review ||
+        comparison ||
+        showSaved ||
+        target?.closest("input, textarea, select, [contenteditable=true]")
+      )
+        return;
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        restoreHistory(event.shiftKey ? "redo" : "undo");
+      } else if (event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        restoreHistory("redo");
+      }
+    }
+    document.addEventListener("keydown", shortcuts);
+    return () => document.removeEventListener("keydown", shortcuts);
+  });
   function changeDimension(dimension: Dimension, value: number) {
     if (busy) return;
     if (dimension === "pitch") update({ ...project, period_nm: value });
@@ -848,6 +1317,25 @@ export default function App() {
                 }
               }}
             >
+              <div className="history-menu-actions" aria-label="Edit history">
+                <button
+                  disabled={
+                    busy || (!history.past.length && !history.editTransaction)
+                  }
+                  onClick={() => restoreHistory("undo")}
+                >
+                  ↶ Undo
+                </button>
+                <button
+                  disabled={busy || !history.future.length}
+                  onClick={() => restoreHistory("redo")}
+                >
+                  ↷ Redo
+                </button>
+              </div>
+              <small className="history-scope">
+                Edit history lasts for this browser session.
+              </small>
               <button
                 disabled={busy || staticPreview}
                 onClick={openSaved}
@@ -928,6 +1416,8 @@ export default function App() {
                 value={project.name}
                 maxLength={100}
                 disabled={busy}
+                onFocus={beginEdit}
+                onBlur={endEdit}
                 onChange={(e) => update({ ...project, name: e.target.value })}
               />
             </h1>
@@ -944,6 +1434,8 @@ export default function App() {
               disabled={busy}
               onChange={changeDimension}
               onOpen={openSheet}
+              onEditStart={beginEdit}
+              onEditEnd={endEdit}
             />
             <fieldset disabled={busy} className="setup-rows">
               <button
@@ -1179,6 +1671,7 @@ export default function App() {
             locked={forwardBusy}
             onBusyChange={(next) => {
               if (next) {
+                endEdit();
                 actionVersion.current += 1;
                 inputsChanged.current = true;
               }
@@ -1306,7 +1799,25 @@ export default function App() {
           if (e.target === e.currentTarget) setSheet(null);
         }}
       >
-        <div className="sheet-body">
+        <div
+          className="sheet-body"
+          onFocusCapture={(event) => {
+            if (
+              (event.target as HTMLElement).matches(
+                "input:not([type=file]), textarea",
+              )
+            )
+              beginEdit();
+          }}
+          onBlurCapture={(event) => {
+            if (
+              (event.target as HTMLElement).matches(
+                "input:not([type=file]), textarea",
+              )
+            )
+              endEdit();
+          }}
+        >
           <div className="sheet-grabber" />
           <div className="sheet-heading">
             <div>
@@ -1334,6 +1845,8 @@ export default function App() {
                       : project.period_nm
                 }
                 onChange={(value) => changeDimension(sheet as Dimension, value)}
+                onEditStart={beginEdit}
+                onEditEnd={endEdit}
               />
             )}
             {sheet &&
@@ -1526,6 +2039,31 @@ export default function App() {
           )}
         </div>
       </dialog>
+      {review && (
+        <ReviewPanel
+          title={review.title}
+          baseProject={review.baseProject}
+          candidateProject={review.workspace.project}
+          note={review.note}
+          warnings={review.warnings}
+          blockedReason={
+            review.blockedReason ||
+            (review.revision !== history.revision ||
+            review.actionVersion !== actionVersion.current
+              ? "The project changed. Close this preview and request a new proposal."
+              : "")
+          }
+          onApply={applyReview}
+          onClose={() => setReview(null)}
+        />
+      )}
+      {comparison && (
+        <ComparisonPanel
+          candidates={comparison}
+          onUse={reviewCandidate}
+          onClose={() => setComparison(null)}
+        />
+      )}
       {showSaved && (
         <div
           className="dialog-overlay"
@@ -1571,36 +2109,74 @@ export default function App() {
               </p>
             ) : saved.length ? (
               saved.map((item) => (
-                <button
-                  className="saved-item"
-                  key={item.id}
-                  disabled={loadingProject !== null}
-                  onClick={() => load(item.id)}
-                >
-                  <span>
-                    <b>
-                      {item.name}
-                      {loadingProject === item.id ? " · Loading…" : ""}
-                    </b>
-                    <small>
-                      {new Date(
-                        item.updated_at || item.created_at,
-                      ).toLocaleString()}
-                      {" · "}
-                      {item.provenance?.source === "server_computed"
-                        ? "Server-computed"
-                        : "Unverified import"}
-                    </small>
-                  </span>
-                  <Icon name="arrow" />
-                </button>
+                <div className="saved-choice" key={item.id}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Compare ${item.name}`}
+                    checked={selectedCandidates.includes(item.id)}
+                    disabled={
+                      loadingProject !== null ||
+                      comparing ||
+                      (selectedCandidates.length >= 3 &&
+                        !selectedCandidates.includes(item.id))
+                    }
+                    onChange={(event) => {
+                      savedRequest.current += 1;
+                      setSelectedCandidates((previous) =>
+                        event.target.checked
+                          ? [...previous, item.id]
+                          : previous.filter((id) => id !== item.id),
+                      );
+                    }}
+                  />
+                  <button
+                    className="saved-item"
+                    disabled={loadingProject !== null || comparing}
+                    onClick={() => load(item.id)}
+                  >
+                    <span>
+                      <b>
+                        {item.name}
+                        {loadingProject === item.id ? " · Loading…" : ""}
+                      </b>
+                      <small>
+                        {new Date(
+                          item.updated_at || item.created_at,
+                        ).toLocaleString()}
+                        {" · "}
+                        {item.provenance?.source === "server_computed"
+                          ? "Server-computed"
+                          : "Unverified import"}
+                      </small>
+                    </span>
+                    <Icon name="arrow" />
+                  </button>
+                </div>
               ))
             ) : (
               <p className="saved-empty">No saved projects yet.</p>
             )}
-            <button className="dialog-close" onClick={closeSaved}>
-              Close
-            </button>
+            <div className="workflow-actions">
+              <button className="text-button" onClick={closeSaved}>
+                Close
+              </button>
+              <button
+                className="dialog-close"
+                disabled={
+                  selectedCandidates.length < 2 ||
+                  comparing ||
+                  loadingProject !== null
+                }
+                onClick={compareSelected}
+              >
+                {comparing
+                  ? "Loading comparison…"
+                  : `Compare${selectedCandidates.length ? ` (${selectedCandidates.length})` : ""}`}
+              </button>
+            </div>
+            <p className="history-scope">
+              Select two or three saved spectra to compare.
+            </p>
           </section>
         </div>
       )}

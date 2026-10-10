@@ -91,6 +91,7 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | `rcwa_capabilities` | `{}` | Backend physics, engine availability/version, units, limits and restrictions |
 | `rcwa_example` | `{}` | Canonical project with synthetic optical constants |
 | `rcwa_validate` | `{"project": Project}` | Normalized project, input hash, admissibility and diagnostics; no numerical job |
+| `rcwa_preview_changes` | `{"base_project": Project, "changes": {"cd_nm": 140}}` | Versioned geometry proposal, typed diff and candidate preflight diagnostics; read-only, no solve, storage or apply |
 | `rcwa_submit` | `{"request": {"kind": "forward", "project": Project}}` | Starts one bounded job; returns a temporary job ID and status |
 | `rcwa_get_job` | `{"job_id": "..."}` | Job status, typed result, warnings or failure information |
 | `rcwa_cancel_job` | `{"job_id": "..."}` | Cancels that running API job; safe to repeat |
@@ -102,7 +103,7 @@ Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
 not accept URLs, headers, paths, code, replacement results, or claimed provenance.
 Job and snapshot IDs accept only 1–100 ASCII letters, digits, underscores or
 hyphens. The backend capability response describes the whole backend, including
-operations beyond these eight tools; the MCP list is the exposed subset.
+operations beyond these nine tools; the MCP list is the exposed subset.
 
 `rcwa_submit` also accepts the existing synthetic-fit request:
 
@@ -146,6 +147,52 @@ marked destructive, and snapshot save is an idempotent write.
 The workbench UI's **Saved projects** list can open these same snapshots. The
 public static preview is still precomputed and makes no live API requests.
 
+## Review geometry without running a calculation
+
+`rcwa_preview_changes` previews an explicit caller-specified change; it does not
+generate an AI design or predict an improvement. It is marked read-only and
+idempotent even though the shared HTTP route uses POST.
+
+1. Export the current workbench input. Give its Project object (the `project`
+   member of a Project/result export) to the tool as `base_project`.
+2. Supply a bounded `changes` object with one or more finite numeric
+   `period_nm`, `cd_nm`, or `thickness_nm` values. No materials, illumination,
+   solver settings, generic paths, code, nulls, booleans or numeric strings are
+   accepted. All provided dimensions are applied atomically before validating
+   the candidate, including the CD-at-most-period constraint.
+3. Inspect the returned `rcwa-change-proposal/1.0` envelope, complete before/after
+   Projects, deterministic `diff`, `valid`, and all diagnostics. The diff uses
+   `field`, `before`, `after`, in period/CD/thickness order, with no equal-value
+   entries. `diff: []` is a no-op. `valid: false` is a completed preview with
+   candidate preflight errors, not a successful calculation.
+4. Have your tool client save only the returned JSON envelope
+   (`structuredContent`, or the identical JSON text content) as a UTF-8 `.json`
+   file. Do not include the MCP `content`/`isError` wrapper. The MCP adapter itself
+   has no file-writing tool. Files imported into the workbench are limited to
+   2 MB.
+5. Use **Import JSON** to review that file in the workbench, then explicitly
+   Apply or cancel. Apply is available only for a nonempty applicable proposal
+   whose complete base still matches the editor; neither action launches a
+   calculation. A stale proposal needs a new preview from the current export.
+
+For example, the default geometry permits this combined change:
+
+```json
+{
+  "base_project": {},
+  "changes": {"period_nm": 100, "cd_nm": 90}
+}
+```
+
+`{}` in this example means default Project values, not the user's current editor
+state. The [HTTP preview contract](agent-api.md#review-a-caller-specified-geometry-change)
+documents the exact envelope and bounds. Preview does not require a working
+numerical engine. It creates no job, persistent proposal, result or provenance.
+The browser revalidates imported files, reconstructs their geometry and diff,
+and treats supplied hashes as informational. A file cannot assert a trusted
+server origin. This explicit tool-result-to-file-to-import workflow does not
+imply a universal AI-client integration or a live chat connection.
+
 ## Results, errors and provenance
 
 Successful tool results contain unchanged API JSON in `structuredContent` and
@@ -154,6 +201,11 @@ are checked strictly against shared API models before success is reported.
 Tool inputs also use strict types; numeric strings and booleans are not numbers. Returned job
 and snapshot identities are checked against requested IDs. The adapter does not
 compute physics or write a database directly.
+Preview responses are additionally bound to the exact requested normalized base
+and patch: the adapter reconstructs the candidate, hashes, diff and deterministic
+diagnostics. An unrelated but schema-valid preview, missing canonical Project
+fields, extra edits, or altered diagnostics is rejected with
+`invalid_api_response`.
 
 An HTTP/API failure is a tool result with `isError: true`, the original API error
 code/message/diagnostics, and `http_status`. Adapter errors use stable codes such
@@ -173,6 +225,9 @@ The write may already have happened. Do not blindly resubmit a calculation.
 A returned HTTP 5xx on a mutation is conservatively treated as uncertain too.
 An MCP request cancellation or broken stdio connection may prevent even this
 error from reaching the client; treat an interrupted submission as uncertain.
+Validation and geometry-preview POSTs are read-only. Transport failure for them
+does not claim an unknown mutation outcome; the adapter still performs no
+automatic retry.
 
 Only the API can create server-computed provenance. The save tool accepts a job
 ID, never a replacement project/result. A fetched legacy or imported record keeps
@@ -217,7 +272,7 @@ Install the optional lock, then run:
 
 ```sh
 .venv/bin/ruff check backend
-OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests/test_mcp_adapter.py backend/tests/test_mcp_protocol.py -q
+OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests/test_change_preview.py backend/tests/test_mcp_adapter.py backend/tests/test_mcp_change_preview.py backend/tests/test_mcp_protocol.py -q
 ```
 
 Tests use the official SDK Client over a real stdio subprocess, then real HTTP
@@ -225,12 +280,14 @@ against an isolated local API and SQLite database. The Windows CI job runs
 discovery, example, validation, API-down and normal process-teardown checks;
 Linux CI additionally runs the full numerical solve/snapshot workflow. They cover legacy
 initialize/list/call (`2025-11-25`) and current SDK discovery (`2026-07-28`), a real
-forward solve, exact snapshot reload, idempotence, cancellation, and API-down
-errors. Boundary tests cover generated schemas, unsafe targets/IDs, extra fields,
+forward solve, exact snapshot reload, idempotence, cancellation, API-down
+errors, and a real read-only geometry preview. Preview boundary coverage includes
+strict finite patches, atomic cross-field validation, shared browser/server cases,
+engine independence, no storage or job effects, and complete response binding. Boundary tests cover generated schemas, unsafe targets/IDs, extra fields,
 finite JSON, per-tool/HTTP byte limits, deadlines, HTTP admission limits,
 failed/cancelled status, provenance preservation and ordinary SDK process cleanup. The normal backend CI installs the
 optional lock so these tests cannot silently skip there. Without MCP installed,
-these two optional modules are explicitly skipped by the ordinary backend suite.
+the three optional MCP test modules are explicitly skipped by the ordinary backend suite.
 
 This is protocol integration evidence, not a claim that every vendor's AI host
 has been tested. References: [official Python SDK](https://github.com/modelcontextprotocol/python-sdk),

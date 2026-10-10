@@ -1,4 +1,10 @@
-import type { Job, Project, SavedProject, ForwardResult } from "./model";
+import type {
+  Job,
+  Project,
+  SavedProject,
+  SavedSummary,
+  ForwardResult,
+} from "./model";
 const base = (
   (import.meta as unknown as { env: Record<string, string> }).env
     .VITE_API_BASE_URL || ""
@@ -46,6 +52,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 export const api = {
   example: () => request<Project>("/example"),
+  validate: (project: Project) =>
+    request<{
+      valid: boolean;
+      project: Project;
+      input_hash: string;
+      diagnostics: { severity: string; message: string }[];
+    }>("/validate", { method: "POST", body: JSON.stringify(project) }),
+  snapshot: (jobId: string) =>
+    request<SavedProject>("/snapshots", {
+      method: "POST",
+      body: JSON.stringify({ job_id: jobId }),
+    }),
   start: (project: Project) =>
     request<Job>("/jobs", {
       method: "POST",
@@ -62,7 +80,7 @@ export const api = {
   job: (id: string) => request<Job>(`/jobs/${encodeURIComponent(id)}`),
   cancel: (id: string) =>
     request<Job>(`/jobs/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  list: () => request<SavedProject[]>("/projects"),
+  list: () => request<SavedSummary[]>("/projects"),
   load: (id: string) =>
     request<SavedProject>(`/projects/${encodeURIComponent(id)}`),
   save: (project: Project, result: ForwardResult | null) =>

@@ -1826,3 +1826,294 @@ input[type="range"]:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* Review and comparison stay in dialogs, leaving the editor clear. */
+.history-menu-actions {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e4e4e7;
+  padding-bottom: 5px;
+}
+.history-menu-actions button {
+  flex: 1;
+}
+.history-scope {
+  display: block;
+  font-size: 11px;
+  color: #71717a;
+  line-height: 1.5;
+  margin: 6px 9px;
+}
+.saved-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.saved-choice > input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: #4f46e5;
+}
+.saved-choice .saved-item {
+  flex: 1;
+  min-width: 0;
+}
+.workflow-dialog {
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100dvh - 28px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 16px;
+  background: #fff;
+  color: #27272a;
+  overflow: auto;
+}
+.workflow-dialog::backdrop {
+  background: rgb(24 24 27 / 38%);
+}
+.workflow-body {
+  padding: 22px;
+}
+.workflow-body > .panel-heading {
+  padding: 0 0 14px;
+}
+.workflow-body h2 {
+  font-size: 22px;
+  margin: 0;
+}
+.workflow-body h3 {
+  font-family: Outfit, sans-serif;
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.workflow-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 20px;
+}
+.workflow-actions .dialog-close {
+  margin: 0;
+  width: auto;
+  padding: 10px 18px;
+}
+.workflow-details {
+  margin: 12px 0;
+  font-size: 12px;
+}
+.workflow-details > summary {
+  cursor: pointer;
+  color: #52525b;
+}
+.workflow-details pre {
+  font:
+    11px/1.6 "Source Code Pro",
+    monospace;
+  max-height: 240px;
+  overflow: auto;
+  background: #fafafa;
+  border: 1px solid #e4e4e7;
+  padding: 10px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.workflow-details p,
+.workflow-details li {
+  overflow-wrap: anywhere;
+}
+.geometry-previews {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.geometry-preview-card {
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 12px;
+  min-width: 0;
+}
+.geometry-preview-card svg {
+  display: block;
+  width: 100%;
+}
+.geometry-preview-card dl {
+  margin: 0;
+  font-size: 12px;
+}
+.geometry-preview-card dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 3px 0;
+}
+.geometry-preview-card dt {
+  color: #71717a;
+}
+.geometry-preview-card dd {
+  margin: 0;
+  font-family: "Source Code Pro", monospace;
+  font-size: 11px;
+  text-align: right;
+}
+.preview-scale-note {
+  font-size: 11px;
+  color: #71717a;
+  line-height: 1.6;
+}
+.change-list {
+  margin-top: 16px;
+}
+.change-list > div {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) minmax(0, 2fr);
+  gap: 10px;
+  border-top: 1px solid #f4f4f5;
+  padding: 9px 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.change-list > div > span:last-child {
+  text-align: right;
+  font-family: "Source Code Pro", monospace;
+  font-size: 11px;
+}
+.comparison-dialog {
+  width: min(940px, calc(100vw - 24px));
+}
+.candidate-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.candidate-card {
+  min-width: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 10px;
+  padding: 12px;
+}
+.candidate-card h3 {
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.candidate-card p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 9px 0;
+}
+.candidate-origin {
+  display: inline-block;
+  font-size: 10px;
+  background: #f4f4f5;
+  border-radius: 5px;
+  color: #52525b;
+  padding: 3px 6px;
+}
+.candidate-card i,
+.comparison-values i {
+  display: inline-block;
+  width: 17px;
+  border-top: 3px solid;
+  vertical-align: middle;
+  margin-right: 7px;
+}
+.comparison-controls {
+  display: flex;
+  gap: 12px;
+  margin: 20px 0 12px;
+}
+.comparison-controls label {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  color: #71717a;
+  flex: 1;
+  min-width: 0;
+}
+.comparison-controls select {
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  font-size: 12px;
+  background: #fff;
+  color: #27272a;
+  border: 1px solid #d4d4d8;
+  border-radius: 7px;
+  padding: 8px;
+}
+.comparison-warning {
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 7px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.comparison-plot {
+  min-width: 0;
+}
+.comparison-plot svg {
+  display: block;
+  width: 100%;
+}
+.comparison-sample {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  align-items: center;
+}
+.comparison-sample input {
+  flex: 1 0 100%;
+  accent-color: #4f46e5;
+}
+.comparison-values p {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f4f4f5;
+  margin: 0;
+}
+.comparison-values span {
+  overflow-wrap: anywhere;
+}
+.comparison-values strong {
+  white-space: nowrap;
+  font:
+    600 12px "Source Code Pro",
+    monospace;
+}
+@media (max-width: 480px) {
+  .workflow-body {
+    padding: 16px;
+  }
+  .workflow-body h2 {
+    font-size: 20px;
+  }
+  .geometry-previews {
+    gap: 8px;
+  }
+  .geometry-preview-card {
+    padding: 9px;
+  }
+  .geometry-preview-card dl > div {
+    display: block;
+    padding: 4px 0;
+  }
+  .geometry-preview-card dd {
+    text-align: left;
+    margin-top: 2px;
+  }
+  .candidate-cards {
+    grid-template-columns: 1fr;
+  }
+  .candidate-card p {
+    margin: 6px 0;
+  }
+}

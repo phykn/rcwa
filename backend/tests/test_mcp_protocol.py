@@ -86,7 +86,7 @@ async def test_real_discovery_compute_and_durable_binding(real_api, mode):
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
         assert client.server_capabilities.tools is not None
         tools = (await client.list_tools()).tools
-        assert len(tools) == 8
+        assert len(tools) == 9
         assert all(t.input_schema["additionalProperties"] is False for t in tools)
         caps = await call(client, "rcwa_capabilities")
         assert caps["limits"]["simultaneous_jobs"] == 2
@@ -153,7 +153,7 @@ async def test_real_cancellation_and_missing_job(real_api):
 @pytest.mark.anyio
 async def test_api_down_is_a_tool_error_not_protocol_crash():
     async with Client(parameters(f"http://127.0.0.1:{available_port()}"), mode="legacy") as client:
-        assert len((await client.list_tools()).tools) == 8
+        assert len((await client.list_tools()).tools) == 9
         response = await call(client, "rcwa_capabilities", error=True)
         assert response["error"]["code"] == "api_unavailable"
         response = await call(client, "rcwa_submit", {"request": {"project": {}}}, error=True)
@@ -209,11 +209,26 @@ async def test_stdio_discovery_and_validation(real_api, mode, monkeypatch):
     async with Client(parameters(real_api), mode=mode, read_timeout_seconds=15) as client:
         assert client.server_info.name == "RCWA Workbench"
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
-        assert len((await client.list_tools()).tools) == 8
+        assert len((await client.list_tools()).tools) == 9
         caps = await call(client, "rcwa_capabilities")
         assert caps["project_schema_version"] == "1.0"
         example = await call(client, "rcwa_example")
         valid = await call(client, "rcwa_validate", {"project": example})
         assert valid["valid"] and valid["project"] == example
+        preview = await call(client, "rcwa_preview_changes", {
+            "base_project": example, "changes": {"period_nm": 100, "cd_nm": 90},
+        })
+        assert preview["schema_version"] == "rcwa-change-proposal/1.0"
+        assert preview["valid"] and preview["base_project"] == example
+        assert preview["candidate_project"]["period_nm"] == 100
+        assert preview["candidate_project"]["layers"][0]["cd_nm"] == 90
+        assert [entry["field"] for entry in preview["diff"]] == ["period_nm", "cd_nm"]
+        with httpx.Client(trust_env=False) as http:
+            direct = http.post(real_api + "/api/change-preview", json={
+                "base_project": example, "changes": {"period_nm": 100, "cd_nm": 90},
+            })
+            assert direct.json() == preview
+            assert http.get(real_api + "/api/projects").json() == []
+        await call(client, "rcwa_preview_changes", {"base_project": example, "changes": {}}, error=True)
         await call(client, "rcwa_validate", {"project": {"period_nm": "400"}}, error=True)
     assert len(children) == 1 and children[0].returncode is not None

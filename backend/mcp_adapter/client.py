@@ -82,7 +82,8 @@ class LocalAPI:
     async def request(self, method: str, path: str, body=None):
         # Even internal callers cannot turn this transport into a general HTTP tool.
         fixed = {("GET", "/api/capabilities"), ("GET", "/api/example"),
-                 ("POST", "/api/validate"), ("POST", "/api/jobs"), ("POST", "/api/snapshots")}
+                 ("POST", "/api/validate"), ("POST", "/api/change-preview"),
+                 ("POST", "/api/jobs"), ("POST", "/api/snapshots")}
         variable = re.fullmatch(r"/api/(jobs|projects)/([A-Za-z0-9_-]{1,100})", path)
         if (method, path) not in fixed and not (
             variable and (method == "GET" or (method == "DELETE" and variable[1] == "jobs"))
@@ -98,7 +99,7 @@ class LocalAPI:
             self.slots.acquire_nowait()
         except anyio.WouldBlock as exc:
             raise AdapterError("adapter_capacity", "Four adapter calls are already active; wait for one to finish") from exc
-        mutation = method in {"POST", "DELETE"} and path != "/api/validate"
+        mutation = method in {"POST", "DELETE"} and path not in {"/api/validate", "/api/change-preview"}
         try:
             with anyio.fail_after(self.timeout):
                 async with self.http.stream(

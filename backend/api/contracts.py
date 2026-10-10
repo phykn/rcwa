@@ -1,8 +1,9 @@
 """Public HTTP envelopes. Runtime models also generate the OpenAPI contract."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, model_validator
+from typing_extensions import TypedDict
 
 from rcwa_core.contracts import ForwardResult, Result
 from rcwa_core.preflight import Diagnostic, EngineInfo
@@ -62,6 +63,53 @@ class ValidationResponse(StrictModel):
     meaning: Literal["Admissible input only; numerical success and convergence are not guaranteed."] = (
         "Admissible input only; numerical success and convergence are not guaranteed."
     )
+
+
+class GeometryChanges(TypedDict, total=False):
+    """Only explicitly supplied geometry numbers; missing is distinct from null."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+    period_nm: Annotated[float, Field(strict=True, ge=20, le=5000)]
+    cd_nm: Annotated[float, Field(strict=True, ge=0, le=5000)]
+    thickness_nm: Annotated[float, Field(strict=True, ge=0, le=2000)]
+
+
+def _nonempty_geometry_changes(changes: GeometryChanges) -> GeometryChanges:
+    if not changes:
+        raise ValueError("At least one geometry change is required")
+    return changes
+
+
+GeometryPatch = Annotated[
+    GeometryChanges,
+    AfterValidator(_nonempty_geometry_changes),
+    Field(json_schema_extra={"minProperties": 1}),
+]
+GeometryField = Literal["period_nm", "cd_nm", "thickness_nm"]
+
+
+class ChangePreviewRequest(StrictModel):
+    base_project: Project
+    changes: GeometryPatch
+
+
+class GeometryDiff(StrictModel):
+    field: GeometryField
+    before: float = Field(strict=True)
+    after: float = Field(strict=True)
+
+
+class ChangeProposal(StrictModel):
+    schema_version: Literal["rcwa-change-proposal/1.0"]
+    base_project: Project
+    candidate_project: Project
+    changes: GeometryPatch
+    base_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    diff: list[GeometryDiff] = Field(max_length=3)
+    diagnostics: list[Diagnostic]
+    valid: bool = Field(strict=True)
 
 
 class SnapshotRequest(StrictModel):

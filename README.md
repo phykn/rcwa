@@ -8,7 +8,8 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 - Constant or tabulated optical constants, including absorbing substrates
 - Order-resolved, total and specular reflectance/transmittance
 - Synthetic CD fitting with bounded multistart optimization
-- Project and result JSON import/export
+- Session undo/redo, reviewable geometry proposals, and comparison of 2–3 saved spectra
+- Project and result JSON import/export with exact server-run snapshots
 - Local HTTP/OpenAPI and optional stdio MCP tools for general AI clients
 
 Built with React, TypeScript, FastAPI and meent. The current solver supports one isotropic 1D grating layer. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
