@@ -612,7 +612,10 @@ try {
   const nameField = page.getByLabel("Project name");
   await nameField.focus();
   await nameField.press("End");
-  await nameField.pressSequentially(" native undo");
+  // One native insertion creates one native undo unit. Per-key word entry may
+  // legitimately split whitespace into a separate Chromium undo unit.
+  await page.keyboard.insertText(" native undo");
+  await expect(nameField).toHaveValue(`${baseline.project.name} native undo`);
   await nameField.press("Control+z");
   await expect(nameField).toHaveValue(baseline.project.name);
   await page.locator(".project-menu > summary").focus();
