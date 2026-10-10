@@ -14,3 +14,5 @@ The script uses the live app on port 5173 and the frozen static preview on 4173.
 Coverage: real forward process and chart, s/p and total/specular selection, stale-input label, malformed JSON rejection without state replacement, metadata save/load, full JSON export/reload, real synthetic CD recovery, and a 390px static preview with no API requests and disabled live compute.
 
 This is an unauthenticated local development app. Do not make the Python API public or use a tunnel for this check.
+
+The `browser` job in `.github/workflows/checks.yml` runs this same check on a standard Ubuntu runner. It binds all three servers to localhost, limits the browser script to four minutes, and retains only PNG screenshots and `browser-qa.json` for one day. A successful build or job setup alone is not a browser-test pass.

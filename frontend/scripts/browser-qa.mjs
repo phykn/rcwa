@@ -151,7 +151,7 @@ try {
       {
         status: "passed",
         checks,
-        browser: "System Chromium with Playwright",
+        browser: "Chromium with Playwright",
         pageErrors: errors,
         date: new Date().toISOString(),
       },
@@ -160,6 +160,25 @@ try {
     ),
   );
   console.log(JSON.stringify({ status: "passed", checks }, null, 2));
+} catch (error) {
+  await page
+    .screenshot({ path: `${output}/browser-failure.png`, fullPage: true })
+    .catch(() => {});
+  await fs.writeFile(
+    `${output}/browser-qa.json`,
+    JSON.stringify(
+      {
+        status: "failed",
+        checks,
+        error: String(error),
+        pageErrors: errors,
+        date: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+  throw error;
 } finally {
   await browser.close();
 }
