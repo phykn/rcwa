@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { Project, SavedProject, Spectrum } from "./model";
 import { totalThickness, stackSummary } from "./model";
-import {
-  semanticEqual,
-  comparisonConditionsDiffer,
-  stackDiff,
-  summarizeMaterial,
-} from "./workflow";
+import { semanticEqual, comparisonConditionsDiffer } from "./workflow";
 import { materialColor } from "./structureGeometry";
+import { reviewInputChanges } from "./reviewChanges";
 
 function Modal({
   title,
@@ -196,54 +192,9 @@ function GeometryCard({
           <dd>{pitch} nm</dd>
         </div>
       </dl>
-      <p className="stack-preview-summary">{stackSummary(project)}</p>
     </section>
   );
 }
-function changedFields(
-  before: unknown,
-  after: unknown,
-  path = "",
-): { path: string; before: unknown; after: unknown }[] {
-  if (semanticEqual(before, after)) return [];
-  if (path === "ambient" || path === "substrate")
-    return [
-      {
-        path,
-        before: summarizeMaterial(before as Project["ambient"]),
-        after: summarizeMaterial(after as Project["ambient"]),
-      },
-    ];
-  if (
-    before &&
-    after &&
-    typeof before === "object" &&
-    typeof after === "object" &&
-    !Array.isArray(before) &&
-    !Array.isArray(after)
-  ) {
-    const a = before as Record<string, unknown>,
-      b = after as Record<string, unknown>;
-    return [...new Set([...Object.keys(a), ...Object.keys(b)])].flatMap((key) =>
-      changedFields(a[key], b[key], path ? `${path}.${key}` : key),
-    );
-  }
-  return [{ path, before, after }];
-}
-function valueSummary(value: unknown) {
-  if (Array.isArray(value))
-    return `${value.length} samples: ${JSON.stringify(value.slice(0, 3))}${value.length > 3 ? "…" : ""}`;
-  return value === undefined
-    ? "Not set"
-    : typeof value === "object"
-      ? JSON.stringify(value)
-      : String(value);
-}
-const fieldLabels: Record<string, string> = {
-  period_nm: "Pitch",
-  "layers[0].cd_nm": "Width",
-  "layers[0].thickness_nm": "Height",
-};
 export function ReviewPanel({
   title,
   baseProject,
@@ -269,18 +220,7 @@ export function ReviewPanel({
     230 / Math.max(before.pitch, after.pitch),
     90 / Math.max(1, before.height, after.height),
   );
-  const remainder = (project: Project) =>
-    Object.fromEntries(
-      Object.entries(project).filter(
-        ([key]) => !["layers", "period_nm", "schema_version"].includes(key),
-      ),
-    );
-  const baseRest = remainder(baseProject),
-    candidateRest = remainder(candidateProject);
-  const changes = [
-    ...stackDiff(baseProject, candidateProject),
-    ...changedFields(baseRest, candidateRest),
-  ];
+  const changes = reviewInputChanges(baseProject, candidateProject);
   return (
     <Modal title={title} onClose={onClose}>
       <p className="control-note">{note}</p>
@@ -298,13 +238,14 @@ export function ReviewPanel({
       <div className="change-list" aria-label="Input changes">
         {changes.length ? (
           changes.map((change) => (
-            <div key={change.path}>
-              <span>{fieldLabels[change.path] || change.path}</span>
+            <div key={change.key}>
+              <span>{change.label}</span>
               <span>
-                {valueSummary(change.before)}{" "}
-                <span aria-label="changes to">→</span>{" "}
-                <strong>{valueSummary(change.after)}</strong>
-                {fieldLabels[change.path] ? " nm" : ""}
+                {change.before} <span aria-label="changes to">→</span>{" "}
+                <strong>{change.after}</strong>
+                {change.detail && (
+                  <small className="change-detail">{change.detail}</small>
+                )}
               </span>
             </div>
           ))

@@ -1351,33 +1351,39 @@ export default function App() {
   const titles: Record<Sheet, string> = {
     width:
       project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${layer.name} · Width`
+        ? `Layer ${selectedLayer + 1} · Width`
         : "Ridge width",
     height:
       project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${layer.name} · Thickness`
+        ? `Layer ${selectedLayer + 1} · Thickness`
         : "Layer thickness",
     pitch: "Pattern pitch",
     ridge:
       project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${layer.name} · Material`
+        ? `Layer ${selectedLayer + 1} · Material`
         : layer.geometry === "homogeneous"
           ? "Layer material"
           : "Ridge material",
     groove:
       project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${layer.name} · Groove`
+        ? `Layer ${selectedLayer + 1} · Groove`
         : "Groove material",
     ambient: "Ambient material",
     substrate: "Substrate material",
     materials:
       project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${layer.name} · Materials`
+        ? `Layer ${selectedLayer + 1} · Materials`
         : "Optical materials",
     light: "Incident light",
     accuracy: "Calculation settings",
-    layer: `Layer ${selectedLayer + 1} · ${layer.name}`,
+    layer: `Layer ${selectedLayer + 1}`,
   };
+  const namedLayerSheet =
+    sheet !== null &&
+    ["width", "height", "ridge", "groove", "materials", "layer"].includes(
+      sheet,
+    ) &&
+    (project.layers.length > 1 || sheet === "layer");
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1931,7 +1937,21 @@ export default function App() {
           <div className="sheet-grabber" />
           <div className="sheet-heading">
             <div>
-              <h2 id="inspector-title">{sheet ? titles[sheet] : "Settings"}</h2>
+              <h2 id="inspector-title">
+                {sheet ? titles[sheet] : "Settings"}
+                {namedLayerSheet && (
+                  <span className="sr-only"> · {layer.name}</span>
+                )}
+              </h2>
+              {namedLayerSheet && (
+                <p
+                  className="sheet-layer-name"
+                  aria-hidden="true"
+                  title={layer.name}
+                >
+                  {layer.name}
+                </p>
+              )}
             </div>
             <button
               className="icon-button"

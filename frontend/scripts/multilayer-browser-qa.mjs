@@ -1,7 +1,7 @@
 // Run against the real local API, live Vite app and a separately built static app.
 // No successful numerical responses are mocked. Screenshots are mandatory and
 // captured in fresh browser processes before state/gesture stress cases.
-/* global document, innerWidth, window */
+/* global document, innerWidth, requestAnimationFrame, window */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect as baseExpect, errors } from "@playwright/test";
@@ -238,6 +238,63 @@ async function noOverflow(dialog) {
       "Dialog content must not overflow",
     );
 }
+async function separatedHandles(label) {
+  await page.locator(".three-canvas").scrollIntoViewIfNeeded();
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
+  const targets = await page.locator(".three-canvas").evaluate((scene) => {
+    const bounds = scene.getBoundingClientRect();
+    return [...scene.querySelectorAll(".drag-target")].map((node) => {
+      const box = node.getBoundingClientRect();
+      const x = box.x + box.width / 2,
+        y = box.y + box.height / 2;
+      return {
+        name: node.getAttribute("aria-label"),
+        x,
+        y,
+        width: box.width,
+        height: box.height,
+        inside:
+          box.left >= bounds.left - 1 &&
+          box.top >= bounds.top - 1 &&
+          box.right <= bounds.right + 1 &&
+          box.bottom <= bounds.bottom + 1,
+        hit: document
+          .elementFromPoint(x, y)
+          ?.closest(".drag-target")
+          ?.getAttribute("aria-label"),
+      };
+    });
+  });
+  for (const target of targets) {
+    assert.ok(
+      target.width >= 44 && target.height >= 44,
+      `${label}: minimum44px target`,
+    );
+    assert.equal(
+      target.inside,
+      true,
+      `${label}: ${target.name} must fit inside the scene`,
+    );
+    assert.equal(
+      target.hit,
+      target.name,
+      `${label}: ${target.name} center must receive its own pointer`,
+    );
+  }
+  for (let i = 0; i < targets.length; i++)
+    for (let j = i + 1; j < targets.length; j++)
+      assert.ok(
+        Math.hypot(targets[i].x - targets[j].x, targets[i].y - targets[j].y) >=
+          47.5,
+        `${label}: ${targets[i].name} and ${targets[j].name} require disjoint48px centers`,
+      );
+  (evidence.handleLayouts ??= []).push({ label, targets });
+}
 async function capture(name) {
   const filename = `multilayer-${name}.png`,
     result = { filename, attempts: [] };
@@ -332,6 +389,7 @@ try {
     ).not.toBeVisible();
     await expect(page.locator(".setup-rows > button")).toHaveCount(2);
     await expect(page.locator(".scene-material")).toContainText("Layer 3");
+    await separatedHandles(`three-layer-${width}`);
     await page.evaluate(() => window.scrollTo(0, 0));
     await noOverflow();
     await capture(`scene-${width}`);
@@ -378,25 +436,69 @@ try {
     await expect(
       page.getByTestId("layer-stack").locator("[data-layer-index]"),
     ).toHaveCount(8);
+    await separatedHandles(`eight-layer-${width}`);
     await page.getByTestId("layer-stack").scrollIntoViewIfNeeded();
     await noOverflow();
     await capture(`picker-eight-${width}`);
     await select(6, eight.layers[6].name);
     await page.locator(".scene-material").click();
     const longNameInspector = page.locator(".inspector");
-    await expect(longNameInspector.locator("h2")).toContainText(
-      eight.layers[6].name,
-    );
+    await expect(longNameInspector).toContainText(eight.layers[6].name);
+    await expect(longNameInspector.locator("h2")).toContainText("Layer 7");
+    await expect(longNameInspector.locator("h2")).toContainText("Material");
     await noOverflow(longNameInspector);
     await expect(
       page.getByRole("button", { name: "Close settings", exact: true }),
     ).toBeInViewport();
     await capture(`long-name-${width}`);
     await closeSettings();
+    const zeroStack = structuredClone(eight);
+    zeroStack.layers.forEach((layer) => {
+      layer.thickness_nm = 0;
+    });
+    await importJson(zeroStack, "zero-stack-visual.json");
+    await select(0, zeroStack.layers[0].name);
+    await expect(page.locator(".height-handle")).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
+    await separatedHandles(`zero-depth-${width}`);
+    await capture(`zero-depth-${width}`);
+    const tallStack = structuredClone(eight);
+    tallStack.layers.forEach((layer) => {
+      layer.thickness_nm = 2000;
+    });
+    tallStack.layers[0].thickness_nm = 0;
+    tallStack.layers[0].cd_nm = 0;
+    await importJson(tallStack, "tall-stack-visual.json");
+    await select(0, tallStack.layers[0].name);
+    await expect(page.locator(".width-handle")).toHaveAttribute(
+      "aria-valuenow",
+      "0",
+    );
+    await separatedHandles(`tall-thin-${width}`);
+    await capture(`tall-thin-${width}`);
+    const unrotated = await exportJson();
+    const canvas = page.locator(".webgl-host canvas");
+    await canvas.focus();
+    for (const key of ["ArrowLeft", "ArrowUp", "+"])
+      await page.keyboard.press(key);
+    await separatedHandles(`tall-thin-orbited-${width}`);
+    await capture(`tall-thin-orbited-${width}`);
+    assert.deepEqual(await exportJson(), unrotated);
     await load(saved);
     const review = await proposalReview(proposal);
     await expect(review.locator(".geometry-preview-card")).toHaveCount(2);
     await expect(review).toContainText("No new spectrum has been calculated");
+    await expect(review.locator(".change-list")).toContainText(
+      "Layer 2 · Spacer · Thickness",
+    );
+    await expect(review.locator(".change-list")).toContainText(
+      "Refractive index n",
+    );
+    await expect(review.locator(".change-list")).not.toContainText("layers[");
+    await expect(review.locator(".change-list")).not.toContainText('"kind"');
+    await expect(review.locator(".stack-preview-summary")).toHaveCount(0);
     await noOverflow(review);
     await capture(`proposal-${width}`);
     await review.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -404,7 +506,7 @@ try {
     browser = undefined;
   }
   checks.push(
-    "Desktop, 360px and 390px show all three physical layers, selected lower-layer handles, uniform film inspector and same-scale stack proposal cross-sections; closed first screen, contextual actions/add choices, open eight-layer picker and 100-character unbroken inspector name; all twenty-four required screenshots captured",
+    "Desktop, 360px and 390px show all three physical layers, selected lower-layer handles, uniform film inspector and same-scale stack proposal cross-sections; closed first screen, contextual actions/add choices, open eight-layer picker and 100-character unbroken inspector name; zero-depth and tall-thin stacks retain disjoint44px pointer targets with48px center spacing even after orbit/zoom; all thirty-three required screenshots captured",
   );
   const calls = await launch({ width: 1440, height: 1100 });
   await load(saved);

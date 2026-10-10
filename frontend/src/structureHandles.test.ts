@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { defaultProject } from "./model";
 import type { Project } from "./model";
+import { layoutStructureHandles } from "./structureHandleLayout";
+import type { HandlePoints } from "./structureHandleLayout";
 import {
   structureGeometry,
   structureHandlePosition,
@@ -186,6 +188,74 @@ describe("physical dimension handle hit targets", () => {
       const heightCenter = pixel(structureHandlePosition("height", geometry));
       expect(widthCenter.distanceTo(heightCenter)).toBeGreaterThanOrEqual(44);
       expect(geometry.selectedLayer).toBe(2);
+    },
+  );
+
+  it.each([
+    { viewport: 360, width: 326, height: 328 / 1.12 - 2 },
+    { viewport: 390, width: 340, height: 342 / 1.12 - 2 },
+    { viewport: 1440, width: 590, height: 592 / 1.35 - 2 },
+  ])(
+    "keeps all visible targets separated for eight/zero/tall-thin stacks at $viewport px",
+    ({ width, height }) => {
+      const pattern = defaultProject.layers[0];
+      const layers: Project["layers"] = [
+        { ...pattern, thickness_nm: 110 },
+        {
+          name: "Spacer",
+          geometry: "homogeneous",
+          thickness_nm: 95,
+          material: defaultProject.substrate,
+        },
+        { ...pattern, thickness_nm: 80, cd_nm: 230 },
+      ];
+      const base: Project = {
+        ...defaultProject,
+        schema_version: "1.1",
+        layers: Array.from({ length: 8 }, (_, i) => ({ ...layers[i % 3] })),
+      };
+      for (const project of [
+        base,
+        {
+          ...base,
+          layers: base.layers.map((layer) => ({ ...layer, thickness_nm: 0 })),
+        },
+        {
+          ...base,
+          layers: base.layers.map((layer, index) => ({
+            ...layer,
+            thickness_nm: index === 0 ? 0.1 : 2000,
+          })),
+        },
+      ]) {
+        const { geometry, pixel } = resetCamera(width, height, project, 0);
+        const points: HandlePoints = {
+          width: pixel(structureHandlePosition("width", geometry)),
+          height: pixel(structureHandlePosition("height", geometry)),
+          pitch: pixel(structureHandlePosition("pitch", geometry)),
+        };
+        const positioned = layoutStructureHandles(
+          points,
+          ["width", "height", "pitch"],
+          width,
+          height,
+        )!;
+        expect(positioned).not.toBeNull();
+        for (const [index, point] of Object.values(positioned).entries()) {
+          expect(point.x).toBeGreaterThanOrEqual(22);
+          expect(point.x).toBeLessThanOrEqual(width - 22);
+          expect(point.y).toBeGreaterThanOrEqual(22);
+          expect(point.y).toBeLessThanOrEqual(height - 22);
+          for (const other of Object.values(positioned).slice(index + 1))
+            expect(
+              Math.hypot(point.x - other.x, point.y - other.y),
+            ).toBeGreaterThanOrEqual(48 - 1e-6);
+        }
+        // Target layout is a separate overlay; no physical slab/guide is moved.
+        expect(geometry).toEqual(
+          structureGeometry(structureValues(project, 0)),
+        );
+      }
     },
   );
   it("anchors the selected lower layer using its cumulative interfaces", () => {

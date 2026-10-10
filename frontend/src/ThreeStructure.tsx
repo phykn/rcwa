@@ -19,6 +19,8 @@ import type {
   StructureValues,
 } from "./structureGeometry";
 
+import { layoutStructureHandles } from "./structureHandleLayout";
+
 type Point = { x: number; y: number };
 type Anchors = Record<StructureDimension, Point>;
 type SceneGeometry = ReturnType<typeof structureGeometry>;
@@ -111,7 +113,12 @@ export function ThreeStructure({
   const pointers = useRef(new Set<number>());
   const blockedHandleGesture = useRef(false);
   const failedRef = useRef(false);
-  const [anchors, setAnchors] = useState<Anchors>(defaultAnchors);
+  const [handleLayout, setHandleLayout] = useState({
+    anchors: defaultAnchors,
+    physical: defaultAnchors,
+    available: true,
+  });
+  const anchors = handleLayout.anchors;
   const [active, setActive] = useState<StructureDimension | null>(null);
   const [focused, setFocused] = useState<StructureDimension | null>(null);
   const [failed, setFailed] = useState(false);
@@ -216,11 +223,40 @@ export function ThreeStructure({
       canvas.dataset.zoom = String(
         fitDistance / camera.position.distanceTo(controls.target),
       );
-      setAnchors({
+      const physical = {
         width: projectPoint(handlePoint("width", geometry)),
         height: projectPoint(handlePoint("height", geometry)),
         pitch: projectPoint(handlePoint("pitch", geometry)),
-      });
+      };
+      const viewportWidth = element!.clientWidth,
+        viewportHeight = element!.clientHeight;
+      const pixels = Object.fromEntries(
+        Object.entries(physical).map(([key, point]) => [
+          key,
+          {
+            x: (point.x * viewportWidth) / 100,
+            y: (point.y * viewportHeight) / 100,
+          },
+        ]),
+      ) as Anchors;
+      const positioned = layoutStructureHandles(
+        pixels,
+        visibleStructureDimensions(current.current.values),
+        viewportWidth,
+        viewportHeight,
+      );
+      const anchors = positioned
+        ? (Object.fromEntries(
+            Object.entries(positioned).map(([key, point]) => [
+              key,
+              {
+                x: (point.x * 100) / viewportWidth,
+                y: (point.y * 100) / viewportHeight,
+              },
+            ]),
+          ) as Anchors)
+        : physical;
+      setHandleLayout({ anchors, physical, available: positioned !== null });
     }
 
     function fitView(reset = false) {
@@ -873,61 +909,86 @@ export function ThreeStructure({
           </div>
         ) : (
           <>
-            {dimensions.map((dimension) => (
-              <div
-                key={dimension}
-                className={`drag-target ${dimension}-handle ${active === dimension || focused === dimension ? "active" : ""}`}
-                role="slider"
-                aria-label={`Drag ${dimension}`}
-                aria-valuemin={dimensionRange(dimension, values)[0]}
-                aria-valuemax={dimensionRange(dimension, values)[1]}
-                aria-valuenow={values[dimension]}
-                aria-valuetext={`${values[dimension]} nanometers`}
-                aria-orientation={
-                  dimension === "height" ? "vertical" : "horizontal"
-                }
-                aria-disabled={disabled}
-                tabIndex={disabled ? -1 : 0}
-                title={`Drag ${dimension}; tap its value below for exact entry`}
-                style={{
-                  left: `${anchors[dimension].x}%`,
-                  top: `${anchors[dimension].y}%`,
-                  touchAction: "none",
-                }}
-                onFocus={() => setFocused(dimension)}
-                onBlur={() => {
-                  setFocused(null);
-                  endKeyboardEdit();
-                }}
-                onPointerEnter={() => setFocused(dimension)}
-                onPointerLeave={() => setFocused(null)}
-                onPointerDown={(event) => start(event, dimension)}
-                onPointerMove={move}
-                onPointerUp={(event) => {
-                  if (drag.current?.id === event.pointerId) releaseDrag();
-                }}
-                onPointerCancel={(event) => {
-                  if (drag.current?.id === event.pointerId) releaseDrag();
-                }}
-                onLostPointerCapture={(event) => {
-                  if (drag.current?.id === event.pointerId) releaseDrag();
-                }}
-                onKeyDown={(event) => keys(event, dimension)}
-                onKeyUp={endKeyboardEdit}
+            {handleLayout.available && (
+              <svg
+                className="handle-leaders"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
               >
-                <span className="handle-dot">
-                  <svg viewBox="0 0 12 12" aria-hidden="true">
-                    <path
-                      d={
-                        dimension === "height"
-                          ? "m3 5 3-3 3 3M3 7l3 3 3-3"
-                          : "m5 3-3 3 3 3m2-6 3 3-3 3"
-                      }
+                {dimensions.map((dimension) => {
+                  const source = handleLayout.physical[dimension],
+                    target = anchors[dimension];
+                  return Math.hypot(source.x - target.x, source.y - target.y) >
+                    0.01 ? (
+                    <line
+                      key={dimension}
+                      x1={source.x}
+                      y1={source.y}
+                      x2={target.x}
+                      y2={target.y}
+                      vectorEffect="non-scaling-stroke"
                     />
-                  </svg>
-                </span>
-              </div>
-            ))}
+                  ) : null;
+                })}
+              </svg>
+            )}
+            {handleLayout.available &&
+              dimensions.map((dimension) => (
+                <div
+                  key={dimension}
+                  className={`drag-target ${dimension}-handle ${active === dimension || focused === dimension ? "active" : ""}`}
+                  role="slider"
+                  aria-label={`Drag ${dimension}`}
+                  aria-valuemin={dimensionRange(dimension, values)[0]}
+                  aria-valuemax={dimensionRange(dimension, values)[1]}
+                  aria-valuenow={values[dimension]}
+                  aria-valuetext={`${values[dimension]} nanometers`}
+                  aria-orientation={
+                    dimension === "height" ? "vertical" : "horizontal"
+                  }
+                  aria-disabled={disabled}
+                  tabIndex={disabled ? -1 : 0}
+                  title={`Drag ${dimension}; tap its value below for exact entry`}
+                  style={{
+                    left: `${anchors[dimension].x}%`,
+                    top: `${anchors[dimension].y}%`,
+                    touchAction: "none",
+                  }}
+                  onFocus={() => setFocused(dimension)}
+                  onBlur={() => {
+                    setFocused(null);
+                    endKeyboardEdit();
+                  }}
+                  onPointerEnter={() => setFocused(dimension)}
+                  onPointerLeave={() => setFocused(null)}
+                  onPointerDown={(event) => start(event, dimension)}
+                  onPointerMove={move}
+                  onPointerUp={(event) => {
+                    if (drag.current?.id === event.pointerId) releaseDrag();
+                  }}
+                  onPointerCancel={(event) => {
+                    if (drag.current?.id === event.pointerId) releaseDrag();
+                  }}
+                  onLostPointerCapture={(event) => {
+                    if (drag.current?.id === event.pointerId) releaseDrag();
+                  }}
+                  onKeyDown={(event) => keys(event, dimension)}
+                  onKeyUp={endKeyboardEdit}
+                >
+                  <span className="handle-dot">
+                    <svg viewBox="0 0 12 12" aria-hidden="true">
+                      <path
+                        d={
+                          dimension === "height"
+                            ? "m3 5 3-3 3 3M3 7l3 3 3-3"
+                            : "m5 3-3 3 3 3m2-6 3 3-3 3"
+                        }
+                      />
+                    </svg>
+                  </span>
+                </div>
+              ))}
             <button
               className="scene-material"
               disabled={disabled}
