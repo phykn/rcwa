@@ -191,6 +191,7 @@ jobs:
           name: browser-qa
           path: |
             artifacts/*.png
+            artifacts/first-use-*-ax.json
             artifacts/first-use-browser-qa.json
             artifacts/first-use-touch-qa.json
             artifacts/browser-qa.json

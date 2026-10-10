@@ -564,6 +564,26 @@ async function assertComparisonValues(
   await expect(
     dialog.locator("#comparison-sample-description"),
   ).toHaveAttribute("aria-live", "polite");
+  const ax = await dialog.page().context().newCDPSession(dialog.page());
+  let sliderNode;
+  await expect
+    .poll(async () => {
+      const tree = await ax.send("Accessibility.getFullAXTree");
+      sliderNode = tree.nodes.find(
+        (node) =>
+          node.role?.value === "slider" &&
+          node.name?.value === "Compare exact wavelength sample",
+      );
+      return JSON.stringify(sliderNode);
+    })
+    .toContain(`${candidates[0].result.wavelengths_nm[sample]} nanometers`);
+  (evidence.comparisonAccessibility ||= []).push({
+    quantity,
+    polarization,
+    sample,
+    node: sliderNode,
+  });
+  await ax.detach();
   const context = `${await presentationContext(dialog.page(), dialog, "comparison")}: ${quantity}, ${polarization}, sample ${sample}`;
   await collectReadOnly(`${context}: exact wavelength label`, async () => {
     await displayExpect(dialog.locator(".comparison-sample strong")).toHaveText(

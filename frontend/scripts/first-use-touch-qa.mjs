@@ -9,6 +9,7 @@ const report = {
   status: "running",
   checks: [],
   screenshots: [],
+  scrollStates: [],
   pageErrors: [],
   limitation:
     "Mobile Chromium touch replay; real-phone onscreen keyboard behavior is not verified.",
@@ -78,6 +79,35 @@ for (const width of [360, 390]) {
     async function shot(name) {
       await page.evaluate(() => window.scrollTo(0, 0));
       const filename = `first-use-touch-${width}-${name}.png`;
+      if (name.startsWith("eight-")) {
+        let state;
+        await expect
+          .poll(
+            async () => {
+              state = await page.locator(".stack-rows").evaluate((node) => ({
+                scrollLeft: node.scrollLeft,
+                clientWidth: node.clientWidth,
+                scrollWidth: node.scrollWidth,
+                left: !!document
+                  .querySelector('[data-testid="layer-scroll-left"]')
+                  ?.textContent.trim(),
+                right: !!document
+                  .querySelector('[data-testid="layer-scroll-right"]')
+                  ?.textContent.trim(),
+              }));
+              return (
+                state.left === state.scrollLeft > 1 &&
+                state.right ===
+                  state.scrollLeft + state.clientWidth < state.scrollWidth - 1
+              );
+            },
+            {
+              message: `${name}: settled overflow cues match actual scroll position`,
+            },
+          )
+          .toBe(true);
+        report.scrollStates.push({ width, name, ...state });
+      }
       await page.screenshot({ path: `${output}/${filename}` });
       report.screenshots.push(filename);
     }

@@ -285,21 +285,26 @@ for (const width of [360, 390, 1440]) {
     );
     await spectrumSlider.press("ArrowRight");
     const ax = await page.context().newCDPSession(page);
-    const accessibility = await ax.send("Accessibility.getFullAXTree");
-    const sliderNode = accessibility.nodes.find(
-      (node) =>
-        node.role?.value === "slider" &&
-        node.name?.value === "Inspect wavelength sample",
+    await expect(spectrumSlider).toHaveAttribute(
+      "aria-valuetext",
+      `${reference.result.wavelengths_nm[1]} nanometers`,
     );
-    assert.ok(
-      sliderNode,
-      "Wavelength slider exists in the browser accessibility tree",
-    );
-    assert.ok(
-      JSON.stringify(sliderNode).includes(
-        `${reference.result.wavelengths_nm[1]} nanometers`,
-      ),
-    );
+    let sliderNode;
+    await expect
+      .poll(async () => {
+        const accessibility = await ax.send("Accessibility.getFullAXTree");
+        sliderNode = accessibility.nodes.find(
+          (node) =>
+            node.role?.value === "slider" &&
+            node.name?.value === "Inspect wavelength sample",
+        );
+        await fs.writeFile(
+          `${output}/first-use-${width}-spectrum-ax.json`,
+          JSON.stringify(sliderNode ?? null, null, 2),
+        );
+        return JSON.stringify(sliderNode);
+      })
+      .toContain(`${reference.result.wavelengths_nm[1]} nanometers`);
     report.checks.push({
       viewport: width,
       wavelengthAccessibility: sliderNode,

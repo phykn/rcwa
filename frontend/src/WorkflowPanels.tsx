@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Project, SavedProject, Spectrum } from "./model";
 import { totalThickness, stackSummary } from "./model";
 import { semanticEqual, comparisonConditionsDiffer } from "./workflow";
@@ -17,17 +17,18 @@ function Modal({
   className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const element = dialog.current;
     const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.showModal();
+    element?.showModal();
     return () => {
-      dialog.current?.close();
+      element?.close();
       if (
         previous?.isConnected &&
         previous !== document.body &&
         previous.getClientRects().length
       )
-        previous.focus();
+        previous.focus({ preventScroll: true });
       else
         document.querySelector<HTMLElement>(".project-menu > summary")?.focus();
     };
@@ -416,7 +417,13 @@ export function ComparisonPanel({
               ) : null}
               <pre>{JSON.stringify(candidate.project, null, 2)}</pre>
             </details>
-            <button className="text-button" onClick={() => onUse(candidate)}>
+            <button
+              className="text-button"
+              onClick={(event) => {
+                event.currentTarget.focus({ preventScroll: true });
+                onUse(candidate);
+              }}
+            >
               Review candidate {i + 1}
             </button>
           </section>
