@@ -103,45 +103,6 @@ try {
     .setInputFiles(`${output}/browser-export.json`);
   await expect(page.locator(".result-badge")).toHaveText("Imported result");
   checks.push("Full input/result export and JSON reload");
-  // Keep cancellation deterministic: real solver coverage is above; these routes
-  // hold jobs open so cancellation cannot race a fast completed calculation.
-  let cancelled = false;
-  await page.route("**/api/jobs**", async (route) => {
-    if (route.request().method() === "POST") cancelled = false;
-    if (route.request().method() === "DELETE") cancelled = true;
-    await route.fulfill({
-      json: {
-        id: "qa-cancel",
-        kind: "forward",
-        status: cancelled ? "cancelled" : "queued",
-        result: null,
-        error: null,
-      },
-    });
-  });
-  await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeDisabled();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(
-    page.getByText("Calculation cancelled.", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
-  await page
-    .getByRole("button", { name: "Run synthetic recovery", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Cancel fit", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Run synthetic recovery", exact: true }),
-  ).toBeEnabled();
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
-  await page.unroute("**/api/jobs**");
-  await page.getByRole("button", { name: "Open", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).not.toBeVisible();
-  checks.push(
-    "Deterministic forward/fit cancellation unlocks inputs; saved-project dialog dismisses with Escape",
-  );
   const mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
@@ -200,6 +161,45 @@ try {
   await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
   checks.push(
     "390px static mobile preview: first-screen geometry and inputs, collapsed settings, no overflow or API calls, frozen reference and local-setup link",
+  );
+  // Keep cancellation deterministic: real solver coverage is above; these routes
+  // hold jobs open so cancellation cannot race a fast completed calculation.
+  let cancelled = false;
+  await page.route("**/api/jobs**", async (route) => {
+    if (route.request().method() === "POST") cancelled = false;
+    if (route.request().method() === "DELETE") cancelled = true;
+    await route.fulfill({
+      json: {
+        id: "qa-cancel",
+        kind: "forward",
+        status: cancelled ? "cancelled" : "queued",
+        result: null,
+        error: null,
+      },
+    });
+  });
+  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeDisabled();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator(".message.success")).toContainText(
+    "Calculation cancelled.",
+  );
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Run synthetic recovery", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Cancel fit", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Run synthetic recovery", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
+  await page.unroute("**/api/jobs**");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  checks.push(
+    "Deterministic forward/fit cancellation unlocks inputs; saved-project dialog dismisses with Escape",
   );
   if (errors.length) throw new Error(`Browser errors: ${errors.join("; ")}`);
   await fs.writeFile(
