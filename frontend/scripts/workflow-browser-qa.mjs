@@ -550,6 +550,20 @@ async function assertComparisonValues(
   await range.focus();
   await range.press("Home");
   for (let i = 0; i < sample; i += 1) await range.press("ArrowRight");
+  await expect(range).toHaveAttribute(
+    "aria-valuetext",
+    `${candidates[0].result.wavelengths_nm[sample]} nanometers`,
+  );
+  await expect(range).toHaveAttribute(
+    "aria-describedby",
+    "comparison-sample-description",
+  );
+  await expect(dialog.locator("#comparison-sample-description")).toContainText(
+    `${polarization} polarization`,
+  );
+  await expect(
+    dialog.locator("#comparison-sample-description"),
+  ).toHaveAttribute("aria-live", "polite");
   const context = `${await presentationContext(dialog.page(), dialog, "comparison")}: ${quantity}, ${polarization}, sample ${sample}`;
   await collectReadOnly(`${context}: exact wavelength label`, async () => {
     await displayExpect(dialog.locator(".comparison-sample strong")).toHaveText(
@@ -562,6 +576,9 @@ async function assertComparisonValues(
     R_specular: "Specular reflectance",
     T_specular: "Specular transmittance",
   };
+  await expect(dialog.locator("#comparison-sample-description")).toContainText(
+    names[quantity],
+  );
   await collectReadOnly(
     `${context}: quantity/polarization chart label`,
     async () => {
@@ -1176,9 +1193,14 @@ try {
   // Candidate 1 must differ from current editor to make adoption observable.
   const candidateCalls = calls.length;
   comparison = await compare(page, [savedB, savedC]);
-  await comparison
-    .getByRole("button", { name: "Review candidate 1", exact: true })
-    .click();
+  await assertComparisonValues(comparison, [savedB, savedC], "T", "p", 1);
+  const reviewTrigger = comparison.getByRole("button", {
+    name: "Review candidate 1",
+    exact: true,
+  });
+  await reviewTrigger.scrollIntoViewIfNeeded();
+  const comparisonScroll = await comparison.evaluate((node) => node.scrollTop);
+  await reviewTrigger.click();
   review = page.getByRole("dialog", {
     name: "Review saved candidate",
     exact: true,
@@ -1186,11 +1208,38 @@ try {
   await expect(review).toBeVisible();
   await expect(page.getByLabel("Project name")).toHaveValue(savedA.name);
   await review.getByRole("button", { name: "Cancel", exact: true }).click();
-  assert.deepEqual(await exportJson(page), baseline);
-  comparison = await compare(page, [savedB, savedC]);
-  await comparison
-    .getByRole("button", { name: "Review candidate 1", exact: true })
-    .click();
+  await expect(comparison).toBeVisible();
+  await expect(reviewTrigger).toBeFocused();
+  await expect(
+    comparison.getByLabel("Comparison quantity", { exact: true }),
+  ).toHaveValue("T");
+  await expect(
+    comparison.getByLabel("Comparison polarization", { exact: true }),
+  ).toHaveValue("p");
+  await expect(
+    comparison.getByLabel("Compare exact wavelength sample", { exact: true }),
+  ).toHaveValue("1");
+  assert.ok(
+    Math.abs(
+      (await comparison.evaluate((node) => node.scrollTop)) - comparisonScroll,
+    ) <= 1,
+    "Cancel preserves comparison scroll position",
+  );
+  await reviewTrigger.click();
+  await expect(review).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(comparison).toBeVisible();
+  await expect(reviewTrigger).toBeFocused();
+  await expect(
+    comparison.getByLabel("Comparison quantity", { exact: true }),
+  ).toHaveValue("T");
+  await expect(
+    comparison.getByLabel("Comparison polarization", { exact: true }),
+  ).toHaveValue("p");
+  await expect(
+    comparison.getByLabel("Compare exact wavelength sample", { exact: true }),
+  ).toHaveValue("1");
+  await reviewTrigger.click();
   await expect(review).toBeVisible();
   await review
     .getByRole("button", { name: "Apply changes", exact: true })
@@ -1210,7 +1259,7 @@ try {
     "Review/adopt/undo uses only stored candidate reads",
   );
   checks.push(
-    "Review candidate 1 is cancellable; Apply installs that candidate’s exact saved input/result/server-origin pair in one undoable edit and never runs physics",
+    "Review Cancel/Escape preserves candidate selection, quantity, polarization, sample, scroll and focus; Apply closes both dialogs and installs that candidate’s exact saved input/result/server-origin pair in one undoable edit and never runs physics",
   );
 
   comparison = await compare(page, [savedA, singleA]);
@@ -1239,6 +1288,12 @@ try {
   await expect(comparison.getByRole("alert")).toContainText(
     "no p-polarized spectrum",
   );
+  await expect(
+    comparison.getByLabel("Compare exact wavelength sample", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    comparison.locator("#comparison-sample-description"),
+  ).toHaveCount(0);
   await expect(comparison.locator(".comparison-plot svg")).toHaveCount(0);
   await expect(comparison.locator(".comparison-values")).toHaveCount(0);
   await page.keyboard.press("Escape");

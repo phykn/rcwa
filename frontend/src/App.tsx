@@ -278,22 +278,43 @@ function MaterialEditor({
   label,
   material,
   onChange,
+  getImportGuard,
   lossless = false,
 }: {
   label: string;
   material: Material;
   onChange: (m: Material) => void;
+  getImportGuard: () => () => boolean;
   lossless?: boolean;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
+  const importSequence = useRef(0);
+  useEffect(
+    () => () => {
+      importSequence.current += 1;
+    },
+    [],
+  );
   async function importMaterial(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0];
     if (!selected) return;
+    const input = event.target;
+    const sequence = ++importSequence.current;
+    const workspaceUnchanged = getImportGuard();
+    const staleMessage =
+      "Inputs changed while reading. Import the table again.";
+    setError("");
     try {
       if (selected.size > 1024 * 1024)
         throw new Error("Material JSON must be smaller than 1 MB.");
-      const next = JSON.parse(await selected.text()) as Material;
+      const text = await selected.text();
+      if (sequence !== importSequence.current) return;
+      if (!workspaceUnchanged()) {
+        setError(staleMessage);
+        return;
+      }
+      const next = JSON.parse(text) as Material;
       if (
         !next ||
         typeof next.name !== "string" ||
@@ -327,9 +348,16 @@ function MaterialEditor({
       onChange(candidate);
       setError("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Invalid material JSON.");
+      if (sequence === importSequence.current)
+        setError(
+          workspaceUnchanged()
+            ? e instanceof Error
+              ? e.message
+              : "Invalid material JSON."
+            : staleMessage,
+        );
     } finally {
-      event.target.value = "";
+      if (sequence === importSequence.current) input.value = "";
     }
   }
   return (
@@ -839,18 +867,28 @@ export default function App() {
     update(changed.project, changed.selectedLayer);
     if (sheet === "width" || sheet === "groove") setSheet(null);
   }
+  function materialImportGuard() {
+    const version = actionVersion.current;
+    const revision = historyRef.current.revision;
+    const workspace = historyRef.current.present;
+    return () =>
+      version === actionVersion.current &&
+      revision === historyRef.current.revision &&
+      workspace === historyRef.current.present;
+  }
   function updateLayer(values: Partial<RectangleLayer>) {
+    const current = historyRef.current.present;
+    const currentProject = current.project;
+    const index = validLayerIndex(currentProject, current.selectedLayer);
     if (
-      layer.geometry === "homogeneous" &&
+      currentProject.layers[index].geometry === "homogeneous" &&
       ("cd_nm" in values || "background" in values)
     )
       return;
     update({
-      ...project,
-      layers: project.layers.map((item, index) =>
-        index === selectedLayer
-          ? ({ ...item, ...values } as typeof item)
-          : item,
+      ...currentProject,
+      layers: currentProject.layers.map((item, itemIndex) =>
+        itemIndex === index ? ({ ...item, ...values } as typeof item) : item,
       ),
     });
   }
@@ -1267,7 +1305,6 @@ export default function App() {
   }
   function reviewCandidate(candidate: SavedProject) {
     endEdit();
-    setComparison(null);
     presentReview({
       title: "Review saved candidate",
       baseProject: historyRef.current.present.project,
@@ -1304,6 +1341,7 @@ export default function App() {
     // Consume this review before any state update can schedule another click.
     // A repeated Apply or a queued action after Cancel is therefore a no-op.
     presentReview(null);
+    setComparison(null);
     install(pending.workspace);
     setError("");
     setNotice("Changes applied. Undo is available in the Project menu.");
@@ -1592,7 +1630,10 @@ export default function App() {
               {staticPreview ? (
                 <>
                   <a className="preview-result-button" href="#spectrum">
-                    View example spectrum <span aria-hidden="true">↓</span>
+                    {result && resultOrigin === "reference"
+                      ? "View example spectrum"
+                      : "View spectrum"}{" "}
+                    <span aria-hidden="true">↓</span>
                   </a>
                   <p className="static-edit-note">
                     Preview only. Edits won't calculate a new spectrum.
@@ -2090,6 +2131,7 @@ export default function App() {
                   </div>
                   {(sheet === "ridge" || sheet === "materials") && (
                     <MaterialEditor
+                      getImportGuard={materialImportGuard}
                       label={
                         layer.geometry === "homogeneous" ? "Layer" : "Ridge"
                       }
@@ -2100,6 +2142,7 @@ export default function App() {
                   {layer.geometry === "rectangle_1d" &&
                     (sheet === "groove" || sheet === "materials") && (
                       <MaterialEditor
+                        getImportGuard={materialImportGuard}
                         label="Groove"
                         material={layer.background}
                         onChange={(background) => updateLayer({ background })}
@@ -2107,18 +2150,28 @@ export default function App() {
                     )}
                   {(sheet === "ambient" || sheet === "materials") && (
                     <MaterialEditor
+                      getImportGuard={materialImportGuard}
                       label="Ambient"
                       material={project.ambient}
                       lossless
-                      onChange={(ambient) => update({ ...project, ambient })}
+                      onChange={(ambient) =>
+                        update({
+                          ...historyRef.current.present.project,
+                          ambient,
+                        })
+                      }
                     />
                   )}
                   {(sheet === "substrate" || sheet === "materials") && (
                     <MaterialEditor
+                      getImportGuard={materialImportGuard}
                       label="Substrate"
                       material={project.substrate}
                       onChange={(substrate) =>
-                        update({ ...project, substrate })
+                        update({
+                          ...historyRef.current.present.project,
+                          substrate,
+                        })
                       }
                     />
                   )}

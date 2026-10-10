@@ -37,12 +37,14 @@ The independent-reference CI job builds official S4 at the exact source commit d
 
 ## Browser and visual acceptance
 
-The browser CI job runs real local API jobs and the separately built static preview through all five scripts:
+The browser CI job runs real local API jobs and the separately built static preview through all seven scripts:
 
+- `first-use-browser-qa.mjs`: discoverable layer selection, exact dimension edits, other-layer isolation, static-result honesty and viewport/full-page screenshots
+- `first-use-touch-qa.mjs`: 360/390px mobile touch replay, layer-strip overflow/limits, isolated drag edits and page scrolling (not a real-phone keyboard test)
 - `browser-qa.mjs`: existing editor, illumination, real forward/fitting and mobile interaction checks
 - `snapshot-browser-qa.mjs`: server-owned snapshots, stale results and imported provenance
-- `contract-browser-qa.mjs`: geometry, exact controls, interrupted gestures and fallback behavior
-- `workflow-browser-qa.mjs`: history, comparisons, proposal semantics and asynchronous ownership
+- `contract-browser-qa.mjs`: geometry, exact controls, interrupted gestures, fallback behavior and delayed material-import ownership
+- `workflow-browser-qa.mjs`: history, comparison-review cancellation, exact accessible samples, proposal semantics and asynchronous ownership
 - `multilayer-browser-qa.mjs`: ordered stack rendering/editing, lower-layer selection, structural history, new proposals, dense-table byte limits and legacy compatibility
 
 Successful physics responses are not mocked. Required screenshots must be captured and inspected; passing DOM assertions alone does not establish visual acceptance. The multilayer script uses fresh browser processes for its desktop/360/390 px evidence before stress cases.

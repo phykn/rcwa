@@ -225,6 +225,14 @@ export function SpectrumPlot({
               </span>
             ))}
           </div>
+          <p
+            className="sr-only"
+            id="spectrum-sample-description"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {`${polarization} polarization. ${active.map((item) => `${item.label} ${(100 * spectrum[item.key][selected]).toFixed(1)} percent`).join(". ")}.`}
+          </p>
           <div className="sample-readout">
             <label htmlFor="wavelength-sample">
               Wavelength <strong>{waves[selected]} nm</strong>
@@ -232,6 +240,8 @@ export function SpectrumPlot({
             <input
               id="wavelength-sample"
               aria-label="Inspect wavelength sample"
+              aria-valuetext={`${waves[selected]} nanometers`}
+              aria-describedby="spectrum-sample-description"
               type="range"
               min="0"
               max={waves.length - 1}

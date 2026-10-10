@@ -84,7 +84,7 @@ button:focus-visible,
 summary:focus-visible,
 [role="slider"]:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgb(79 70 229 / 35%);
+  outline: 3px solid var(--primary);
   outline-offset: 3px;
 }
 a {
@@ -121,7 +121,13 @@ select:focus,
 textarea:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgb(79 70 229 / 12%);
+  box-shadow: none;
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
 }
 input[aria-invalid="true"] {
   border-color: var(--error);
@@ -318,6 +324,7 @@ h1 input:hover {
 
 /* The scene has face lighting only. Panel elevation never casts onto geometry. */
 .three-canvas {
+  width: 100%;
   position: relative;
   isolation: isolate;
   aspect-ratio: 1.12;
@@ -871,7 +878,7 @@ input[type="range"]::-moz-range-thumb {
   box-shadow: 0 0 0 1px var(--primary);
 }
 input[type="range"]:focus-visible {
-  outline: 3px solid rgb(79 70 229 / 25%);
+  outline: 3px solid var(--primary);
   outline-offset: 8px;
   box-shadow: none;
 }
@@ -2187,6 +2194,9 @@ input[type="range"]:focus-visible {
   font-size: 12px;
   text-align: left;
 }
+.stack-row:focus-visible {
+  outline-offset: -4px;
+}
 .stack-row.selected {
   background: var(--selected);
   color: var(--primary);
@@ -2395,7 +2405,7 @@ input[type="range"]:focus-visible {
   gap: 8px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 2px 6px;
+  padding: 6px;
   max-height: none;
   scrollbar-width: thin;
 }
@@ -2408,6 +2418,9 @@ input[type="range"]:focus-visible {
   border: 1px solid var(--border);
   font-size: 12px;
   max-width: 220px;
+}
+.stack-row:focus-visible {
+  outline-offset: -4px;
 }
 .stack-row.selected {
   background: #f5f7ff;
@@ -2471,7 +2484,10 @@ input[type="range"]:focus-visible {
   margin-bottom: 8px;
 }
 .resize-toggle input {
-  min-height: auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  flex-shrink: 0;
 }
 .selected-layer-context {
   display: flex;
@@ -2632,4 +2648,19 @@ input[type="range"]:focus-visible {
   .three-canvas {
     max-height: 380px;
   }
+}
+
+.layer-stack-heading h2 small {
+  font:
+    400 12px "Inter",
+    sans-serif;
+  color: var(--text-secondary);
+}
+.layer-scroll-cues {
+  display: flex;
+  justify-content: space-between;
+  min-height: 18px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  pointer-events: none;
 }

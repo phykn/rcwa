@@ -17,8 +17,8 @@ class Material(StrictModel):
     n: float = Field(default=1.0, gt=0, le=10)
     k: float = Field(default=0.0, ge=0, le=10)
     wavelengths_nm: list[float] | None = Field(default=None, min_length=2, max_length=2000)
-    n_values: list[float] | None = None
-    k_values: list[float] | None = None
+    n_values: list[float] | None = Field(default=None, min_length=2, max_length=2000)
+    k_values: list[float] | None = Field(default=None, min_length=2, max_length=2000)
     source: str = Field(default="User-defined synthetic optical constants", max_length=500)
 
     @model_validator(mode="after")

@@ -545,6 +545,8 @@ export function ComparisonPanel({
               Exact sample <strong>{waves[sample]} nm</strong>
               <input
                 aria-label="Compare exact wavelength sample"
+                aria-valuetext={`${waves[sample]} nanometers`}
+                aria-describedby="comparison-sample-description"
                 type="range"
                 min="0"
                 max={Math.max(0, waves.length - 1)}
@@ -552,6 +554,14 @@ export function ComparisonPanel({
                 onChange={(event) => setIndex(Number(event.target.value))}
               />
             </label>
+            <p
+              className="sr-only"
+              id="comparison-sample-description"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {`${quantities.find((item) => item.key === quantity)?.name}, ${polarization} polarization. ${candidates.map((candidate, i) => `${candidate.name}: ${(spectra[i]![quantity][sample] * 100).toFixed(3)} percent`).join(". ")}.`}
+            </p>
             <div className="comparison-values">
               {candidates.map((candidate, i) => (
                 <p key={candidate.id}>

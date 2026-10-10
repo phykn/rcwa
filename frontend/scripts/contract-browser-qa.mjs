@@ -1,3 +1,4 @@
+import { assertMaterialImportOrdering } from "./browser-material-import-cases.mjs";
 import {
   enableDragHandles,
   openMaterial,
@@ -895,6 +896,14 @@ try {
     "Static preview loads all three same-origin fonts, resolves connection state after edits during startup, gives usable empty-state instructions, and labels stale imported spectra without claiming they are the reference",
   );
   await preview.close();
+  await assertMaterialImportOrdering(
+    browser,
+    previewUrl,
+    reference,
+    output,
+    checks,
+    appUrl,
+  );
 
   assert.deepEqual(pageErrors, []);
   const report = {

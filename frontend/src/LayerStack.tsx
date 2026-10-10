@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { layerColor } from "./layerColors";
 import type { KeyboardEvent } from "react";
 import type { Project, StackOperation } from "./model";
@@ -30,6 +30,22 @@ export function LayerStack({
 }) {
   const add = useRef<HTMLDetailsElement>(null);
   const rows = useRef<HTMLDivElement>(null);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
+  function syncScrollCue() {
+    const container = rows.current;
+    if (!container) return;
+    const next = {
+      left: container.scrollLeft > 1,
+      right:
+        container.scrollLeft + container.clientWidth <
+        container.scrollWidth - 1,
+    };
+    setOverflow((current) =>
+      current.left === next.left && current.right === next.right
+        ? current
+        : next,
+    );
+  }
   useEffect(() => {
     const container = rows.current;
     const chip = container?.querySelector<HTMLElement>(
@@ -43,7 +59,11 @@ export function LayerStack({
       container.scrollLeft + container.clientWidth
     )
       container.scrollLeft = left + chip.offsetWidth - container.clientWidth;
-  }, [selected, project.layers.length]);
+    syncScrollCue();
+    const observer = new ResizeObserver(syncScrollCue);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [selected, project.layers]);
   useEffect(() => {
     if (disabled) collapse(add.current, false);
   }, [disabled]);
@@ -54,17 +74,28 @@ export function LayerStack({
       aria-label="Choose a layer"
     >
       <div className="layer-stack-heading">
-        <h2>Choose a layer</h2>
+        <h2>
+          Choose a layer <small>· {project.layers.length}</small>
+        </h2>
         <details className="stack-add" ref={add} onKeyDown={escapeDisclosure}>
           <summary
             aria-label="Add layer"
+            aria-describedby={
+              project.layers.length >= 8 ? "layer-limit-reason" : undefined
+            }
             aria-disabled={disabled || project.layers.length >= 8}
             onClick={(event) => {
               if (disabled || project.layers.length >= 8)
                 event.preventDefault();
             }}
           >
-            <span aria-hidden="true">+</span> Add layer
+            {project.layers.length >= 8 ? (
+              "8-layer limit"
+            ) : (
+              <>
+                <span aria-hidden="true">+</span> Add layer
+              </>
+            )}
           </summary>
           <div>
             <button
@@ -92,10 +123,16 @@ export function LayerStack({
           </div>
         </details>
       </div>
+      {project.layers.length >= 8 && (
+        <span id="layer-limit-reason" className="sr-only">
+          Maximum of 8 layers. Remove a layer before adding another.
+        </span>
+      )}
       <fieldset disabled={disabled} className="layer-picker-body">
         <div
           className="stack-rows"
           ref={rows}
+          onScroll={syncScrollCue}
           role="group"
           aria-label="Finite layers, top to bottom"
         >
@@ -123,6 +160,16 @@ export function LayerStack({
             </button>
           ))}
         </div>
+        {(overflow.left || overflow.right) && (
+          <div className="layer-scroll-cues" aria-hidden="true">
+            <span data-testid="layer-scroll-left">
+              {overflow.left ? "← More layers" : ""}
+            </span>
+            <span data-testid="layer-scroll-right">
+              {overflow.right ? "More layers →" : ""}
+            </span>
+          </div>
+        )}
       </fieldset>
     </section>
   );

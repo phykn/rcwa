@@ -78,6 +78,10 @@ Validation performs deterministic schema and preflight checks without launching 
 
 Errors use `{ "detail": "readable explanation", "error": { "code": "...", "message": "...", "diagnostics": [...] } }`. Relevant failures include invalid/unsupported input, unavailable engine, capacity, numerical failure, timeout, cancellation, and missing/expired jobs. An unavailable or wrong-version engine is reported explicitly; there is no approximate or synthetic fallback. Use the returned error code rather than matching human-readable messages.
 
+New HTTP requests require JSON numbers for physical values: booleans and numeric strings are rejected. Each material-table column is limited to 2000 rows. Invalid Unicode scalar values, including unpaired surrogates, are rejected before a job starts or an import is stored. This does not change normalization when reading historical saved inputs and results.
+
+Malformed-request responses contain at most 50 diagnostics, including a final `diagnostics_truncated` marker when further diagnostics were omitted. Each diagnostic message and location is bounded to 512 serialized UTF-8 bytes; shortened text ends with `[truncated]`. A large invalid table or field name therefore cannot produce an unbounded error response.
+
 Job states are `running`, `succeeded`, `failed`, and `cancelled`; this local server does not maintain a durable queue. Forward results include wavelength lists, per-polarization spectra, per-order powers, metadata, and warnings. The synthetic-fit result is distinctly labeled and has a separate shape. A caller must check job status and kind before interpreting `result`.
 
 ## Review a caller-specified geometry change

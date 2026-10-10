@@ -57,6 +57,8 @@ Default 21-wavelength, both-polarization runs took 0.0270,0.0265,0.0267 s on the
 
 `frontend/public/reference-example.json` contains the exact Project and its genuinely computed forward result. It is a reproducible stored example; it must not be used to imply that edited input was computed. Performance at difficult resonances, the full parameter envelope, or the maximum input budget has not been established.
 
-## Remaining limits
+## Historical single-layer scope and remaining limits
 
-No experimental samples, calibrated material database, instrument model, roughness, finite target, conical/2D/multilayer solver, complex amplitude API, or measured-data inverse validation were performed. Exact diffraction cutoffs deliberately return a diagnostic. S4 provides independent implementation evidence, but both methods share RCWA assumptions. Strong material contrast/loss, resonances, and near-cutoff cases require their own basis and spectral refinement before interpretation.
+This report records the single-layer validation baseline from 2026-10-10. Multilayer validation had not yet been performed at that point; the subsequent stage is documented in the [current multilayer numerical evidence](validation.md#multilayer-numerical-evidence), including the committed planar and independent S4 comparisons.
+
+Experimental samples, a calibrated material database, an instrument model, roughness, finite targets, conical/2D calculations, a complex amplitude API and measured-data inverse validation remain outside this report. Exact diffraction cutoffs deliberately return a diagnostic. S4 provides independent implementation evidence, but both methods share RCWA assumptions. Strong material contrast/loss, resonances, and near-cutoff cases require their own basis and spectral refinement before interpretation.

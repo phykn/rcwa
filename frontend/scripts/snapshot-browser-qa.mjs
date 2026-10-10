@@ -187,37 +187,80 @@ try {
     "Compatibility Save/list/reload retains the spectrum as unverified; saved-project dialog still dismisses with Escape",
   );
 
-  const preview = await browser.newPage({
-    viewport: { width: 390, height: 844 },
-  });
-  preview.on("pageerror", (error) => pageErrors.push(error.message));
-  const apiRequests = [];
-  preview.on("request", (request) => {
-    if (new URL(request.url()).pathname.startsWith("/api/"))
-      apiRequests.push(request.url());
-  });
-  await preview.goto(previewUrl);
-  await expect(preview.locator(".connection")).toHaveText("Static preview");
-  await expect(preview.locator(".result-badge")).toHaveText(
-    "Precomputed example",
-  );
-  await widthField(preview, "197");
-  await expect(preview.locator(".result-badge")).toHaveText("Inputs changed");
-  await preview
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "forged-preview-source.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(forged)),
+  for (const width of [360, 390, 1440]) {
+    const preview = await browser.newPage({
+      viewport: {
+        width,
+        height: width === 360 ? 800 : width === 390 ? 844 : 1000,
+      },
+      isMobile: width < 650,
+      hasTouch: width < 650,
     });
-  await expect(preview.locator(".result-badge")).toHaveText(
-    "Unverified import",
-  );
-  await expect(
-    preview.getByRole("button", { name: /Run simulation/ }),
-  ).toHaveCount(0);
-  assert.deepEqual(apiRequests, []);
+    preview.on("pageerror", (error) => pageErrors.push(error.message));
+    const apiRequests = [];
+    preview.on("request", (request) => {
+      if (new URL(request.url()).pathname.startsWith("/api/"))
+        apiRequests.push(request.url());
+    });
+    await preview.goto(previewUrl);
+    await expect(preview.locator(".connection")).toHaveText("Static preview");
+    await expect(preview.locator(".result-badge")).toHaveText(
+      "Precomputed example",
+    );
+    await expect(
+      preview.getByRole("link", { name: "View example spectrum" }),
+    ).toHaveAttribute("href", "#spectrum");
+    await widthField(preview, "197");
+    await expect(preview.locator(".result-badge")).toHaveText("Inputs changed");
+    await preview
+      .locator("input[type=file]")
+      .first()
+      .setInputFiles({
+        name: "forged-preview-source.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify(forged)),
+      });
+    await expect(preview.locator(".result-badge")).toHaveText(
+      "Unverified import",
+    );
+    await expect(
+      preview.getByRole("button", { name: /Run simulation/ }),
+    ).toHaveCount(0);
+    await expect(
+      preview.getByRole("link", { name: "View spectrum", exact: true }),
+    ).toHaveAttribute("href", "#spectrum");
+    await expect(
+      preview.getByRole("link", { name: "View example spectrum" }),
+    ).toHaveCount(0);
+    await preview.screenshot({
+      path: `${output}/snapshot-static-${width}-imported.png`,
+      fullPage: true,
+    });
+    await preview
+      .locator("input[type=file]")
+      .first()
+      .setInputFiles({
+        name: "project-only.json",
+        mimeType: "application/json",
+        buffer: Buffer.from(JSON.stringify({ project: forged.project })),
+      });
+    await expect(
+      preview.getByRole("link", { name: "View spectrum", exact: true }),
+    ).toHaveAttribute("href", "#spectrum");
+    await expect(
+      preview.getByRole("link", { name: "View example spectrum" }),
+    ).toHaveCount(0);
+    await expect(preview.locator(".spectrum-svg")).toHaveCount(0);
+    await expect(preview.locator(".empty-spectrum")).toContainText(
+      "Import a saved result or choose Project → Reset example.",
+    );
+    await preview.screenshot({
+      path: `${output}/snapshot-static-${width}-empty.png`,
+      fullPage: true,
+    });
+    assert.deepEqual(apiRequests, []);
+    await preview.close();
+  }
   checks.push(
     "Static mobile preview edits/imports locally with zero API requests and no compute action",
   );

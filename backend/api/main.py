@@ -6,6 +6,7 @@ import math
 import os
 import re
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +26,7 @@ from api.contracts import (
     StackChangeProposal,
     StoredServerSnapshot,
     ErrorResponse,
+    InputProject,
     JobRequest,
     JobResponse,
     SavedProject,
@@ -39,7 +41,7 @@ from rcwa_core.schemas import Project, StrictModel
 
 
 class SaveRequest(StrictModel):
-    project: Project
+    project: InputProject
     result: dict | None = None
 
     @model_validator(mode="after")
@@ -49,9 +51,9 @@ class SaveRequest(StrictModel):
         # Saved/imported powers are user data, not a new server-certified solve.
         # Enforce a reloadable shape and reject non-finite nested metadata too.
         try:
-            json.dumps(self.result, allow_nan=False)
-        except (ValueError, TypeError) as error:
-            raise ValueError("Result must contain finite JSON values") from error
+            json.dumps(self.result, allow_nan=False, ensure_ascii=False).encode("utf-8")
+        except (ValueError, TypeError, UnicodeError) as error:
+            raise ValueError("Result must contain finite JSON values and valid Unicode") from error
         result = self.result
         if result.get("schema_version") not in ("1.0", "1.1"):
             raise ValueError("Result schema_version must be 1.0 or 1.1")
@@ -87,6 +89,69 @@ class SaveRequest(StrictModel):
         return self
 
 
+# Limits include JSON escaping, not just character counts. Fifty diagnostics,
+# each with at most 512-byte message/location and 64-byte code, stay below 64 KB.
+MAX_ERROR_DIAGNOSTICS = 50
+MAX_ERROR_TEXT_BYTES = 512
+MAX_ERROR_LOCATION_BYTES = 512
+MAX_ERROR_CODE_BYTES = 64
+TRUNCATED = " [truncated]"
+
+
+def _json_bytes(value):
+    return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+
+
+def _bounded_text(value, limit=MAX_ERROR_TEXT_BYTES):
+    if _json_bytes(value) <= limit:
+        return value
+    # First bound the work for long messages; then account for JSON escaping.
+    prefix = value.encode("utf-8")[:limit].decode("utf-8", errors="ignore")
+    while _json_bytes(prefix + TRUNCATED) > limit:
+        prefix = prefix[:len(prefix) // 2]
+    return prefix + TRUNCATED
+
+
+def _bounded_location(location):
+    result = []
+    for part in location:
+        part = _bounded_text(part, 128) if isinstance(part, str) else part
+        if _json_bytes([*result, part, TRUNCATED.strip()]) > MAX_ERROR_LOCATION_BYTES:
+            result.append(TRUNCATED.strip())
+            break
+        result.append(part)
+    return result
+
+
+def _bounded_diagnostics(diagnostics):
+    result = []
+    for item in diagnostics:
+        if len(result) == MAX_ERROR_DIAGNOSTICS:
+            result[-1] = {
+                "code": "diagnostics_truncated", "severity": "error", "location": [],
+                "message": f"Additional validation diagnostics omitted; at most {MAX_ERROR_DIAGNOSTICS} are returned.",
+            }
+            break
+        result.append({
+            "code": _bounded_text(item["code"], MAX_ERROR_CODE_BYTES),
+            "severity": item["severity"],
+            "location": _bounded_location(item["location"]),
+            "message": _bounded_text(item["message"]),
+        })
+    return result
+
+
+def _request_diagnostics(error):
+    for item in error.errors():
+        structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
+        if structured:
+            yield from (d.model_dump() for d in structured)
+            continue
+        location = list(item["loc"])
+        code = "unsupported_scope" if "geometry" in location or "schema_version" in location else "invalid_input"
+        yield {"code": code, "severity": "error", "location": location, "message": item["msg"]}
+
+
 def create_app(database_url: str | None = None, job_timeout: float = 120) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -115,11 +180,12 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
     def error_response(status, code, message, diagnostics=None):
+        message = _bounded_text(message)
         return JSONResponse(
             status_code=status,
             content={
                 "detail": message,
-                "error": {"code": code, "message": message, "diagnostics": diagnostics or []},
+                "error": {"code": code, "message": message, "diagnostics": _bounded_diagnostics(diagnostics or [])},
             },
         )
 
@@ -132,16 +198,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, error):
-        diagnostics = []
-        for item in error.errors():
-            structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
-            if structured:
-                diagnostics.extend(d.model_dump() for d in structured)
-                continue
-            location = list(item["loc"])
-            code = "unsupported_scope" if "geometry" in location or "schema_version" in location else "invalid_input"
-            diagnostics.append({"code": code, "severity": "error", "location": location, "message": item["msg"]})
-        return error_response(422, "invalid_input", "Request validation failed", diagnostics)
+        return error_response(422, "invalid_input", "Request validation failed", _request_diagnostics(error))
 
     app.add_middleware(
         CORSMiddleware,
@@ -180,9 +237,13 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                         raise ValueError(f"Non-finite JSON number: {value}")
 
                     parsed = json.loads(body, parse_constant=reject_nonfinite)
-                    json.dumps(parsed, allow_nan=False)
+                    # ASCII escaping hides lone surrogates; reject them in keys
+                    # and values before persistence or worker allocation.
+                    json.dumps(parsed, allow_nan=False, ensure_ascii=False).encode("utf-8")
                 except (ValueError, UnicodeError, RecursionError):
-                    return error_response(422, "invalid_json", "Request must be valid JSON with finite numbers")
+                    return error_response(
+                        422, "invalid_json", "Request must be valid JSON with finite numbers and valid Unicode"
+                    )
             request._body = bytes(body)
         return await call_next(request)
 
@@ -273,7 +334,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return diagnostics
 
     @app.post("/api/validate", response_model=ValidationResponse)
-    async def validate(project: Project = Body(...)):
+    async def validate(project: Annotated[InputProject, Body()]):
         diagnostics = admissibility(project)
         valid = not any(d.severity == "error" for d in diagnostics)
         return {

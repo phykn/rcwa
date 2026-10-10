@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from pydantic import AfterValidator, BeforeValidator, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 from typing_extensions import TypedDict
 
 from rcwa_core.contracts import ForwardResult, Result, StoredForwardResult
@@ -10,15 +10,24 @@ from rcwa_core.preflight import Diagnostic, EngineInfo
 from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
 
 
+def _strict_project(value):
+    # Strictness must propagate through nested models at new request boundaries.
+    # Leave the shared Project model's historical read/normalization behavior intact.
+    return Project.model_validate(value, strict=True)
+
+
+InputProject = Annotated[Project, BeforeValidator(_strict_project)]
+
+
 class FitOptions(StrictModel):
-    target_cd_nm: float = Field(gt=0)
-    lower_cd_nm: float = Field(default=40.0, gt=0)
-    upper_cd_nm: float = Field(default=360.0, gt=0)
+    target_cd_nm: float = Field(gt=0, strict=True)
+    lower_cd_nm: float = Field(default=40.0, gt=0, strict=True)
+    upper_cd_nm: float = Field(default=360.0, gt=0, strict=True)
 
 
 class JobRequest(StrictModel):
     kind: Literal["forward", "fit"] = "forward"
-    project: Project
+    project: InputProject
     fit: FitOptions | None = None
 
     @model_validator(mode="after")
@@ -90,7 +99,7 @@ GeometryField = Literal["period_nm", "cd_nm", "thickness_nm"]
 
 
 class ChangePreviewRequest(StrictModel):
-    base_project: Project
+    base_project: InputProject
     changes: GeometryPatch
 
     @model_validator(mode="after")
@@ -141,7 +150,7 @@ StackPatch = Annotated[
 
 
 class StackChangePreviewRequest(StrictModel):
-    base_project: Project
+    base_project: InputProject
     changes: StackPatch
 
     @field_validator("changes", mode="before")

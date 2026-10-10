@@ -898,14 +898,16 @@ export function ThreeStructure({
             View guide <span aria-hidden="true">ⓘ</span>
           </summary>
           <div tabIndex={0} role="region" aria-label="View guide details">
-            <label className="resize-toggle">
-              <input
-                type="checkbox"
-                checked={showHandles}
-                onChange={(event) => setShowHandles(event.target.checked)}
-              />{" "}
-              Show drag handles
-            </label>
+            {!failed && (
+              <label className="resize-toggle">
+                <input
+                  type="checkbox"
+                  checked={showHandles}
+                  onChange={(event) => setShowHandles(event.target.checked)}
+                />{" "}
+                Show drag handles
+              </label>
+            )}
             <p className="view-instructions">
               {failed
                 ? "Tap a dimension or material to edit."

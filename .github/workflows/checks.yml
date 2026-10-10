@@ -116,7 +116,7 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -168,6 +168,7 @@ jobs:
           # evidence even if one fails, while preserving an aggregate failure.
           status=0
           (cd frontend && timeout 180s node scripts/first-use-browser-qa.mjs) || status=1
+          (cd frontend && timeout 120s node scripts/first-use-touch-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
@@ -191,6 +192,7 @@ jobs:
           path: |
             artifacts/*.png
             artifacts/first-use-browser-qa.json
+            artifacts/first-use-touch-qa.json
             artifacts/browser-qa.json
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json

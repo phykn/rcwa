@@ -49,7 +49,13 @@ describe("progressive layer controls", () => {
     expect(html).toContain(
       'aria-label="Select layer 8: Layer 8" aria-pressed="true"',
     );
-    expect(html).toContain('aria-label="Add layer" aria-disabled="true"');
+    expect(html).toContain(
+      'aria-label="Add layer" aria-describedby="layer-limit-reason" aria-disabled="true"',
+    );
+    expect(html).toContain("8-layer limit");
+    expect(html).toContain(
+      "Maximum of 8 layers. Remove a layer before adding another.",
+    );
     expect(html).toContain('disabled="" aria-label="Add patterned layer"');
     expect(html).toContain('disabled="" aria-label="Add uniform layer"');
     expect(JSON.stringify(value)).toBe(before);
