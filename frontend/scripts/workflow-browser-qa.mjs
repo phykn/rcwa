@@ -28,9 +28,11 @@ const evidence = {
   screenshots: [],
   screenshotCaptures: [],
   pages: [],
+  browserProcesses: [],
   negativeCases: [],
 };
 let browser;
+let currentBrowserProcess;
 let page;
 let exportNumber = 0;
 await fs.mkdir(output, { recursive: true });
@@ -95,6 +97,8 @@ function observe(target) {
   const calls = [];
   const record = {
     id: `page-${evidence.pages.length + 1}`,
+    browserProcess: currentBrowserProcess?.id,
+    phase: currentBrowserProcess?.phase,
     viewport: target.viewportSize(),
     events: [],
     droppedEvents: 0,
@@ -254,7 +258,13 @@ async function widthSession(target, values) {
 }
 async function screenshot(target, name) {
   const filename = `workflow-${name}.png`;
-  const capture = { filename, attempts: [], recovered: false };
+  const capture = {
+    filename,
+    attempts: [],
+    recovered: false,
+    browserProcess: currentBrowserProcess?.id,
+    phase: currentBrowserProcess?.phase,
+  };
   const captureStarted = Date.now();
   evidence.screenshotCaptures.push(capture);
   // A previous timeout was immediately followed by a successful identical
@@ -596,8 +606,16 @@ async function localProposal(target, proposal) {
   return { review, focus };
 }
 
-try {
-  browser = await chromium.launch({
+async function launchBrowser(phase) {
+  const record = {
+    id: `chromium-process-${evidence.browserProcesses.length + 1}`,
+    phase,
+    startedAt: new Date().toISOString(),
+    launchedAt: null,
+    disconnectedAt: null,
+  };
+  evidence.browserProcesses.push(record);
+  const launched = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
     headless: true,
     args: [
@@ -609,6 +627,16 @@ try {
       "--enable-unsafe-swiftshader",
     ],
   });
+  record.launchedAt = new Date().toISOString();
+  currentBrowserProcess = record;
+  launched.on("disconnected", () => {
+    record.disconnectedAt = new Date().toISOString();
+  });
+  return launched;
+}
+
+try {
+  browser = await launchBrowser("desktop-functional-stress");
   const live = await newPage();
   page = live.target;
   const calls = live.calls;
@@ -900,7 +928,6 @@ try {
   );
   await review.getByText("Full inputs", { exact: true }).click();
   await assertFocusInside(page, review);
-  await screenshot(page, "proposal-review-desktop");
   await review.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(review).not.toBeVisible();
   await expect(focus).toBeFocused();
@@ -1061,7 +1088,6 @@ try {
   await expect(
     review.getByRole("button", { name: "Apply changes", exact: true }),
   ).toBeEnabled();
-  await screenshot(page, "proposal-input-warnings");
   await review.getByRole("button", { name: "Cancel", exact: true }).click();
   await history(page, "undo");
   assert.deepEqual(await exportJson(page), baseline);
@@ -1134,7 +1160,6 @@ try {
         polarization,
         2,
       );
-  await screenshot(page, "comparison-three-desktop");
   await page.keyboard.press("Escape");
   assert.deepEqual(await exportJson(page), baseline);
   comparison = await compare(page, [savedA, savedC]);
@@ -1206,7 +1231,6 @@ try {
       /^M[\d.e+-]+,[\d.e+-]+$/,
       "A one-wavelength spectrum is a single finite point, not an interpolated line",
     );
-  await screenshot(page, "comparison-single-sample");
   await comparison
     .getByLabel("Comparison polarization", { exact: true })
     .selectOption("p");
@@ -1397,6 +1421,98 @@ try {
   // Use real completed envelopes as adversarial response sources. A wrong
   // hash, kind, pol/grid, or polled ID must preserve the prior saved run.
   await page.close();
+  await browser.close();
+  browser = null;
+
+  // Keep all stress-session assertions above. Reopen the same server-owned
+  // inputs/results in an isolated Chromium process solely for visual evidence,
+  // so gesture/capture lifecycle state cannot contaminate later independent tests.
+  browser = await launchBrowser("desktop-visual-evidence");
+  const desktopVisual = (await newPage()).target;
+  await loadSnapshot(desktopVisual, savedA);
+  assert.deepEqual(await exportJson(desktopVisual), baseline);
+  let { review: visualReview } = await localProposal(desktopVisual, proposal);
+  await visualReview.getByText("Full inputs", { exact: true }).click();
+  assert.deepEqual(
+    JSON.parse(await visualReview.locator("pre").nth(1).textContent()),
+    proposal.candidate_project,
+  );
+  await visualReview.getByText("Full inputs", { exact: true }).click();
+  for (const field of ["Width", "Height", "Pitch"])
+    await expect(visualReview.locator(".change-list")).toContainText(field);
+  await expect(visualReview).toContainText(
+    "No new spectrum has been calculated",
+  );
+  await screenshot(desktopVisual, "proposal-review-desktop");
+  await desktopVisual.keyboard.press("Escape");
+
+  await importJson(desktopVisual, warningBase);
+  await expect(desktopVisual.getByLabel("Project name")).toHaveValue(
+    warningBase.name,
+  );
+  ({ review: visualReview } = await localProposal(
+    desktopVisual,
+    warningProposal,
+  ));
+  await expect(
+    visualReview.getByRole("note", { name: "Proposal warnings", exact: true }),
+  ).toContainText("Input warnings");
+  await expect(
+    visualReview.getByRole("note", { name: "Proposal warnings", exact: true }),
+  ).toContainText(/near a Rayleigh cutoff/);
+  await expect(
+    visualReview.getByRole("button", { name: "Apply changes", exact: true }),
+  ).toBeEnabled();
+  await screenshot(desktopVisual, "proposal-input-warnings");
+  await desktopVisual.keyboard.press("Escape");
+
+  await loadSnapshot(desktopVisual, savedA);
+  let visualComparison = await compare(desktopVisual, [savedA, savedB, savedC]);
+  for (const quantity of ["R", "T", "R_specular", "T_specular"])
+    for (const polarization of ["s", "p"])
+      await assertComparisonValues(
+        visualComparison,
+        [savedA, savedB, savedC],
+        quantity,
+        polarization,
+        2,
+      );
+  await expect(visualComparison.locator(".comparison-warning")).toContainText(
+    "Incidence angle",
+  );
+  await screenshot(desktopVisual, "comparison-three-desktop");
+  await desktopVisual.keyboard.press("Escape");
+  visualComparison = await compare(desktopVisual, [singleA, singleB]);
+  await assertComparisonValues(
+    visualComparison,
+    [singleA, singleB],
+    "R",
+    "s",
+    0,
+  );
+  await expect(visualComparison.locator(".comparison-plot circle")).toHaveCount(
+    2,
+  );
+  const visualPointPaths = await visualComparison
+    .locator(".comparison-plot path")
+    .evaluateAll((paths) => paths.map((node) => node.getAttribute("d")));
+  for (const path of visualPointPaths)
+    assert.match(
+      path,
+      /^M[\d.e+-]+,[\d.e+-]+$/,
+      "Isolated visual evidence retains a finite single-sample point without interpolation",
+    );
+  await screenshot(desktopVisual, "comparison-single-sample");
+  await desktopVisual.keyboard.press("Escape");
+  assert.deepEqual(await exportJson(desktopVisual), baseline);
+  checks.push(
+    "Isolated desktop visual views reopen the same real snapshot IDs and proposal data, rechecking exact quantities/polarizations/samples, single-point geometry and input warnings before capture",
+  );
+  await desktopVisual.close();
+  await browser.close();
+  browser = null;
+
+  browser = await launchBrowser("independent-job-save-mobile-static");
   const rejection = await newPage();
   const rejectionPage = rejection.target;
   await importJson(rejectionPage, exactPair(savedA));
