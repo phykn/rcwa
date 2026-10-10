@@ -140,13 +140,10 @@ export function SyntheticFit({
     <details className="panel fit-panel">
       <summary>
         <div>
-          <span className="eyebrow">INVERSE DEMONSTRATION</span>
-          <h2>
-            Synthetic CD recovery <span>Bounded inverse fit</span>
-          </h2>
+          <h2>Synthetic CD recovery</h2>
         </div>
         <span className="small-badge">
-          CD ONLY <span className="chevron">⌄</span>
+          <span className="chevron">⌄</span>
         </span>
       </summary>
       <div className="fit-body">

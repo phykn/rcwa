@@ -11,7 +11,7 @@ This workflow needs a machine where Chromium may launch. The current build envir
 
 The script uses the live app on port 5173 and the frozen static preview on 4173. It writes its JSON report, exported example, and desktop/mobile screenshots under the ignored `artifacts/` folder. It only declares success after all assertions pass. A failed assertion or browser launch must not be reported as a visual pass.
 
-Coverage: real forward process and chart, s/p and total/specular selection, stale-input label, malformed JSON rejection without state replacement, metadata save/load, full JSON export/reload, real synthetic CD recovery, and a 390px static preview with no API requests and disabled live compute.
+Coverage: real forward process and chart, s/p and total/specular selection, stale-input label, malformed JSON rejection without state replacement, metadata save/load, full JSON export/reload, real synthetic CD recovery, deterministic forward/fit cancellation with mocked queued jobs (separate from the real solver checks), Escape dismissal, and a 390px static preview with first-screen geometry and inputs, collapsed secondary settings, no API requests, and a setup link instead of live compute.
 
 This is an unauthenticated local development app. Do not make the Python API public or use a tunnel for this check.
 

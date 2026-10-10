@@ -19,9 +19,9 @@ try {
   await expect(page.getByText("Solver connected", { exact: true })).toBeVisible(
     { timeout: 20000 },
   );
-  await expect(page.getByLabel(/Critical dimension/)).toHaveValue("180");
+  await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("180");
   await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.locator(".result-badge")).toHaveText("COMPUTED", {
+  await expect(page.locator(".result-badge")).toHaveText("Computed", {
     timeout: 90000,
   });
   await expect(page.locator(".spectrum-svg")).toBeVisible();
@@ -37,10 +37,10 @@ try {
     path: `${output}/workbench-desktop.png`,
     fullPage: true,
   });
-  await page.getByLabel(/Critical dimension/).fill("181");
-  await expect(page.locator(".result-badge")).toHaveText("INPUTS CHANGED");
+  await page.getByLabel(/Width \(CD\)/).fill("181");
+  await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
   checks.push("Editing parameters preserves and marks previous results stale");
-  await page.getByLabel(/Critical dimension/).fill("180");
+  await page.getByLabel(/Width \(CD\)/).fill("180");
   const malformed = JSON.parse(
     await fs.readFile(
       new URL("../public/reference-example.json", import.meta.url),
@@ -59,8 +59,8 @@ try {
   await expect(page.getByRole("alert")).toContainText(
     "Saved result is invalid",
   );
-  await expect(page.locator(".result-badge")).toHaveText("COMPUTED");
-  await expect(page.getByLabel(/Critical dimension/)).toHaveValue("180");
+  await expect(page.locator(".result-badge")).toHaveText("Computed");
+  await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("180");
   await page.getByRole("button", { name: "Dismiss error" }).click();
   checks.push(
     "Malformed JSON result rejected without replacing current inputs/output",
@@ -91,8 +91,8 @@ try {
   await page
     .locator(".fit-panel")
     .screenshot({ path: `${output}/workbench-fit.png` });
-  await page.getByRole("button", { name: /View verified example/ }).click();
-  await expect(page.locator(".result-badge")).toHaveText("PRECOMPUTED EXAMPLE");
+  await page.getByRole("button", { name: /Load reference result/ }).click();
+  await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
   const download = await downloadPromise;
@@ -101,8 +101,47 @@ try {
     .locator("input[type=file]")
     .first()
     .setInputFiles(`${output}/browser-export.json`);
-  await expect(page.locator(".result-badge")).toHaveText("IMPORTED RESULT");
+  await expect(page.locator(".result-badge")).toHaveText("Imported result");
   checks.push("Full input/result export and JSON reload");
+  // Keep cancellation deterministic: real solver coverage is above; these routes
+  // hold jobs open so cancellation cannot race a fast completed calculation.
+  let cancelled = false;
+  await page.route("**/api/jobs**", async (route) => {
+    if (route.request().method() === "POST") cancelled = false;
+    if (route.request().method() === "DELETE") cancelled = true;
+    await route.fulfill({
+      json: {
+        id: "qa-cancel",
+        kind: "forward",
+        status: cancelled ? "cancelled" : "queued",
+        result: null,
+        error: null,
+      },
+    });
+  });
+  await page.getByRole("button", { name: /Run simulation/ }).click();
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeDisabled();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByText("Calculation cancelled.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Run synthetic recovery", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Cancel fit", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Run synthetic recovery", exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
+  await page.unroute("**/api/jobs**");
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  checks.push(
+    "Deterministic forward/fit cancellation unlocks inputs; saved-project dialog dismisses with Escape",
+  );
   const mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
@@ -117,12 +156,30 @@ try {
     mobile.getByText("Static preview", { exact: true }),
   ).toBeVisible();
   await expect(mobile.locator(".result-badge")).toHaveText(
-    "PRECOMPUTED EXAMPLE",
+    "Precomputed example",
     { timeout: 15000 },
   );
   await expect(
-    mobile.getByRole("button", { name: /Local solver required/ }),
-  ).toBeDisabled();
+    mobile.getByRole("link", { name: /Set up the local solver/ }),
+  ).toBeVisible();
+  await expect(
+    mobile.getByRole("button", { name: /Run simulation/ }),
+  ).toHaveCount(0);
+  await expect(mobile.locator(".more-settings")).not.toHaveAttribute(
+    "open",
+    "",
+  );
+  await expect(mobile.locator(".notes-panel")).not.toHaveAttribute("open", "");
+  const geometryBox = await mobile.locator(".geometry-panel").boundingBox();
+  const widthBox = await mobile.getByLabel(/Width \(CD\)/).boundingBox();
+  if (!geometryBox || !widthBox || widthBox.y + widthBox.height > 844)
+    throw new Error(
+      "Geometry and main inputs must fit in the first mobile screen",
+    );
+  await mobile.locator(".more-settings > summary").click();
+  await mobile.getByText("Light", { exact: true }).click();
+  await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
+  await mobile.locator(".more-settings > summary").click();
   if (requests.length)
     throw new Error(`Static preview made API requests: ${requests}`);
   if (
@@ -138,11 +195,11 @@ try {
   await mobile
     .locator(".spectrum-panel")
     .screenshot({ path: `${output}/workbench-mobile-spectrum.png` });
-  await mobile.getByLabel(/Critical dimension/).fill("210");
-  await expect(mobile.locator(".result-badge")).toHaveText("INPUTS CHANGED");
+  await mobile.getByLabel(/Width \(CD\)/).fill("210");
+  await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
   await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
   checks.push(
-    "390px static mobile preview: no overflow, no API calls, frozen genuine reference and disabled compute",
+    "390px static mobile preview: first-screen geometry and inputs, collapsed settings, no overflow or API calls, frozen reference and local-setup link",
   );
   if (errors.length) throw new Error(`Browser errors: ${errors.join("; ")}`);
   await fs.writeFile(

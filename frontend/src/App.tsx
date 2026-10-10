@@ -103,12 +103,10 @@ function Field({
   );
 }
 function Section({
-  number,
   title,
   children,
   open = true,
 }: {
-  number: string;
   title: string;
   children: ReactNode;
   open?: boolean;
@@ -116,7 +114,6 @@ function Section({
   return (
     <details className="control-section" open={open}>
       <summary>
-        <span className="section-number">{number}</span>
         {title}
         <span className="chevron">⌄</span>
       </summary>
@@ -187,7 +184,7 @@ function MaterialEditor({
       <div className="material-heading">
         <span className={`material-dot ${label.toLowerCase()}`} />
         <strong>{label}</strong>
-        <span>{material.kind === "tabulated" ? "TABLE" : "CONSTANT"}</span>
+        <span>{material.kind === "tabulated" ? "Table" : "Constant"}</span>
       </div>
       <input
         className="material-name"
@@ -641,19 +638,10 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#main" aria-label="Lattice RCWA Workbench">
-          <span className="brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-            <i />
-          </span>
-          <span>
-            Lattice<small>RCWA WORKBENCH</small>
-          </span>
+        <a className="brand" href="#main" aria-label="RCWA home">
+          RCWA
         </a>
         <div className="header-right">
-          <span className="version-badge">PROTOTYPE 0.1</span>
           <span className={`connection ${connection}`} title={apiDescription}>
             <i />
             {staticPreview
@@ -669,11 +657,8 @@ export default function App() {
       <main id="main">
         <div className="page-heading">
           <div>
-            <div className="eyebrow">OPTICAL SCATTEROMETRY / 01</div>
-            <h1>
-              1D Grating Explorer<span>From structure to spectrum</span>
-            </h1>
-            <p>Plane wave · Single rectangular grating · Periodic boundaries</p>
+            <h1>Build a grating</h1>
+            <p>Adjust its shape and explore how it interacts with light.</p>
           </div>
           <div className="file-actions">
             <button
@@ -713,11 +698,11 @@ export default function App() {
             <span>
               <b>
                 {staticPreview
-                  ? "Static preview · Precomputed example"
+                  ? "Precomputed example."
                   : "The calculation server is offline."}
               </b>
               {staticPreview
-                ? "The displayed spectrum is a stored reference from a real calculation. Editing inputs does not recompute it. Run new calculations with the local Python API."
+                ? " Shape edits update the drawing only. New spectra need the local Python API."
                 : "You can edit inputs and import or export JSON. Calculations require the Python API."}
             </span>
             <button
@@ -732,8 +717,11 @@ export default function App() {
           <aside className="controls panel">
             <div className="control-heading">
               <div>
-                <span className="eyebrow">PROJECT</span>
+                <label htmlFor="project-name" className="project-label">
+                  Structure
+                </label>
                 <input
+                  id="project-name"
                   aria-label="Project name"
                   value={project.name}
                   maxLength={100}
@@ -751,171 +739,178 @@ export default function App() {
                 <Icon name="save" />
               </button>
             </div>
+            <section
+              className="geometry-panel"
+              aria-label="Grating cross section"
+            >
+              <Geometry project={project} />
+              <div className="geometry-footer">
+                <span>
+                  <i className="ridge-dot" />
+                  {layer.material.name} <small>ridge</small>
+                </span>
+                <span>
+                  <i className="groove-dot" />
+                  {layer.background.name} <small>groove</small>
+                </span>
+                <span className="periodic-tag">
+                  Cross section · not to scale
+                </span>
+              </div>
+            </section>
             <fieldset disabled={busy}>
-              <Section number="01" title="Geometry">
-                <div className="scope-label">Rectangular / 1D</div>
+              <div className="geometry-inputs">
                 <Field
-                  label="Period · Λ"
+                  label="Pitch"
                   unit="nm"
                   value={project.period_nm}
                   min={20}
                   max={5000}
                   onChange={(period_nm) => update({ ...project, period_nm })}
                 />
-                <div className="field-grid">
-                  <Field
-                    label="Critical dimension · CD"
-                    unit="nm"
-                    value={layer.cd_nm}
-                    min={0}
-                    max={project.period_nm}
-                    onChange={(cd_nm) => updateLayer({ cd_nm })}
-                  />
-                  <Field
-                    label="Height"
-                    unit="nm"
-                    value={layer.thickness_nm}
-                    min={0}
-                    max={2000}
-                    onChange={(thickness_nm) => updateLayer({ thickness_nm })}
-                  />
-                </div>
-                <div className="fill-indicator">
-                  <span>Fill factor</span>
-                  <div>
-                    <i
-                      style={{
-                        width: `${Math.min(100, Math.max(0, (layer.cd_nm / project.period_nm) * 100))}%`,
-                      }}
+                <Field
+                  label="Width (CD)"
+                  unit="nm"
+                  value={layer.cd_nm}
+                  min={0}
+                  max={project.period_nm}
+                  onChange={(cd_nm) => updateLayer({ cd_nm })}
+                />
+                <Field
+                  label="Height"
+                  unit="nm"
+                  value={layer.thickness_nm}
+                  min={0}
+                  max={2000}
+                  onChange={(thickness_nm) => updateLayer({ thickness_nm })}
+                />
+              </div>
+              <details className="more-settings">
+                <summary>
+                  Materials, light & solver settings{" "}
+                  <span className="chevron">⌄</span>
+                </summary>
+                <Section title="Light" open={false}>
+                  <div className="field-grid">
+                    <Field
+                      label="λ start"
+                      unit="nm"
+                      value={waves[0]}
+                      min={200}
+                      max={2500}
+                      onChange={(v) =>
+                        updateWavelengths(v, waves.at(-1)!, waves.length)
+                      }
+                    />
+                    <Field
+                      label="λ end"
+                      unit="nm"
+                      value={waves.at(-1)!}
+                      min={200}
+                      max={2500}
+                      onChange={(v) =>
+                        updateWavelengths(waves[0], v, waves.length)
+                      }
                     />
                   </div>
-                  <strong>
-                    {Number.isFinite(layer.cd_nm / project.period_nm)
-                      ? (layer.cd_nm / project.period_nm).toFixed(3)
-                      : "—"}
-                  </strong>
-                </div>
-              </Section>
-              <Section number="02" title="Illumination">
-                <div className="field-grid">
-                  <Field
-                    label="λ start"
-                    unit="nm"
-                    value={waves[0]}
-                    min={200}
-                    max={2500}
-                    onChange={(v) =>
-                      updateWavelengths(v, waves.at(-1)!, waves.length)
-                    }
+                  <div className="field-grid">
+                    <Field
+                      label="Wavelength samples"
+                      value={waves.length}
+                      min={2}
+                      max={81}
+                      onChange={(v) =>
+                        updateWavelengths(waves[0], waves.at(-1)!, v)
+                      }
+                    />
+                    <Field
+                      label="Incidence angle · θ"
+                      unit="°"
+                      value={project.illumination.angle_deg}
+                      min={0}
+                      max={75}
+                      step={1}
+                      onChange={(angle_deg) =>
+                        update({
+                          ...project,
+                          illumination: { ...project.illumination, angle_deg },
+                        })
+                      }
+                    />
+                  </div>
+                  <label className="field">
+                    <span>Polarization</span>
+                    <select
+                      value={project.illumination.polarization}
+                      onChange={(e) =>
+                        update({
+                          ...project,
+                          illumination: {
+                            ...project.illumination,
+                            polarization: e.target
+                              .value as Project["illumination"]["polarization"],
+                          },
+                        })
+                      }
+                    >
+                      <option value="both">Both s + p</option>
+                      <option value="s">s / TE · E ∥ grooves</option>
+                      <option value="p">p / TM · H ∥ grooves</option>
+                    </select>
+                  </label>
+                  <p className="control-note">
+                    θ is measured from the surface normal. The incidence plane
+                    is x–z; grooves run along y.
+                  </p>
+                </Section>
+                <Section title="Materials" open={false}>
+                  <p className="control-note">
+                    User-defined n and k. Defaults describe synthetic materials,
+                    not measured optical constants.
+                  </p>
+                  <MaterialEditor
+                    label="Ridge"
+                    material={layer.material}
+                    onChange={(material) => updateLayer({ material })}
                   />
-                  <Field
-                    label="λ end"
-                    unit="nm"
-                    value={waves.at(-1)!}
-                    min={200}
-                    max={2500}
-                    onChange={(v) =>
-                      updateWavelengths(waves[0], v, waves.length)
-                    }
+                  <MaterialEditor
+                    label="Groove"
+                    material={layer.background}
+                    onChange={(background) => updateLayer({ background })}
                   />
-                </div>
-                <div className="field-grid">
-                  <Field
-                    label="Wavelength samples"
-                    value={waves.length}
-                    min={2}
-                    max={81}
-                    onChange={(v) =>
-                      updateWavelengths(waves[0], waves.at(-1)!, v)
-                    }
+                  <MaterialEditor
+                    label="Ambient"
+                    material={project.ambient}
+                    lossless
+                    onChange={(ambient) => update({ ...project, ambient })}
                   />
-                  <Field
-                    label="Incidence angle · θ"
-                    unit="°"
-                    value={project.illumination.angle_deg}
-                    min={0}
-                    max={75}
-                    step={1}
-                    onChange={(angle_deg) =>
-                      update({
-                        ...project,
-                        illumination: { ...project.illumination, angle_deg },
-                      })
-                    }
+                  <MaterialEditor
+                    label="Substrate"
+                    material={project.substrate}
+                    onChange={(substrate) => update({ ...project, substrate })}
                   />
-                </div>
-                <label className="field">
-                  <span>Polarization</span>
-                  <select
-                    value={project.illumination.polarization}
-                    onChange={(e) =>
-                      update({
-                        ...project,
-                        illumination: {
-                          ...project.illumination,
-                          polarization: e.target
-                            .value as Project["illumination"]["polarization"],
-                        },
-                      })
+                  <p className="control-note">
+                    Tables use linear interpolation without extrapolation. The
+                    incident ambient must have k = 0.
+                  </p>
+                </Section>
+                <Section title="Solver" open={false}>
+                  <Field
+                    label="Harmonic order N"
+                    value={project.solver.harmonics}
+                    min={1}
+                    max={20}
+                    onChange={(harmonics) =>
+                      update({ ...project, solver: { harmonics } })
                     }
-                  >
-                    <option value="both">Both s + p</option>
-                    <option value="s">s / TE · E ∥ grooves</option>
-                    <option value="p">p / TM · H ∥ grooves</option>
-                  </select>
-                </label>
-                <p className="control-note">
-                  θ is measured from the surface normal. The incidence plane is
-                  x–z; grooves run along y.
-                </p>
-              </Section>
-              <Section number="03" title="Optical constants" open={false}>
-                <p className="control-note">
-                  User-defined n and k. Defaults describe synthetic materials,
-                  not measured optical constants.
-                </p>
-                <MaterialEditor
-                  label="Ridge"
-                  material={layer.material}
-                  onChange={(material) => updateLayer({ material })}
-                />
-                <MaterialEditor
-                  label="Groove"
-                  material={layer.background}
-                  onChange={(background) => updateLayer({ background })}
-                />
-                <MaterialEditor
-                  label="Ambient"
-                  material={project.ambient}
-                  lossless
-                  onChange={(ambient) => update({ ...project, ambient })}
-                />
-                <MaterialEditor
-                  label="Substrate"
-                  material={project.substrate}
-                  onChange={(substrate) => update({ ...project, substrate })}
-                />
-                <p className="control-note">
-                  Tables use linear interpolation without extrapolation. The
-                  incident ambient must have k = 0.
-                </p>
-              </Section>
-              <Section number="04" title="Solver">
-                <Field
-                  label="Harmonic order N"
-                  value={project.solver.harmonics}
-                  min={1}
-                  max={20}
-                  onChange={(harmonics) =>
-                    update({ ...project, solver: { harmonics } })
-                  }
-                  help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
-                />
-                <p className="control-note">
-                  Increase N and compare results to assess convergence. A higher
-                  order alone does not guarantee accuracy.
-                </p>
-              </Section>
+                    help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
+                  />
+                  <p className="control-note">
+                    Increase N and compare results to assess convergence. A
+                    higher order alone does not guarantee accuracy.
+                  </p>
+                </Section>
+              </details>
             </fieldset>
             <div className="run-area">
               {errors.length > 0 && (
@@ -925,21 +920,30 @@ export default function App() {
                   ))}
                 </ul>
               )}
-              <button
-                className="run-button"
-                onClick={run}
-                disabled={staticPreview || busy || !!errors.length}
-              >
-                {busy ? <span className="spinner" /> : <Icon name="play" />}
-                {staticPreview
-                  ? "Local solver required"
-                  : fitBusy
+              {staticPreview ? (
+                <a
+                  className="setup-link"
+                  href="https://github.com/phykn/rcwa#quickstart"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Set up the local solver ↗
+                </a>
+              ) : (
+                <button
+                  className="run-button"
+                  onClick={run}
+                  disabled={staticPreview || busy || !!errors.length}
+                >
+                  {busy ? <span className="spinner" /> : <Icon name="play" />}
+                  {fitBusy
                     ? "Fit in progress"
                     : forwardBusy
                       ? "Calculating…"
                       : "Run simulation"}
-                <span>{forwardBusy ? `${elapsed}s` : "↵"}</span>
-              </button>
+                  <span>{forwardBusy ? `${elapsed}s` : "↵"}</span>
+                </button>
+              )}
               {forwardBusy ? (
                 <div className="job-progress">
                   <span>
@@ -958,24 +962,24 @@ export default function App() {
                     Cancel
                   </button>
                 </div>
-              ) : (
+              ) : !staticPreview ? (
                 <div>
                   <button
                     className="example-button"
                     disabled={busy}
                     onClick={resetExample}
                   >
-                    Load example inputs <span>↗</span>
+                    Reset inputs
                   </button>
                   <button
                     className="example-button"
                     disabled={busy}
                     onClick={loadReference}
                   >
-                    View verified example <span>↗</span>
+                    Load reference result
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
           </aside>
           <div className="results-column">
@@ -1002,61 +1006,35 @@ export default function App() {
                 </button>
               </div>
             )}
-            <section className="panel geometry-panel">
-              <div className="panel-heading">
-                <div>
-                  <span className="eyebrow">STRUCTURE PREVIEW</span>
-                  <h2>
-                    Unit cell <span>Cross section</span>
-                  </h2>
-                </div>
-                <span className="small-badge">SCHEMATIC · NOT TO SCALE</span>
-              </div>
-              <Geometry project={project} />
-              <div className="geometry-footer">
-                <span>
-                  <i className="ridge-dot" />
-                  {layer.material.name} <small>ridge</small>
-                </span>
-                <span>
-                  <i className="groove-dot" />
-                  {layer.background.name} <small>groove</small>
-                </span>
-                <span className="periodic-tag">← Infinite periodicity →</span>
-              </div>
-            </section>
             <section className="panel spectrum-panel">
               <div className="panel-heading">
                 <div>
-                  <span className="eyebrow">FORWARD SIMULATION</span>
-                  <h2>
-                    Optical response <span>Power spectrum</span>
-                  </h2>
+                  <h2>Spectrum</h2>
                 </div>
                 <span
                   className={`result-badge ${stale ? "stale" : result ? "ready" : ""}`}
                 >
                   {stale
-                    ? "INPUTS CHANGED"
+                    ? "Inputs changed"
                     : result
                       ? resultOrigin === "reference"
-                        ? "PRECOMPUTED EXAMPLE"
+                        ? "Precomputed example"
                         : resultOrigin === "imported"
-                          ? "IMPORTED RESULT"
-                          : "COMPUTED"
-                      : "AWAITING RUN"}
+                          ? "Imported result"
+                          : "Computed"
+                      : "No result yet"}
                 </span>
               </div>
               {stale && (
                 <div className="stale-note">
-                  This plot uses previous inputs. Run again to compute the
-                  current inputs.
+                  {staticPreview
+                    ? "Shape changed. This is still the reference spectrum; export your inputs to calculate locally."
+                    : "Inputs changed. Run again to update this spectrum."}
                 </div>
               )}
               {resultOrigin === "reference" && result && (
                 <div className="reference-note">
-                  Reference example: stored output from a real meent
-                  calculation, not a new calculation in this view.
+                  Stored meent calculation:
                   {resultProject && (
                     <span>
                       {" "}
@@ -1073,39 +1051,7 @@ export default function App() {
                 polarization={polarization}
                 onPolarization={setPolarization}
               />
-              <div className="spectrum-note">
-                <b>Total ≠ specular.</b> R and T sum power contributions over
-                all retained diffraction orders. R₀ and T₀ contain only the
-                zeroth order.
-              </div>
             </section>
-            {selectedSpectrum && (
-              <div className="metrics-row">
-                <div className="metric panel">
-                  <span>MEAN REFLECTANCE</span>
-                  <strong>
-                    {(100 * mean(selectedSpectrum.R)).toFixed(2)}
-                    <small>%</small>
-                  </strong>
-                  <p>Sum over retained reflected orders</p>
-                </div>
-                <div className="metric panel">
-                  <span>MEAN TRANSMITTANCE</span>
-                  <strong>
-                    {(100 * mean(selectedSpectrum.T)).toFixed(2)}
-                    <small>%</small>
-                  </strong>
-                  <p>Sum over retained transmitted orders</p>
-                </div>
-                <div className="metric panel">
-                  <span>MEAN 1 − R − T</span>
-                  <strong>
-                    {mean(selectedSpectrum.A_balance).toExponential(2)}
-                  </strong>
-                  <p>Energy balance, not a convergence proof</p>
-                </div>
-              </div>
-            )}
             <SyntheticFit
               project={project}
               staticPreview={staticPreview}
@@ -1113,12 +1059,42 @@ export default function App() {
               onBusyChange={setFitBusy}
               onApply={(cd_nm) => updateLayer({ cd_nm })}
             />
-            <section className="panel notes-panel">
-              <div>
-                <span className="eyebrow">MODEL & NUMERICS</span>
-                <h2>
-                  Reading the results <span>Conventions</span>
-                </h2>
+            <details className="notes-panel">
+              <summary>
+                Results details & model assumptions{" "}
+                <span className="chevron">⌄</span>
+              </summary>
+              {selectedSpectrum && (
+                <div className="metrics-row">
+                  <div className="metric panel">
+                    <span>Mean reflectance</span>
+                    <strong>
+                      {(100 * mean(selectedSpectrum.R)).toFixed(2)}
+                      <small>%</small>
+                    </strong>
+                    <p>Sum over retained reflected orders</p>
+                  </div>
+                  <div className="metric panel">
+                    <span>Mean transmittance</span>
+                    <strong>
+                      {(100 * mean(selectedSpectrum.T)).toFixed(2)}
+                      <small>%</small>
+                    </strong>
+                    <p>Sum over retained transmitted orders</p>
+                  </div>
+                  <div className="metric panel">
+                    <span>Mean 1 − R − T</span>
+                    <strong>
+                      {mean(selectedSpectrum.A_balance).toExponential(2)}
+                    </strong>
+                    <p>Energy balance, not a convergence proof</p>
+                  </div>
+                </div>
+              )}
+              <div className="spectrum-note">
+                <b>Total ≠ specular.</b> R and T sum power contributions over
+                all retained diffraction orders. R₀ and T₀ contain only the
+                zeroth order.
               </div>
               <div className="notes-grid">
                 <p>
@@ -1154,13 +1130,7 @@ export default function App() {
                   <pre>{JSON.stringify(result.metadata, null, 2)}</pre>
                 </details>
               )}
-            </section>
-            <footer className="workspace-footer">
-              <span>Lattice / RCWA prototype</span>
-              <span>
-                Simple structures. Explicit assumptions. Inspectable results.
-              </span>
-            </footer>
+            </details>
           </div>
         </div>
       </main>
