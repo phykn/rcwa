@@ -51,13 +51,13 @@ def test_timeout_is_bounded(timeout):
 
 def test_tool_schemas_come_from_shared_models():
     tools = {operation.name: operation.tool() for operation in OPERATIONS}
-    assert len(tools) == 9
+    assert len(tools) == 10
     for tool in tools.values():
         Draft202012Validator.check_schema(tool.input_schema)
         Draft202012Validator.check_schema(tool.output_schema)
         assert tool.input_schema["additionalProperties"] is False
     project = tools["rcwa_validate"].input_schema["$defs"]["Project"]
-    assert project["properties"]["layers"]["maxItems"] == 1
+    assert project["properties"]["layers"]["maxItems"] == 8
     submit = tools["rcwa_submit"].input_schema
     assert submit["$defs"]["JobRequest"]["properties"]["kind"]["enum"] == ["forward", "fit"]
     assert "FitOptions" in submit["$defs"]

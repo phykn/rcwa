@@ -1,5 +1,10 @@
-import { isForwardResult, validateProject } from "./model";
-import type { ForwardResult, Material, Project } from "./model";
+import {
+  isForwardResult,
+  validateProject,
+  validLayerIndex,
+  supportsSyntheticFit,
+} from "./model";
+import type { ForwardResult, Material, Project, Layer } from "./model";
 
 export type RunOrigin = "computed" | "server" | "imported" | "reference";
 export interface RunRecord {
@@ -13,6 +18,7 @@ export interface RunRecord {
 export interface Workspace {
   project: Project;
   displayedRun: RunRecord | null;
+  selectedLayer?: number;
 }
 interface EditTransaction {
   start: Workspace;
@@ -28,7 +34,8 @@ export interface HistoryState {
   revision: number;
 }
 export type WorkspaceAction =
-  | { type: "replace-project"; project: Project }
+  | { type: "replace-project"; project: Project; selectedLayer?: number }
+  | { type: "select-layer"; index: number }
   | { type: "replace-workspace"; workspace: Workspace }
   | { type: "set-displayed-run"; run: RunRecord | null }
   | { type: "begin-edit" }
@@ -39,6 +46,7 @@ export type WorkspaceAction =
 
 export const HISTORY_LIMIT = 30;
 export const PROPOSAL_MAX_BYTES = 2_000_000;
+export const STACK_PROPOSAL_MAX_BYTES = 8_000_000;
 const SOURCE_DEFAULT = "User-defined synthetic optical constants";
 
 /** Key order is irrelevant; array order, missing keys and every value matter. */
@@ -76,7 +84,7 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** A mutable deep copy for constructing the next edit. Stored copies are frozen. */
-export function cloneProject(project: Project): Project {
+export function cloneProject<T extends Project>(project: T): T {
   return structuredClone(project);
 }
 
@@ -86,7 +94,11 @@ export function normalizeProject(project: Project): Project {
   for (const material of [
     copy.ambient,
     copy.substrate,
-    ...copy.layers.flatMap((layer) => [layer.material, layer.background]),
+    ...copy.layers.flatMap((layer) =>
+      layer.geometry === "rectangle_1d"
+        ? [layer.material, layer.background]
+        : [layer.material],
+    ),
   ]) {
     material.wavelengths_nm ??= null;
     material.n_values ??= null;
@@ -113,6 +125,14 @@ export function createRunRecord(run: RunRecord): RunRecord {
 function immutableWorkspace(workspace: Workspace): Workspace {
   return Object.freeze({
     project: deepFreeze(cloneProject(workspace.project)),
+    ...(workspace.selectedLayer === undefined
+      ? {}
+      : {
+          selectedLayer: validLayerIndex(
+            workspace.project,
+            workspace.selectedLayer,
+          ),
+        }),
     displayedRun: workspace.displayedRun
       ? createRunRecord(workspace.displayedRun)
       : null,
@@ -152,6 +172,14 @@ export function workspaceReducer(
   state: HistoryState,
   action: WorkspaceAction,
 ): HistoryState {
+  if (action.type === "select-layer")
+    return {
+      ...state,
+      present: Object.freeze({
+        ...state.present,
+        selectedLayer: validLayerIndex(state.present.project, action.index),
+      }),
+    };
   if (action.type === "begin-edit")
     return state.editTransaction
       ? state
@@ -208,7 +236,19 @@ export function workspaceReducer(
   }
   const next =
     action.type === "replace-project"
-      ? { ...state.present, project: action.project }
+      ? {
+          ...state.present,
+          project: action.project,
+          ...(action.selectedLayer === undefined &&
+          state.present.selectedLayer === undefined
+            ? {}
+            : {
+                selectedLayer: validLayerIndex(
+                  action.project,
+                  action.selectedLayer ?? state.present.selectedLayer,
+                ),
+              }),
+        }
       : action.type === "replace-workspace"
         ? action.workspace
         : { ...state.present, displayedRun: action.run };
@@ -248,7 +288,7 @@ export interface Diagnostic {
   location: (string | number)[];
   message: string;
 }
-export interface ChangeProposal {
+export interface LegacyChangeProposal {
   schema_version: "rcwa-change-proposal/1.0";
   base_project: Project;
   candidate_project: Project;
@@ -258,6 +298,205 @@ export interface ChangeProposal {
   diff: GeometryDifference[];
   diagnostics: Diagnostic[];
   valid: boolean;
+}
+
+export interface StackChanges {
+  period_nm?: number;
+  layers?: Layer[];
+}
+export interface MaterialSummary {
+  name: string;
+  kind: Material["kind"];
+  n: number;
+  k: number;
+  source: string;
+  table: null | {
+    rows: number;
+    wavelength_min_nm: number;
+    wavelength_max_nm: number;
+    checksum: string;
+  };
+}
+export interface LayerSummary {
+  name: string;
+  geometry: Layer["geometry"];
+  thickness_nm: number;
+  material: MaterialSummary;
+  cd_nm: number | null;
+  background: MaterialSummary | null;
+}
+export type StackDifference =
+  | {
+      kind: "value";
+      path: string;
+      before: string | number | null;
+      after: string | number | null;
+    }
+  | {
+      kind: "material";
+      path: string;
+      before: MaterialSummary | null;
+      after: MaterialSummary | null;
+    }
+  | {
+      kind: "layer";
+      path: string;
+      before: LayerSummary | null;
+      after: LayerSummary | null;
+    };
+export interface StackChangeProposal extends Omit<
+  LegacyChangeProposal,
+  "schema_version" | "changes" | "diff"
+> {
+  schema_version: "rcwa-change-proposal/1.1";
+  changes: StackChanges;
+  diff: StackDifference[];
+}
+export type ChangeProposal = LegacyChangeProposal | StackChangeProposal;
+
+/** Compact content fingerprint, not a security or provenance claim. */
+export function summarizeMaterial(material: Material): MaterialSummary {
+  let table: MaterialSummary["table"] = null;
+  if (material.kind === "tabulated") {
+    const wavelengths = material.wavelengths_nm!;
+    const bytes = new DataView(new ArrayBuffer(8));
+    let hash = 2166136261;
+    for (let i = 0; i < wavelengths.length; i++)
+      for (const value of [
+        wavelengths[i],
+        material.n_values![i],
+        material.k_values![i],
+      ]) {
+        bytes.setFloat64(0, value, false);
+        for (let j = 0; j < 8; j++)
+          hash = Math.imul(hash ^ bytes.getUint8(j), 16777619) >>> 0;
+      }
+    table = {
+      rows: wavelengths.length,
+      wavelength_min_nm: wavelengths[0],
+      wavelength_max_nm: wavelengths.at(-1)!,
+      checksum: `fnv1a32-f64be:${hash.toString(16).padStart(8, "0")}`,
+    };
+  }
+  return {
+    name: material.name,
+    kind: material.kind,
+    n: material.n,
+    k: material.k,
+    source: material.source ?? SOURCE_DEFAULT,
+    table,
+  };
+}
+export function summarizeLayer(layer: Layer): LayerSummary {
+  return {
+    name: layer.name,
+    geometry: layer.geometry,
+    thickness_nm: layer.thickness_nm,
+    material: summarizeMaterial(layer.material),
+    cd_nm: layer.geometry === "rectangle_1d" ? layer.cd_nm : null,
+    background:
+      layer.geometry === "rectangle_1d"
+        ? summarizeMaterial(layer.background)
+        : null,
+  };
+}
+export function parseStackChanges(value: unknown): StackChanges {
+  const changes = object(value, "changes");
+  keys(changes, ["period_nm", "layers"], [], "changes");
+  if (!Object.keys(changes).length)
+    throw new Error("changes must contain period_nm and/or layers.");
+  if ("period_nm" in changes && !finite(changes.period_nm))
+    throw new Error("changes.period_nm must be a finite number.");
+  if (
+    "layers" in changes &&
+    (!Array.isArray(changes.layers) ||
+      changes.layers.length < 1 ||
+      changes.layers.length > 8)
+  )
+    throw new Error("changes.layers must contain 1–8 complete layers.");
+  return structuredClone(changes) as StackChanges;
+}
+export function applyStackChanges(
+  base: Project,
+  changes: StackChanges,
+): Project {
+  const patch = parseStackChanges(changes);
+  const candidate = strictProject(base, "base_project");
+  candidate.schema_version = "1.1";
+  if (patch.period_nm !== undefined) candidate.period_nm = patch.period_nm;
+  if (patch.layers !== undefined)
+    candidate.layers = structuredClone(patch.layers);
+  return strictProject(candidate, "candidate_project");
+}
+export function stackDiff(
+  base: Project,
+  candidate: Project,
+): StackDifference[] {
+  const diff: StackDifference[] = [];
+  for (const field of ["schema_version", "period_nm"] as const)
+    if (base[field] !== candidate[field])
+      diff.push({
+        kind: "value",
+        path: field,
+        before: base[field],
+        after: candidate[field],
+      });
+  for (
+    let i = 0;
+    i < Math.max(base.layers.length, candidate.layers.length);
+    i++
+  ) {
+    const before = base.layers[i],
+      after = candidate.layers[i],
+      path = `layers[${i}]`;
+    if (!before || !after || before.geometry !== after.geometry) {
+      diff.push({
+        kind: "layer",
+        path,
+        before: before ? summarizeLayer(before) : null,
+        after: after ? summarizeLayer(after) : null,
+      });
+      continue;
+    }
+    for (const field of ["name", "thickness_nm"] as const)
+      if (before[field] !== after[field])
+        diff.push({
+          kind: "value",
+          path: `${path}.${field}`,
+          before: before[field],
+          after: after[field],
+        });
+    if (
+      before.geometry === "rectangle_1d" &&
+      after.geometry === "rectangle_1d" &&
+      before.cd_nm !== after.cd_nm
+    )
+      diff.push({
+        kind: "value",
+        path: `${path}.cd_nm`,
+        before: before.cd_nm,
+        after: after.cd_nm,
+      });
+    if (!semanticEqual(before.material, after.material))
+      diff.push({
+        kind: "material",
+        path: `${path}.material`,
+        before: summarizeMaterial(before.material),
+        after: summarizeMaterial(after.material),
+      });
+    if (
+      before.geometry === "rectangle_1d" &&
+      after.geometry === "rectangle_1d" &&
+      !semanticEqual(before.background, after.background)
+    )
+      diff.push({
+        kind: "material",
+        path: `${path}.background`,
+        before: summarizeMaterial(before.background),
+        after: summarizeMaterial(after.background),
+      });
+  }
+  return diff;
 }
 
 function object(value: unknown, location: string): Record<string, unknown> {
@@ -300,24 +539,36 @@ function strictProject(value: unknown, location: string): Project {
     "solver",
   ];
   keys(project, projectKeys, projectKeys, location);
-  if (!Array.isArray(project.layers) || project.layers.length !== 1)
-    throw new Error(`${location}: exactly one layer is required.`);
-  const layer = object(project.layers[0], `${location}.layers[0]`);
-  const layerKeys = [
-    "name",
-    "geometry",
-    "thickness_nm",
-    "cd_nm",
-    "material",
-    "background",
-  ];
-  keys(layer, layerKeys, layerKeys, `${location}.layers[0]`);
-  for (const [label, material] of [
+  if (
+    !Array.isArray(project.layers) ||
+    project.layers.length < 1 ||
+    project.layers.length > 8
+  )
+    throw new Error(`${location}: 1–8 layers are required.`);
+  const materials: [string, unknown][] = [
     ["ambient", project.ambient],
     ["substrate", project.substrate],
-    ["layers[0].material", layer.material],
-    ["layers[0].background", layer.background],
-  ]) {
+  ];
+  project.layers.forEach((value, index) => {
+    const label = `${location}.layers[${index}]`;
+    const layer = object(value, label);
+    const layerKeys =
+      layer.geometry === "homogeneous"
+        ? ["name", "geometry", "thickness_nm", "material"]
+        : [
+            "name",
+            "geometry",
+            "thickness_nm",
+            "cd_nm",
+            "material",
+            "background",
+          ];
+    keys(layer, layerKeys, layerKeys, label);
+    materials.push([`layers[${index}].material`, layer.material]);
+    if (layer.geometry === "rectangle_1d")
+      materials.push([`layers[${index}].background`, layer.background]);
+  });
+  for (const [label, material] of materials) {
     keys(
       object(material, `${location}.${label}`),
       [
@@ -369,18 +620,27 @@ export function applyGeometryChanges(
 ): Project {
   const patch = parseGeometryChanges(changes);
   const candidate = strictProject(base, "base_project");
+  if (candidate.schema_version !== "1.0" || !supportsSyntheticFit(candidate))
+    throw new Error(
+      "Legacy geometry proposals require a schema 1.0 single rectangular layer.",
+    );
+  const layer = candidate.layers[0];
+  if (layer.geometry !== "rectangle_1d") throw new Error("Rectangle required.");
   // Assign the whole patch before checking CD <= period, so combined edits are atomic.
   if (patch.period_nm !== undefined) candidate.period_nm = patch.period_nm;
-  if (patch.cd_nm !== undefined) candidate.layers[0].cd_nm = patch.cd_nm;
-  if (patch.thickness_nm !== undefined)
-    candidate.layers[0].thickness_nm = patch.thickness_nm;
+  if (patch.cd_nm !== undefined) layer.cd_nm = patch.cd_nm;
+  if (patch.thickness_nm !== undefined) layer.thickness_nm = patch.thickness_nm;
   const errors = validateProject(candidate);
   if (errors.length) throw new Error(`candidate_project: ${errors.join(" ")}`);
   return candidate;
 }
 
 function geometryValue(project: Project, field: GeometryField): number {
-  return field === "period_nm" ? project.period_nm : project.layers[0][field];
+  if (field === "period_nm") return project.period_nm;
+  const layer = project.layers[0];
+  if (layer.geometry !== "rectangle_1d")
+    throw new Error("Geometry diff requires one rectangle.");
+  return layer[field];
 }
 export function geometryDiff(
   base: Project,
@@ -428,8 +688,19 @@ export function localPreflight(project: Project): Diagnostic[] {
   const materials: [Material, (string | number)[]][] = [
     [project.ambient, ["ambient"]],
     [project.substrate, ["substrate"]],
-    [project.layers[0]?.material, ["layers", 0, "material"]],
-    [project.layers[0]?.background, ["layers", 0, "background"]],
+    ...project.layers.flatMap(
+      (layer, index): [Material, (string | number)[]][] => [
+        [layer.material, ["layers", index, "material"]],
+        ...(layer.geometry === "rectangle_1d"
+          ? [
+              [layer.background, ["layers", index, "background"]] as [
+                Material,
+                (string | number)[],
+              ],
+            ]
+          : []),
+      ],
+    ),
   ];
   for (const [material, location] of materials) {
     const table = material?.wavelengths_nm;
@@ -506,9 +777,19 @@ export function localPreflight(project: Project): Diagnostic[] {
 }
 
 export function parseChangeProposal(text: string): ChangeProposal {
-  if (new TextEncoder().encode(text).byteLength > PROPOSAL_MAX_BYTES)
-    throw new Error("Proposal exceeds the 2 MB file limit.");
-  const data: unknown = JSON.parse(text);
+  const bytes = new TextEncoder().encode(text).byteLength;
+  if (bytes > STACK_PROPOSAL_MAX_BYTES)
+    throw new Error("Proposal exceeds the 8 MB file limit.");
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    if (bytes > PROPOSAL_MAX_BYTES)
+      throw new Error("Invalid JSON above the 2 MB legacy proposal limit.", {
+        cause: error,
+      });
+    throw error;
+  }
   assertFiniteJson(data);
   const envelope = object(data, "proposal");
   const fields = [
@@ -523,8 +804,11 @@ export function parseChangeProposal(text: string): ChangeProposal {
     "valid",
   ];
   keys(envelope, fields, fields, "proposal");
-  if (envelope.schema_version !== "rcwa-change-proposal/1.0")
+  const legacy = envelope.schema_version === "rcwa-change-proposal/1.0";
+  if (!legacy && envelope.schema_version !== "rcwa-change-proposal/1.1")
     throw new Error("Unsupported change proposal schema.");
+  if (legacy && bytes > PROPOSAL_MAX_BYTES)
+    throw new Error("Proposal exceeds the 2 MB file limit.");
   if (typeof envelope.valid !== "boolean")
     throw new Error("proposal.valid must be a boolean.");
   for (const field of ["base_input_hash", "candidate_input_hash"])
@@ -538,33 +822,24 @@ export function parseChangeProposal(text: string): ChangeProposal {
     envelope.candidate_project,
     "candidate_project",
   );
-  const changes = parseGeometryChanges(envelope.changes);
-  const candidate = applyGeometryChanges(base, changes);
+  const changes = legacy
+    ? parseGeometryChanges(envelope.changes)
+    : parseStackChanges(envelope.changes);
+  const candidate = legacy
+    ? applyGeometryChanges(base, changes as GeometryChanges)
+    : applyStackChanges(base, changes as StackChanges);
   if (!semanticEqual(candidate, suppliedCandidate))
     throw new Error(
-      "Candidate contains changes outside the supplied geometry patch.",
+      "Candidate contains changes outside the supplied geometry patch or stack changes.",
     );
-  const diff = geometryDiff(base, candidate);
-  if (!Array.isArray(envelope.diff))
-    throw new Error("proposal.diff must be an array.");
-  for (const entry of envelope.diff) {
-    const item = object(entry, "diff entry");
-    keys(
-      item,
-      ["field", "before", "after"],
-      ["field", "before", "after"],
-      "diff entry",
-    );
-    if (
-      !GEOMETRY_FIELDS.includes(item.field as GeometryField) ||
-      !finite(item.before) ||
-      !finite(item.after)
-    )
-      throw new Error("Invalid geometry diff entry.");
-  }
+  const diff = legacy
+    ? geometryDiff(base, candidate)
+    : stackDiff(base, candidate);
+  if (!Array.isArray(envelope.diff) || envelope.diff.length > 64)
+    throw new Error("proposal.diff must be an array with at most 64 entries.");
   if (!semanticEqual(diff, envelope.diff))
     throw new Error(
-      "Supplied diff does not match the reconstructed geometry changes.",
+      "Supplied diff does not match the reconstructed geometry changes or stack changes.",
     );
   if (!Array.isArray(envelope.diagnostics))
     throw new Error("proposal.diagnostics must be an array.");
@@ -592,7 +867,7 @@ export function parseChangeProposal(text: string): ChangeProposal {
   const diagnostics = localPreflight(candidate);
   // Hashes are informational. Only the server establishes computed provenance.
   return deepFreeze({
-    schema_version: "rcwa-change-proposal/1.0",
+    schema_version: envelope.schema_version,
     base_project: base,
     candidate_project: candidate,
     changes,
@@ -601,7 +876,7 @@ export function parseChangeProposal(text: string): ChangeProposal {
     diff,
     diagnostics,
     valid: !diagnostics.some((diagnostic) => diagnostic.severity === "error"),
-  });
+  } as ChangeProposal);
 }
 
 export function proposalApplyError(
@@ -670,4 +945,25 @@ export function comparisonCompatibilityError(
     wavelengths = run.result.wavelengths_nm;
   }
   return null;
+}
+
+/** Compare illumination, accuracy and every ordered layer's optical conditions. */
+export function comparisonConditionsDiffer(
+  first: Project,
+  next: Project,
+): boolean {
+  const materials = (project: Project) => [
+    project.ambient,
+    project.substrate,
+    project.layers.map((layer) => ({
+      geometry: layer.geometry,
+      material: layer.material,
+      background: layer.geometry === "rectangle_1d" ? layer.background : null,
+    })),
+  ];
+  return (
+    first.illumination.angle_deg !== next.illumination.angle_deg ||
+    first.solver.harmonics !== next.solver.harmonics ||
+    !semanticEqual(materials(first), materials(next))
+  );
 }

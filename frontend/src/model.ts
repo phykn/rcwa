@@ -9,7 +9,7 @@ export interface Material {
   k_values?: number[] | null;
   source?: string;
 }
-export interface Layer {
+export interface RectangleLayer {
   name: string;
   geometry: "rectangle_1d";
   thickness_nm: number;
@@ -17,8 +17,15 @@ export interface Layer {
   material: Material;
   background: Material;
 }
+export interface HomogeneousLayer {
+  name: string;
+  geometry: "homogeneous";
+  thickness_nm: number;
+  material: Material;
+}
+export type Layer = RectangleLayer | HomogeneousLayer;
 export interface Project {
-  schema_version: "1.0";
+  schema_version: "1.0" | "1.1";
   name: string;
   period_nm: number;
   ambient: Material;
@@ -31,6 +38,10 @@ export interface Project {
   };
   solver: { harmonics: number };
 }
+export interface LegacyProject extends Project {
+  schema_version: "1.0";
+  layers: RectangleLayer[];
+}
 export interface Spectrum {
   R: number[];
   T: number[];
@@ -41,7 +52,7 @@ export interface Spectrum {
 }
 export interface ForwardResult {
   result_type?: "forward";
-  schema_version: "1.0";
+  schema_version: "1.0" | "1.1";
   wavelengths_nm: number[];
   spectra: { s?: Spectrum; p?: Spectrum };
   metadata: Record<string, unknown>;
@@ -97,7 +108,7 @@ const material = (name: string, n: number): Material => ({
   k_values: null,
   source: "User-defined synthetic optical constants",
 });
-export const defaultProject: Project = {
+export const defaultProject: LegacyProject = {
   schema_version: "1.0",
   name: "One-layer grating",
   period_nm: 400,
@@ -135,31 +146,67 @@ export function validateProject(project: unknown): string[] {
   if (!project || typeof project !== "object")
     return ["Project must be a JSON object."];
   const p = project as Project;
-  if (p.schema_version !== "1.0")
-    errors.push("Only project schema 1.0 is supported.");
+  if (!["1.0", "1.1"].includes(p.schema_version))
+    errors.push("Only project schemas 1.0 and 1.1 are supported.");
   if (typeof p.name !== "string" || !p.name.trim() || p.name.length > 100)
     errors.push("Enter a project name with 1–100 characters.");
   if (!finite(p.period_nm) || p.period_nm < 20 || p.period_nm > 5000)
     errors.push("Period must be 20–5000 nm.");
-  if (!Array.isArray(p.layers) || p.layers.length !== 1)
-    return [...errors, "This version supports exactly one grating layer."];
-  const layer = p.layers[0];
+  if (!Array.isArray(p.layers) || p.layers.length < 1 || p.layers.length > 8)
+    return [...errors, "Use 1–8 finite layers in top-to-bottom order."];
   if (
-    typeof layer?.name !== "string" ||
-    !layer.name.trim() ||
-    layer.name.length > 100
+    p.schema_version === "1.0" &&
+    (p.layers.length !== 1 || p.layers[0]?.geometry !== "rectangle_1d")
   )
-    errors.push("Layer name must be 1–100 characters.");
-  if (!layer || layer.geometry !== "rectangle_1d")
-    return [...errors, "Only rectangle_1d geometry is supported."];
-  if (!finite(layer.cd_nm) || layer.cd_nm < 0 || layer.cd_nm > p.period_nm)
-    errors.push("CD must be between 0 and the period.");
-  if (
-    !finite(layer.thickness_nm) ||
-    layer.thickness_nm < 0 ||
-    layer.thickness_nm > 2000
-  )
-    errors.push("Thickness must be 0–2000 nm.");
+    errors.push("Schema 1.0 supports exactly one rectangular grating layer.");
+  for (const [index, layer] of p.layers.entries()) {
+    const label = `Layer ${index + 1}`;
+    if (!layer || typeof layer !== "object") {
+      errors.push(`${label}: invalid layer.`);
+      continue;
+    }
+    if (
+      typeof layer.name !== "string" ||
+      !layer.name.trim() ||
+      layer.name.length > 100
+    )
+      errors.push(`${label}: layer name must be 1–100 characters.`);
+    if (!["rectangle_1d", "homogeneous"].includes(layer.geometry))
+      errors.push(
+        `${label}: only rectangle_1d or homogeneous geometry is supported.`,
+      );
+    if (
+      layer.geometry === "homogeneous" &&
+      ("cd_nm" in layer || "background" in layer)
+    )
+      errors.push(
+        `${label}: homogeneous layers cannot contain CD or background.`,
+      );
+    const allowed =
+      layer.geometry === "rectangle_1d"
+        ? [
+            "name",
+            "geometry",
+            "thickness_nm",
+            "cd_nm",
+            "material",
+            "background",
+          ]
+        : ["name", "geometry", "thickness_nm", "material"];
+    if (Object.keys(layer).some((key) => !allowed.includes(key)))
+      errors.push(`${label}: unknown layer field.`);
+    if (
+      layer.geometry === "rectangle_1d" &&
+      (!finite(layer.cd_nm) || layer.cd_nm < 0 || layer.cd_nm > p.period_nm)
+    )
+      errors.push(`${label}: CD must be between 0 and the period.`);
+    if (
+      !finite(layer.thickness_nm) ||
+      layer.thickness_nm < 0 ||
+      layer.thickness_nm > 2000
+    )
+      errors.push(`${label}: thickness must be 0–2000 nm.`);
+  }
   const wavelengths = p.illumination?.wavelengths_nm;
   if (
     !Array.isArray(wavelengths) ||
@@ -184,12 +231,26 @@ export function validateProject(project: unknown): string[] {
     p.solver.harmonics > 20
   )
     errors.push("Harmonic order N must be an integer from 1 to 20.");
-  for (const [label, m] of [
+  const materials: [string, Material][] = [
     ["Ambient", p.ambient],
     ["Substrate", p.substrate],
-    ["Ridge", layer.material],
-    ["Groove", layer.background],
-  ] as const) {
+    ...p.layers.flatMap((layer, index): [string, Material][] =>
+      !layer
+        ? []
+        : [
+            [`Layer ${index + 1} material`, layer.material],
+            ...(layer.geometry === "rectangle_1d"
+              ? [
+                  [`Layer ${index + 1} background`, layer.background] as [
+                    string,
+                    Material,
+                  ],
+                ]
+              : []),
+          ],
+    ),
+  ];
+  for (const [label, m] of materials) {
     if (!m || !["constant", "tabulated"].includes(m.kind)) {
       errors.push(`${label}: invalid material.`);
       continue;
@@ -261,7 +322,7 @@ export function isForwardResult(value: unknown): value is ForwardResult {
   if (!value || typeof value !== "object") return false;
   const v = value as ForwardResult;
   if (
-    v.schema_version !== "1.0" ||
+    !["1.0", "1.1"].includes(v.schema_version) ||
     !v.metadata ||
     typeof v.metadata !== "object" ||
     Array.isArray(v.metadata) ||
@@ -360,4 +421,107 @@ export function downloadProject(
   link.download = `${project.name.replace(/[^\p{L}\p{N}_-]+/gu, "-").slice(0, 80) || "rcwa-project"}.json`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function maximumPatternedCD(project: Project): number {
+  return Math.max(
+    0,
+    ...project.layers.map((layer) =>
+      layer.geometry === "rectangle_1d" ? layer.cd_nm : 0,
+    ),
+  );
+}
+export function totalThickness(project: Project): number {
+  return project.layers.reduce((total, layer) => total + layer.thickness_nm, 0);
+}
+export function supportsSyntheticFit(project: Project): boolean {
+  return (
+    project.layers.length === 1 && project.layers[0].geometry === "rectangle_1d"
+  );
+}
+export function stackSummary(project: Project): string {
+  return project.layers
+    .map(
+      (layer, index) =>
+        `${index + 1}. ${layer.name}: ${layer.geometry === "rectangle_1d" ? `CD ${layer.cd_nm} nm · ` : "Uniform · "}${layer.thickness_nm} nm`,
+    )
+    .join("; ");
+}
+export function validLayerIndex(project: Project, index = 0): number {
+  return Math.max(
+    0,
+    Math.min(project.layers.length - 1, Math.trunc(index) || 0),
+  );
+}
+export type StackOperation =
+  | { type: "add"; geometry: Layer["geometry"] }
+  | { type: "duplicate" }
+  | { type: "remove" }
+  | { type: "move"; direction: -1 | 1 }
+  | { type: "geometry"; geometry: Layer["geometry"] };
+/** Explicit structural edits promote to 1.1. No import or ordinary edit migrates data. */
+export function editStack(
+  project: Project,
+  selected: number,
+  operation: StackOperation,
+): { project: Project; selectedLayer: number } {
+  const index = validLayerIndex(project, selected);
+  const next = structuredClone(project);
+  const layer = next.layers[index];
+  let selectedLayer = index;
+  if (
+    (operation.type === "add" || operation.type === "duplicate") &&
+    next.layers.length >= 8
+  )
+    throw new Error("A stack can contain at most eight finite layers.");
+  if (operation.type === "add") {
+    const base = structuredClone(defaultProject.layers[0]);
+    const added: Layer =
+      operation.geometry === "homogeneous"
+        ? {
+            name: "Uniform layer",
+            geometry: "homogeneous",
+            thickness_nm: base.thickness_nm,
+            material: base.material,
+          }
+        : { ...base, cd_nm: Math.min(base.cd_nm, next.period_nm) };
+    next.layers.splice(index + 1, 0, added);
+    selectedLayer = index + 1;
+  } else if (operation.type === "duplicate") {
+    next.layers.splice(index + 1, 0, structuredClone(layer));
+    selectedLayer = index + 1;
+  } else if (operation.type === "remove") {
+    if (next.layers.length === 1)
+      throw new Error("Keep at least one finite layer.");
+    next.layers.splice(index, 1);
+    selectedLayer = Math.min(index, next.layers.length - 1);
+  } else if (operation.type === "move") {
+    const destination = index + operation.direction;
+    if (destination < 0 || destination >= next.layers.length)
+      return { project, selectedLayer: index };
+    [next.layers[index], next.layers[destination]] = [
+      next.layers[destination],
+      next.layers[index],
+    ];
+    selectedLayer = destination;
+  } else {
+    if (layer.geometry === operation.geometry)
+      return { project, selectedLayer: index };
+    const base = {
+      name: layer.name,
+      thickness_nm: layer.thickness_nm,
+      material: layer.material,
+    };
+    next.layers[index] =
+      operation.geometry === "homogeneous"
+        ? { ...base, geometry: "homogeneous" }
+        : {
+            ...base,
+            geometry: "rectangle_1d",
+            cd_nm: next.period_nm / 2,
+            background: structuredClone(next.ambient),
+          };
+  }
+  next.schema_version = "1.1";
+  return { project: next, selectedLayer };
 }

@@ -3,6 +3,7 @@
 import json
 import time
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -50,7 +51,7 @@ def test_contract_and_no_process_validation(client, monkeypatch):
     assert not client.app.state.jobs.jobs
     caps = client.get("/api/capabilities").json()
     assert caps["engine"]["available"]
-    assert caps["limits"]["layers"] == 1
+    assert caps["limits"]["layers"] == 8
     assert caps["limits"]["request_bytes"] == 2_000_000
     schema = client.get("/openapi.json").json()
     assert schema["paths"]["/api/jobs/{job_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"][
@@ -59,7 +60,7 @@ def test_contract_and_no_process_validation(client, monkeypatch):
     assert schema["paths"]["/api/snapshots"]["post"]["responses"]["201"]["content"]["application/json"]["schema"][
         "$ref"
     ].endswith("ServerSnapshot")
-    assert schema["components"]["schemas"]["Project-Input"]["properties"]["layers"]["maxItems"] == 1
+    assert schema["components"]["schemas"]["Project-Input"]["properties"]["layers"]["maxItems"] == 8
     assert "ForwardResult" in schema["components"]["schemas"]
     assert "SyntheticFitResult" in schema["components"]["schemas"]
 
@@ -306,10 +307,9 @@ def test_material_diagnostics_have_stable_field_location(client):
 
 
 def test_legacy_result_without_discriminator_remains_importable(client):
-    from rcwa_core.solver import forward
-
-    project = small_project()
-    result = forward(Project.model_validate(project))
+    historical = json.loads((Path(__file__).parent / "fixtures" / "legacy_server_snapshot.json").read_text())
+    project = historical["project"]
+    result = historical["result"]
     result.pop("result_type")
     result["metadata"].pop("adapter_version")
     response = client.post("/api/projects", json={"project": project, "result": result})

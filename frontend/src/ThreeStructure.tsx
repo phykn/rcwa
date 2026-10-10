@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import type { Project } from "./model";
+import type { Material, Project } from "./model";
 import {
   dimensionRange,
   materialSummary,
-  structureDimensions,
+  structureMaterialAppearance,
+  visibleStructureDimensions,
   structureGeometry,
   StructurePickGesture,
   structureValues,
@@ -38,6 +39,7 @@ interface DimensionDrag {
   dy: number;
   nmPerPixel: number;
   target: HTMLDivElement;
+  layerIndex: number;
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -50,11 +52,17 @@ const defaultAnchors: Anchors = {
 
 function handlePoint(dimension: StructureDimension, geometry: SceneGeometry) {
   if (dimension === "height")
-    return new THREE.Vector3(0, geometry.height, -0.08);
+    return new THREE.Vector3(
+      geometry.layers[geometry.selectedLayer]?.geometry === "homogeneous"
+        ? geometry.span / 2 + 0.35
+        : geometry.width / 2 + 0.35,
+      geometry.top,
+      geometry.depth / 2 + 0.03,
+    );
   if (dimension === "width")
     return new THREE.Vector3(
       geometry.width / 2,
-      geometry.height * 0.52,
+      geometry.bottom + geometry.height * 0.52,
       geometry.depth / 2,
     );
   return new THREE.Vector3(geometry.pitch, 0, geometry.depth / 2 + 0.47);
@@ -63,6 +71,8 @@ function handlePoint(dimension: StructureDimension, geometry: SceneGeometry) {
 export function ThreeStructure({
   project,
   disabled = false,
+  selectedLayer = 0,
+  onSelectLayer,
   onChange,
   onOpen,
   onFallbackChange,
@@ -71,19 +81,27 @@ export function ThreeStructure({
 }: {
   project: Project;
   disabled?: boolean;
+  selectedLayer?: number;
+  onSelectLayer?: (index: number) => void;
   onChange: (dimension: StructureDimension, value: number) => void;
-  onOpen: (sheet: StructureSheet) => void;
+  onOpen: (sheet: StructureSheet, layerIndex?: number) => void;
   onFallbackChange?: (failed: boolean) => void;
   onEditStart?: () => void;
   onEditEnd?: () => void;
 }) {
-  const values = structureValues(project);
+  const values = structureValues(project, selectedLayer);
+  const selectedIndex = values.selectedLayer ?? 0;
+  const layer = project.layers[selectedIndex];
+  const dimensions = visibleStructureDimensions(values);
   const host = useRef<HTMLDivElement>(null);
   const engine = useRef<Engine | null>(null);
   // Native Three.js events always consult current props, including an edit lock
   // that can arrive halfway through a pointer gesture.
   const current = useRef({
     values,
+    project,
+    selectedIndex,
+    onSelectLayer,
     disabled,
     onChange,
     onOpen,
@@ -92,6 +110,9 @@ export function ThreeStructure({
   });
   current.current = {
     values,
+    project,
+    selectedIndex,
+    onSelectLayer,
     disabled,
     onChange,
     onOpen,
@@ -99,6 +120,7 @@ export function ThreeStructure({
     onEditEnd,
   };
   const drag = useRef<DimensionDrag | null>(null);
+  const keyboardEditing = useRef(false);
   const pointers = useRef(new Set<number>());
   const blockedHandleGesture = useRef(false);
   const failedRef = useRef(false);
@@ -108,6 +130,13 @@ export function ThreeStructure({
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [moved, setMoved] = useState(false);
+
+  function endKeyboardEdit() {
+    if (keyboardEditing.current) {
+      keyboardEditing.current = false;
+      current.current.onEditEnd?.();
+    }
+  }
 
   function releaseDrag() {
     const previous = drag.current;
@@ -136,12 +165,11 @@ export function ThreeStructure({
     renderer.setClearColor(0xfafafa, 0);
     renderer.shadowMap.enabled = false;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NoToneMapping;
     const canvas = renderer.domElement;
     canvas.setAttribute(
       "aria-label",
-      "Interactive 3D grating. Drag to orbit, pinch or scroll to zoom. Keyboard arrows orbit, plus and minus zoom, and 0 resets. Dimension controls follow the view.",
+      "Interactive 3D layer stack. Drag to orbit, pinch or scroll to zoom. Keyboard arrows orbit, plus and minus zoom, and 0 resets. Click a layer to select and edit its material. Dimension controls follow the selected layer.",
     );
     canvas.setAttribute("role", "img");
     canvas.tabIndex = 0;
@@ -168,28 +196,9 @@ export function ThreeStructure({
     // Vertical swipes keep page scrolling. Horizontal orbit and a two-touch
     // pinch stay in the viewport; pointer cancellation never opens a material.
     canvas.style.touchAction = "pan-y";
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x71717a, 0.6));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 3.8);
-    keyLight.position.set(-3.5, 7, 3);
-    scene.add(keyLight);
-    const fill = new THREE.DirectionalLight(0xeef2ff, 0.7);
-    fill.position.set(5, 2, -4);
-    scene.add(fill);
-
     const group = new THREE.Group();
     scene.add(group);
     const materials = {
-      active: new THREE.MeshStandardMaterial({
-        color: 0x4f46e5,
-        roughness: 0.42,
-        metalness: 0.025,
-      }),
-      context: new THREE.MeshStandardMaterial({
-        color: 0xc7d2fe,
-        roughness: 0.65,
-      }),
-      base: new THREE.MeshStandardMaterial({ color: 0xe4e4e7, roughness: 0.8 }),
       edge: new THREE.LineBasicMaterial({
         color: 0x71717a,
         transparent: true,
@@ -298,13 +307,15 @@ export function ThreeStructure({
       x: number,
       y: number,
       material: THREE.Material,
-      kind: "ridge" | "substrate",
+      kind: "ridge" | "groove" | "substrate",
+      layerIndex?: number,
     ) {
       if (width <= 0 || height <= 0 || depth <= 0) return;
       const box = new THREE.BoxGeometry(width, height, depth);
       const mesh = new THREE.Mesh(box, material);
       mesh.position.set(x, y, 0);
       mesh.userData.kind = kind;
+      mesh.userData.layerIndex = layerIndex;
       group.add(mesh);
       const edges = new THREE.LineSegments(
         new THREE.EdgesGeometry(box),
@@ -325,66 +336,97 @@ export function ThreeStructure({
 
     function setValues(next: StructureValues, refit = true) {
       disposeGroup();
-      const nextGeometry = structureGeometry(next);
-      // During a handle gesture, retain the original common physical scale as
-      // well as the camera fit. Otherwise editing pitch would leave the pitch
-      // handle stationary while the other dimensions silently rescale.
-      geometry = refit
-        ? nextGeometry
-        : {
-            ...nextGeometry,
-            scale: geometry.scale,
-            width: next.width * geometry.scale,
-            height: next.height * geometry.scale,
-            pitch: next.pitch * geometry.scale,
-            span: next.pitch * 3 * geometry.scale,
-          };
-      const { width, height, pitch, depth, span, substrateDepth, ridgeMode } =
+      // Freeze scale and fit together during a handle gesture so every layer
+      // remains physical while the screen-to-nanometer mapping stays stable.
+      geometry = structureGeometry(next, refit ? undefined : geometry.scale);
+      const { width, top, bottom, pitch, depth, span, substrateDepth } =
         geometry;
+      const materialCache = new Map<string, THREE.MeshBasicMaterial>();
+      function opticalMaterial(material: Material) {
+        const appearance = structureMaterialAppearance(material);
+        const key = `${appearance.color}:${appearance.opacity}`;
+        let result = materialCache.get(key);
+        if (!result) {
+          result = new THREE.MeshBasicMaterial({
+            color: appearance.color,
+            transparent: appearance.opacity < 1,
+            opacity: appearance.opacity,
+            depthWrite: appearance.opacity === 1,
+            toneMapped: false,
+          });
+          materialCache.set(key, result);
+        }
+        return result;
+      }
+      const project = current.current.project;
       addBox(
         span,
         substrateDepth,
         depth + 0.3,
         0,
         -substrateDepth / 2,
-        materials.base,
+        opticalMaterial(project.substrate),
         "substrate",
       );
-      if (ridgeMode === "continuous") {
-        // A single box has no artificial gaps or seams at CD = period.
-        addBox(span, height, depth, 0, height / 2, materials.active, "ridge");
-      } else if (ridgeMode === "patterned") {
-        for (const repeat of [-1, 0, 1])
+      for (const slab of geometry.layers) {
+        const source = project.layers[slab.index];
+        for (const region of slab.regions) {
+          const material =
+            region.kind === "groove" && source.geometry === "rectangle_1d"
+              ? source.background
+              : source.material;
+          // Empty air grooves neither tint the ridges nor intercept picks
+          // aimed at a visible surface behind them. Their complete physical
+          // regions remain in geometry; the Groove inspector still edits air.
+          if (
+            region.kind === "groove" &&
+            material.kind === "constant" &&
+            material.n === 1 &&
+            material.k === 0
+          )
+            continue;
           addBox(
-            width,
-            height,
+            region.width,
+            slab.height,
             depth,
-            repeat * pitch,
-            height / 2,
-            repeat === 0 ? materials.active : materials.context,
-            "ridge",
+            region.x,
+            slab.center,
+            opticalMaterial(material),
+            region.kind,
+            slab.index,
           );
+        }
       }
-      canvas.dataset.ridgeMode = ridgeMode;
+      const selected = geometry.layers[geometry.selectedLayer];
+      canvas.dataset.ridgeMode = geometry.ridgeMode;
       canvas.dataset.ridgeMeshes = String(
-        ridgeMode === "none" ? 0 : ridgeMode === "continuous" ? 1 : 3,
+        selected?.regions.filter((region) => region.kind === "ridge").length ??
+          0,
       );
-      const widthZ = depth / 2 + 0.27;
-      line([
-        new THREE.Vector3(-width / 2, height, widthZ),
-        new THREE.Vector3(width / 2, height, widthZ),
-      ]);
-      for (const x of [-width / 2, width / 2])
+      canvas.dataset.layerCount = String(geometry.layers.length);
+      canvas.dataset.selectedLayer = String(geometry.selectedLayer);
+      canvas.dataset.layerInterfaces = JSON.stringify(
+        geometry.layers.map(({ top, bottom }) => ({ top, bottom })),
+      );
+      if (selected?.geometry === "rectangle_1d") {
+        const widthZ = depth / 2 + 0.27;
         line([
-          new THREE.Vector3(x, height - 0.07, widthZ),
-          new THREE.Vector3(x, height + 0.07, widthZ),
+          new THREE.Vector3(-width / 2, top, widthZ),
+          new THREE.Vector3(width / 2, top, widthZ),
         ]);
-      const heightX = width / 2 + 0.35;
+        for (const x of [-width / 2, width / 2])
+          line([
+            new THREE.Vector3(x, top - 0.07, widthZ),
+            new THREE.Vector3(x, top + 0.07, widthZ),
+          ]);
+      }
+      const heightX =
+        (selected?.geometry === "homogeneous" ? span : width) / 2 + 0.35;
       line([
-        new THREE.Vector3(heightX, 0, depth / 2 + 0.03),
-        new THREE.Vector3(heightX, height, depth / 2 + 0.03),
+        new THREE.Vector3(heightX, bottom, depth / 2 + 0.03),
+        new THREE.Vector3(heightX, top, depth / 2 + 0.03),
       ]);
-      for (const y of [0, height])
+      for (const y of [bottom, top])
         line([
           new THREE.Vector3(heightX - 0.06, y, depth / 2 + 0.03),
           new THREE.Vector3(heightX + 0.06, y, depth / 2 + 0.03),
@@ -405,7 +447,7 @@ export function ThreeStructure({
         -Math.cos(radians),
         0,
       );
-      const end = new THREE.Vector3(-0.13, height + 0.06, -0.35);
+      const end = new THREE.Vector3(-0.13, geometry.totalHeight + 0.06, -0.35);
       const origin = end.clone().sub(direction.clone().multiplyScalar(0.91));
       group.add(
         new THREE.ArrowHelper(direction, origin, 0.87, 0xf59e0b, 0.1, 0.055),
@@ -456,9 +498,14 @@ export function ThreeStructure({
       const hit = raycaster
         .intersectObjects(group.children, true)
         .find((item) =>
-          ["ridge", "substrate"].includes(item.object.userData.kind),
+          ["ridge", "groove", "substrate"].includes(item.object.userData.kind),
         );
-      if (hit) current.current.onOpen(hit.object.userData.kind);
+      if (hit) {
+        const { kind, layerIndex } = hit.object.userData;
+        if (typeof layerIndex === "number")
+          current.current.onSelectLayer?.(layerIndex);
+        current.current.onOpen(kind, layerIndex);
+      }
     };
     const onPointerCancel = (event: globalThis.PointerEvent) =>
       pickGesture.cancel(event.pointerId);
@@ -532,6 +579,7 @@ export function ThreeStructure({
       controls.enabled = false;
       pickGesture.suppress();
       releaseDrag();
+      endKeyboardEdit();
       setActive(null);
       setReady(false);
       setFailed(true);
@@ -566,6 +614,12 @@ export function ThreeStructure({
     setValues(current.current.values);
     setReady(true);
     return () => {
+      // Unmount and context loss must close an in-flight edit exactly once.
+      if (drag.current) {
+        drag.current = null;
+        current.current.onEditEnd?.();
+      }
+      endKeyboardEdit();
       resize.disconnect();
       controls.removeEventListener("change", onControlChange);
       controls.dispose();
@@ -589,11 +643,14 @@ export function ThreeStructure({
     // Freeze fit while dragging, preserving the handle's screen-to-nm mapping.
     // Refit once after release, while every intermediate mesh stays truthful.
     engine.current?.setValues(current.current.values, drag.current === null);
-  }, [values.width, values.height, values.pitch, values.angle, active]);
+  }, [project, selectedIndex, active]);
 
   useEffect(() => {
-    if (disabled) releaseDrag();
-  }, [disabled]);
+    if (disabled || (drag.current && drag.current.layerIndex !== selectedIndex))
+      releaseDrag();
+    endKeyboardEdit();
+    setFocused(null);
+  }, [disabled, selectedIndex]);
 
   useEffect(() => {
     const releasePointer = (event: globalThis.PointerEvent) => {
@@ -614,7 +671,13 @@ export function ThreeStructure({
   }, []);
 
   function open(sheet: StructureSheet) {
-    if (!current.current.disabled) current.current.onOpen(sheet);
+    if (!current.current.disabled)
+      current.current.onOpen(
+        sheet,
+        ["ridge", "groove", "width", "height"].includes(sheet)
+          ? current.current.selectedIndex
+          : undefined,
+      );
   }
 
   function trackPointer(event: PointerEvent<HTMLDivElement>) {
@@ -637,11 +700,13 @@ export function ThreeStructure({
     if (
       current.current.disabled ||
       failedRef.current ||
+      drag.current ||
       event.button !== 0 ||
       pointers.current.size > 1 ||
       blockedHandleGesture.current ||
       !engine.current ||
-      !host.current
+      !host.current ||
+      !visibleStructureDimensions(current.current.values).includes(dimension)
     )
       return;
     engine.current.suppressPicks();
@@ -659,6 +724,7 @@ export function ThreeStructure({
     const length = Math.hypot(screenX, screenY);
     if (length < 0.001) return;
     event.currentTarget.setPointerCapture(event.pointerId);
+    endKeyboardEdit();
     current.current.onEditStart?.();
     engine.current.controls.enabled = false;
     drag.current = {
@@ -672,6 +738,7 @@ export function ThreeStructure({
       nmPerPixel:
         (0.1 / (geometry.scale * length)) * (dimension === "width" ? 2 : 1),
       target: event.currentTarget,
+      layerIndex: current.current.selectedIndex,
     };
     setActive(dimension);
   }
@@ -708,7 +775,11 @@ export function ThreeStructure({
     event: KeyboardEvent<HTMLDivElement>,
     dimension: StructureDimension,
   ) {
-    if (current.current.disabled) return;
+    if (
+      current.current.disabled ||
+      !visibleStructureDimensions(current.current.values).includes(dimension)
+    )
+      return;
     const [min, max] = dimensionRange(dimension, current.current.values);
     if (
       [
@@ -731,7 +802,10 @@ export function ThreeStructure({
           : event.key === "End"
             ? max
             : clamp(current.current.values[dimension] + change, min, max);
-      current.current.onEditStart?.();
+      if (!keyboardEditing.current) {
+        keyboardEditing.current = true;
+        current.current.onEditStart?.();
+      }
       current.current.onChange(dimension, value);
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -745,14 +819,17 @@ export function ThreeStructure({
   }, [failed, onFallbackChange]);
 
   const ridgeMode = structureGeometry(values).ridgeMode;
+  const uniform = layer.geometry === "homogeneous";
   const stateNote =
     values.height === 0
-      ? "Zero height: no patterned layer."
-      : values.width === 0
-        ? "Zero width: no ridge; the layer contains groove material."
-        : ridgeMode === "continuous"
-          ? "Width equals pitch: a continuous ridge-material layer."
-          : "Three finite repeats illustrate the infinite 1D model.";
+      ? "Zero thickness: the selected layer has no volume."
+      : uniform
+        ? "Uniform film: material fills the whole selected layer."
+        : values.width === 0
+          ? "Zero width: the selected layer contains only groove material."
+          : ridgeMode === "continuous"
+            ? "Width equals pitch: a continuous ridge-material layer."
+            : "Three finite repeats illustrate the infinite 1D stack.";
 
   return (
     <div className="object-editor" data-disabled={disabled}>
@@ -790,9 +867,12 @@ export function ThreeStructure({
               </p>
             )}
             <p>
-              Three repeats of one infinite 1D layer. Width, height and pitch
-              share one scale; substrate depth and groove length are schematic.
-              Default optical constants are synthetic.
+              Three repeats of the infinite 1D stack, ordered top to bottom.
+              Width, layer thickness and pitch share one scale; substrate depth
+              and groove length are schematic. Air grooves are visually empty;
+              other groove materials fill their volumes. Colors identify
+              materials and do not simulate lighting or absorption. Default
+              optical constants are synthetic.
             </p>
           </div>
         </details>
@@ -806,7 +886,7 @@ export function ThreeStructure({
           </div>
         ) : (
           <>
-            {structureDimensions.map((dimension) => (
+            {dimensions.map((dimension) => (
               <div
                 key={dimension}
                 className={`drag-target ${dimension}-handle ${active === dimension || focused === dimension ? "active" : ""}`}
@@ -830,7 +910,7 @@ export function ThreeStructure({
                 onFocus={() => setFocused(dimension)}
                 onBlur={() => {
                   setFocused(null);
-                  current.current.onEditEnd?.();
+                  endKeyboardEdit();
                 }}
                 onPointerEnter={() => setFocused(dimension)}
                 onPointerLeave={() => setFocused(null)}
@@ -846,7 +926,7 @@ export function ThreeStructure({
                   if (drag.current?.id === event.pointerId) releaseDrag();
                 }}
                 onKeyDown={(event) => keys(event, dimension)}
-                onKeyUp={() => current.current.onEditEnd?.()}
+                onKeyUp={endKeyboardEdit}
               >
                 <span className="handle-dot">
                   <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -864,12 +944,21 @@ export function ThreeStructure({
             <button
               className="scene-material"
               disabled={disabled}
-              aria-label={`Edit ridge material: ${project.layers[0].material.name}, ${materialSummary(project.layers[0].material)}`}
+              aria-label={`Edit ${uniform ? "layer" : "ridge"} material: ${layer.material.name}, ${materialSummary(layer.material)}`}
               onClick={() => open("ridge")}
             >
-              <i />
-              <span>Ridge</span>
-              <small>{materialSummary(project.layers[0].material)}</small>
+              <i
+                style={{
+                  background: structureMaterialAppearance(layer.material).color,
+                }}
+              />
+              <span>
+                {uniform ? "Film" : "Ridge"}
+                {project.layers.length > 1
+                  ? ` · Layer ${selectedIndex + 1}`
+                  : ""}
+              </span>
+              <small>{materialSummary(layer.material)}</small>
             </button>
             <button
               className="scene-substrate"
@@ -881,7 +970,10 @@ export function ThreeStructure({
             </button>
             {(active || focused) && !disabled && (
               <div className="handle-name" role="status">
-                {active || focused} · {values[(active || focused)!]} nm
+                {project.layers.length > 1 && (active || focused) === "height"
+                  ? "thickness"
+                  : active || focused}{" "}
+                · {values[(active || focused)!]} nm
               </div>
             )}
             {moved && (
@@ -896,8 +988,14 @@ export function ThreeStructure({
           </>
         )}
       </div>
-      <div className="dimension-rail" aria-label="Structure dimensions">
-        {structureDimensions.map((dimension) => (
+      <div
+        className="dimension-rail"
+        aria-label="Structure dimensions"
+        style={{
+          gridTemplateColumns: `repeat(${dimensions.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {dimensions.map((dimension) => (
           <button
             key={dimension}
             disabled={disabled}
@@ -905,14 +1003,16 @@ export function ThreeStructure({
               active === dimension || focused === dimension ? "selected" : ""
             }
             onClick={() => open(dimension)}
-            aria-label={`Set ${dimension === "pitch" ? "pattern pitch" : `ridge ${dimension}`}, currently ${values[dimension]} nanometers`}
+            aria-label={`Set ${dimension === "pitch" ? "pattern pitch" : `${uniform ? "layer" : "ridge"} ${dimension}`}, currently ${values[dimension]} nanometers`}
           >
             <span>
               {dimension === "pitch"
                 ? "Pitch"
                 : dimension === "width"
                   ? "Width"
-                  : "Height"}
+                  : project.layers.length > 1 || uniform
+                    ? "Thickness"
+                    : "Height"}
             </span>
             <strong>
               {values[dimension]}
@@ -921,7 +1021,7 @@ export function ThreeStructure({
           </button>
         ))}
       </div>
-      {ridgeMode !== "patterned" && (
+      {(values.height === 0 || (!uniform && ridgeMode !== "patterned")) && (
         <p className="scene-model-note" role="status">
           {stateNote}
         </p>

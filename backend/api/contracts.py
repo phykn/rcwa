@@ -2,12 +2,12 @@
 
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 from typing_extensions import TypedDict
 
-from rcwa_core.contracts import ForwardResult, Result
+from rcwa_core.contracts import ForwardResult, Result, StoredForwardResult
 from rcwa_core.preflight import Diagnostic, EngineInfo
-from rcwa_core.schemas import FitRequest, Project, StrictModel
+from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
 
 
 class FitOptions(StrictModel):
@@ -93,6 +93,12 @@ class ChangePreviewRequest(StrictModel):
     base_project: Project
     changes: GeometryPatch
 
+    @model_validator(mode="after")
+    def one_rectangle(self):
+        if len(self.base_project.layers) != 1 or self.base_project.layers[0].geometry != "rectangle_1d":
+            raise ValueError("Legacy geometry preview requires exactly one rectangular layer; use stack-change-preview")
+        return self
+
 
 class GeometryDiff(StrictModel):
     field: GeometryField
@@ -108,6 +114,100 @@ class ChangeProposal(StrictModel):
     base_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     candidate_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     diff: list[GeometryDiff] = Field(max_length=3)
+    diagnostics: list[Diagnostic]
+    valid: bool = Field(strict=True)
+
+
+class StackChanges(TypedDict, total=False):
+    """An atomic bounded stack replacement, never arbitrary JSON Patch."""
+
+    __pydantic_config__ = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+
+    period_nm: Annotated[float, Field(strict=True, ge=20, le=5000)]
+    layers: Annotated[list[LayerSpec], Field(min_length=1, max_length=8)]
+
+
+def _nonempty_stack_changes(changes: StackChanges) -> StackChanges:
+    if not changes:
+        raise ValueError("At least one stack change is required")
+    return changes
+
+
+StackPatch = Annotated[
+    StackChanges,
+    AfterValidator(_nonempty_stack_changes),
+    Field(json_schema_extra={"minProperties": 1}),
+]
+
+
+class StackChangePreviewRequest(StrictModel):
+    base_project: Project
+    changes: StackPatch
+
+    @field_validator("changes", mode="before")
+    @classmethod
+    def strict_changes(cls, value):
+        # Strict TypedDict configuration does not propagate into nested models.
+        return TypeAdapter(StackPatch).validate_python(value, strict=True)
+
+
+class TableSummary(StrictModel):
+    rows: int = Field(ge=2, le=2000)
+    wavelength_min_nm: float
+    wavelength_max_nm: float
+    checksum: str = Field(pattern=r"^fnv1a32-f64be:[0-9a-f]{8}$")
+
+
+class MaterialSummary(StrictModel):
+    name: str
+    kind: Literal["constant", "tabulated"]
+    n: float
+    k: float
+    source: str
+    table: TableSummary | None
+
+
+class LayerSummary(StrictModel):
+    name: str
+    geometry: Literal["rectangle_1d", "homogeneous"]
+    thickness_nm: float
+    material: MaterialSummary
+    cd_nm: float | None
+    background: MaterialSummary | None
+
+
+class StackValueDiff(StrictModel):
+    kind: Literal["value"]
+    path: str = Field(max_length=100)
+    before: str | float | None
+    after: str | float | None
+
+
+class StackMaterialDiff(StrictModel):
+    kind: Literal["material"]
+    path: str = Field(max_length=100)
+    before: MaterialSummary | None
+    after: MaterialSummary | None
+
+
+class StackLayerDiff(StrictModel):
+    kind: Literal["layer"]
+    path: str = Field(max_length=100)
+    before: LayerSummary | None
+    after: LayerSummary | None
+
+
+StackDiff = Annotated[StackValueDiff | StackMaterialDiff | StackLayerDiff, Field(discriminator="kind")]
+
+
+class StackChangeProposal(StrictModel):
+    schema_version: Literal["rcwa-change-proposal/1.1"]
+    base_project: Project
+    candidate_project: Project
+    changes: StackPatch
+    base_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    candidate_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    diff: list[StackDiff] = Field(max_length=64)
     diagnostics: list[Diagnostic]
     valid: bool = Field(strict=True)
 
@@ -150,11 +250,19 @@ class ServerSnapshot(SavedSummary):
     result: ForwardResult
 
 
+class StoredServerSnapshot(SavedSummary):
+    """Read known historical server results without changing their provenance."""
+
+    project: Project
+    result: StoredForwardResult
+
+
 class ResourceLimits(StrictModel):
     simultaneous_jobs: int
     job_timeout_seconds: float
     retained_jobs: int
     request_bytes: int
+    proposal_bytes: int
     layers: int
     wavelength_count: int
     material_table_rows: int
@@ -174,6 +282,8 @@ class Capabilities(StrictModel):
     api_version: str
     project_schema_version: str
     result_schema_version: str
+    supported_project_schema_versions: list[str]
+    supported_result_schema_versions: list[str]
     engine: EngineInfo
     operations: list[str]
     geometry: list[str]

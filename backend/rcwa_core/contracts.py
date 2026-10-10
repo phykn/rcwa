@@ -12,10 +12,10 @@ from typing import Annotated, Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .preflight import ADAPTER_VERSION, REQUIRED_ENGINE_VERSION, refractive_index
-from .schemas import FitRequest, Project
+from .preflight import ADAPTER_VERSION, REQUIRED_ENGINE_VERSION, refractive_index, stack_has_loss
+from .schemas import FitRequest, Layer, Project
 
-RESULT_SCHEMA_VERSION = "1.0"
+RESULT_SCHEMA_VERSION = "1.1"
 
 
 class ResultModel(BaseModel):
@@ -58,7 +58,7 @@ class PolarizationSpectrum(ResultModel):
     orders: list[OrderList] = Field(min_length=1, max_length=81)
 
 
-class ForwardMetadata(ResultModel):
+class ForwardMetadata1_0(ResultModel):
     engine: Literal["meent"]
     version: Literal["0.13.2"]
     adapter_version: Literal["1.0.0"]
@@ -93,17 +93,35 @@ class ForwardMetadata(ResultModel):
         return self
 
 
+class ForwardMetadata(ForwardMetadata1_0):
+    """Current stack metadata; historical metadata remains a separate reader."""
+
+    adapter_version: Literal["1.1.0"]
+    layer_count: int = Field(ge=1, le=8)
+    active_slab_count: int = Field(ge=0, le=8)
+    total_thickness_nm: float = Field(ge=0, le=16000)
+    stack_order: Literal["top_to_bottom"]
+
+    @model_validator(mode="after")
+    def validate_stack(self):
+        if self.active_slab_count > self.layer_count:
+            raise ValueError("Active slab count cannot exceed physical layer count")
+        if (self.active_slab_count == 0) != (self.total_thickness_nm == 0):
+            raise ValueError("Zero active slabs must correspond to zero total thickness")
+        return self
+
+
 def _close(actual: float, expected: float, label: str, *, tolerance: float = 1e-9) -> None:
     if not math.isclose(actual, expected, rel_tol=tolerance, abs_tol=tolerance):
         raise ValueError(f"{label} is inconsistent")
 
 
-class ForwardResult(ResultModel):
+class ForwardResult1_0(ResultModel):
     result_type: Literal["forward"]
     schema_version: Literal["1.0"]
     wavelengths_nm: list[float] = Field(min_length=1, max_length=81)
     spectra: dict[Literal["s", "p"], PolarizationSpectrum] = Field(min_length=1, max_length=2)
-    metadata: ForwardMetadata
+    metadata: ForwardMetadata1_0
     warnings: list[str]
 
     @model_validator(mode="after")
@@ -130,6 +148,16 @@ class ForwardResult(ResultModel):
                 if series.A_balance[wi] < -1e-6:
                     raise ValueError("Result violates the passive flux-balance tolerance")
         return self
+
+
+class ForwardResult(ForwardResult1_0):
+    """Only current worker output is accepted at the compute boundary."""
+
+    schema_version: Literal["1.1"]
+    metadata: ForwardMetadata
+
+
+StoredForwardResult = Annotated[ForwardResult1_0 | ForwardResult, Field(discriminator="schema_version")]
 
 
 class FitStart(ResultModel):
@@ -166,6 +194,8 @@ class SyntheticFitResult(ResultModel):
 
     @model_validator(mode="after")
     def validate_fit_consistency(self):
+        if len(self.fitted_project.layers) != 1 or not isinstance(self.fitted_project.layers[0], Layer):
+            raise ValueError("Synthetic CD fitting requires exactly one rectangular layer")
         if self.fitted_project.layers[0].cd_nm != self.fit_cd_nm:
             raise ValueError("Fitted project CD must match fit_cd_nm")
         _bind_forward(self.prediction, self.fitted_project)
@@ -221,27 +251,34 @@ def _bind_forward(result: ForwardResult, project: Project) -> None:
         raise ValueError("Result harmonic basis does not match the submitted project")
     if result.metadata.version != REQUIRED_ENGINE_VERSION or result.metadata.adapter_version != ADAPTER_VERSION:
         raise ValueError("Result engine or adapter version is unsupported")
+    if result.metadata.layer_count != len(project.layers):
+        raise ValueError("Result layer count does not match the submitted project")
+    if result.metadata.active_slab_count != sum(layer.thickness_nm > 0 for layer in project.layers):
+        raise ValueError("Result active slab count does not match the submitted project")
+    if result.metadata.total_thickness_nm != sum(layer.thickness_nm for layer in project.layers):
+        raise ValueError("Result total thickness does not match the submitted project")
     angle = np.deg2rad(project.illumination.angle_deg)
     any_layer_loss = False
     max_lossless_balance = 0.0
     for wi, wavelength in enumerate(project.illumination.wavelengths_nm):
         n0 = refractive_index(project.ambient, wavelength)
         ns = refractive_index(project.substrate, wavelength)
-        nr = refractive_index(project.layers[0].material, wavelength)
-        nb = refractive_index(project.layers[0].background, wavelength)
-        any_layer_loss |= nr.imag != 0 or nb.imag != 0
+        wavelength_has_loss = stack_has_loss(project, wavelength)
+        any_layer_loss |= wavelength_has_loss
         for series in result.spectra.values():
             for order in series.orders[wi]:
                 kx = n0.real * np.sin(angle) + order.m * wavelength / project.period_nm
                 _close(order.kx_over_k0, float(kx), "Order transverse wavevector")
                 if order.reflection_propagating != bool(n0.real**2 - kx**2 > 0):
                     raise ValueError("Reflection order classification does not match the submitted project")
-                expected_class = "absorbing_half_space" if ns.imag != 0 else (
-                    "propagating" if (ns**2 - kx**2).real > 0 else "evanescent"
+                expected_class = (
+                    "absorbing_half_space"
+                    if ns.imag != 0
+                    else ("propagating" if (ns**2 - kx**2).real > 0 else "evanescent")
                 )
                 if order.transmission_class != expected_class:
                     raise ValueError("Transmission order classification does not match the submitted project")
-            if nr.imag == 0 and nb.imag == 0:
+            if not wavelength_has_loss:
                 max_lossless_balance = max(max_lossless_balance, abs(series.A_balance[wi]))
                 if abs(series.A_balance[wi]) > 1e-6:
                     raise ValueError("Lossless layer flux balance exceeds the solver tolerance")

@@ -81,12 +81,13 @@ async def call(client, name, arguments=None, *, error=False):
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("mode", ["legacy", "auto"])
-async def test_real_discovery_compute_and_durable_binding(real_api, mode):
+@pytest.mark.parametrize("multilayer", [False, True])
+async def test_real_discovery_compute_and_durable_binding(real_api, mode, multilayer):
     async with Client(parameters(real_api), mode=mode, read_timeout_seconds=15) as client:
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
         assert client.server_capabilities.tools is not None
         tools = (await client.list_tools()).tools
-        assert len(tools) == 9
+        assert len(tools) == 10
         assert all(t.input_schema["additionalProperties"] is False for t in tools)
         caps = await call(client, "rcwa_capabilities")
         assert caps["limits"]["simultaneous_jobs"] == 2
@@ -94,6 +95,13 @@ async def test_real_discovery_compute_and_durable_binding(real_api, mode):
         project = await call(client, "rcwa_example")
         project["illumination"]["wavelengths_nm"] = [650.0]
         project["solver"]["harmonics"] = 3
+        if multilayer:
+            preview = await call(client, "rcwa_preview_stack_changes", {"base_project": project, "changes": {
+                "layers": [project["layers"][0], {"geometry": "homogeneous", "thickness_nm": 75.0,
+                                                   "material": {"n": 1.8}}],
+            }})
+            assert preview["schema_version"] == "rcwa-change-proposal/1.1"
+            project = preview["candidate_project"]
         valid = await call(client, "rcwa_validate", {"project": project})
         assert valid["valid"]
         normalized = deepcopy(valid["project"])
@@ -106,6 +114,8 @@ async def test_real_discovery_compute_and_durable_binding(real_api, mode):
                 if completed["status"] != "running":
                     break
         assert completed["status"] == "succeeded", completed
+        assert completed["result"]["schema_version"] == "1.1"
+        assert completed["result"]["metadata"]["layer_count"] == (2 if multilayer else 1)
         assert completed["input_hash"] == valid["input_hash"]
         saved = await call(client, "rcwa_save_snapshot", {"job_id": started["id"]})
         assert saved["project"] == normalized
@@ -153,7 +163,7 @@ async def test_real_cancellation_and_missing_job(real_api):
 @pytest.mark.anyio
 async def test_api_down_is_a_tool_error_not_protocol_crash():
     async with Client(parameters(f"http://127.0.0.1:{available_port()}"), mode="legacy") as client:
-        assert len((await client.list_tools()).tools) == 9
+        assert len((await client.list_tools()).tools) == 10
         response = await call(client, "rcwa_capabilities", error=True)
         assert response["error"]["code"] == "api_unavailable"
         response = await call(client, "rcwa_submit", {"request": {"project": {}}}, error=True)
@@ -209,9 +219,9 @@ async def test_stdio_discovery_and_validation(real_api, mode, monkeypatch):
     async with Client(parameters(real_api), mode=mode, read_timeout_seconds=15) as client:
         assert client.server_info.name == "RCWA Workbench"
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
-        assert len((await client.list_tools()).tools) == 9
+        assert len((await client.list_tools()).tools) == 10
         caps = await call(client, "rcwa_capabilities")
-        assert caps["project_schema_version"] == "1.0"
+        assert caps["project_schema_version"] == "1.1"
         example = await call(client, "rcwa_example")
         valid = await call(client, "rcwa_validate", {"project": example})
         assert valid["valid"] and valid["project"] == example

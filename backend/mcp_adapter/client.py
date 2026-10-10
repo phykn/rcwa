@@ -83,6 +83,7 @@ class LocalAPI:
         # Even internal callers cannot turn this transport into a general HTTP tool.
         fixed = {("GET", "/api/capabilities"), ("GET", "/api/example"),
                  ("POST", "/api/validate"), ("POST", "/api/change-preview"),
+                 ("POST", "/api/stack-change-preview"),
                  ("POST", "/api/jobs"), ("POST", "/api/snapshots")}
         variable = re.fullmatch(r"/api/(jobs|projects)/([A-Za-z0-9_-]{1,100})", path)
         if (method, path) not in fixed and not (
@@ -90,7 +91,7 @@ class LocalAPI:
         ):
             raise AdapterError("invalid_route", "This HTTP route is not exposed by the adapter")
         try:
-            data = None if body is None else json.dumps(body, allow_nan=False, ensure_ascii=False).encode("utf-8")
+            data = None if body is None else json.dumps(body, allow_nan=False, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         except (ValueError, TypeError, RecursionError) as exc:
             raise AdapterError("invalid_arguments", "Arguments must be finite JSON") from exc
         if data is not None and len(data) > MAX_REQUEST_BYTES:
@@ -99,7 +100,7 @@ class LocalAPI:
             self.slots.acquire_nowait()
         except anyio.WouldBlock as exc:
             raise AdapterError("adapter_capacity", "Four adapter calls are already active; wait for one to finish") from exc
-        mutation = method in {"POST", "DELETE"} and path not in {"/api/validate", "/api/change-preview"}
+        mutation = method in {"POST", "DELETE"} and path not in {"/api/validate", "/api/change-preview", "/api/stack-change-preview"}
         try:
             with anyio.fail_after(self.timeout):
                 async with self.http.stream(
@@ -111,7 +112,8 @@ class LocalAPI:
                     async for chunk in response.aiter_bytes(chunk_size=65536):
                         raw.extend(chunk)
                         if len(raw) > MAX_RESPONSE_BYTES:
-                            raise ValueError("API response exceeds the 8 MB limit")
+                            raise AdapterError("response_too_large", "API response exceeds the 8 MB limit",
+                                               outcome_unknown=mutation)
                     payload = strict_json(bytes(raw))
                     if not 200 <= response.status_code < 300:
                         from api.contracts import ErrorResponse

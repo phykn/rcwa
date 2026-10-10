@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import { validateProject } from "./model";
+import { validateProject, supportsSyntheticFit } from "./model";
 import type { Project } from "./model";
 
 interface FitSummary {
@@ -47,7 +47,12 @@ export function SyntheticFit({
   const [resultInputs, setResultInputs] = useState("");
   const id = useRef<string | null>(null);
   const fingerprint = JSON.stringify({ project, target, lower, upper });
+  const supported = supportsSyntheticFit(project);
   const validation = validateProject(project);
+  if (!supported)
+    validation.push(
+      "Synthetic CD fitting is available only for one rectangular layer.",
+    );
   if (!(
     0 < lower &&
     lower < target &&
@@ -164,7 +169,7 @@ export function SyntheticFit({
           </p>
         )}
         <fieldset
-          disabled={staticPreview || locked || running}
+          disabled={staticPreview || locked || running || !supported}
           className="fit-fields"
         >
           <label className="field">
@@ -269,9 +274,14 @@ export function SyntheticFit({
                 running ||
                 locked ||
                 staticPreview ||
+                !supported ||
+                resultInputs !== fingerprint ||
                 result.fit_cd_nm > project.period_nm
               }
-              onClick={() => onApply(result.fit_cd_nm)}
+              onClick={() => {
+                if (supported && resultInputs === fingerprint)
+                  onApply(result.fit_cd_nm);
+              }}
             >
               Apply recovered CD to inputs
             </button>

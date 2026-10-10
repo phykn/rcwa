@@ -1,0 +1,66 @@
+{
+  "scope": "Synthetic finite-basis validation of the bounded 1D multilayer adapter; not convergence or metrology certification",
+  "planar_tmm": {
+    "samples": 540,
+    "max_absolute_R_T_error": 2.1094237467877974e-15,
+    "absolute_tolerance": 2e-10
+  },
+  "legacy_regression": {
+    "source_commit": "ec9fa014c7e7027d387a2fd478c0b7190b267783",
+    "cases": 19,
+    "normalized_inputs_and_hashes_exact": true,
+    "spectra_exact": true
+  },
+  "S4": {
+    "case_count": 40,
+    "polarization_wavelength_sample_count": 276,
+    "max_absolute_error": 5.747624598484435e-13,
+    "absolute_tolerance": 1e-09,
+    "status": "passed"
+  },
+  "harmonic_refinement": {
+    "claim": "Sample-specific basis refinement evidence; no convergence certification",
+    "sequence": [
+      {
+        "harmonics": 3,
+        "max_total_R_T_change": null
+      },
+      {
+        "harmonics": 7,
+        "max_total_R_T_change": 0.0038458966231125213
+      },
+      {
+        "harmonics": 11,
+        "max_total_R_T_change": 0.00023489835914247692
+      },
+      {
+        "harmonics": 15,
+        "max_total_R_T_change": 0.00016228168928589248
+      },
+      {
+        "harmonics": 19,
+        "max_total_R_T_change": 4.945211460908455e-05
+      }
+    ]
+  },
+  "bounded_resource_observation": {
+    "layers": 8,
+    "harmonics": 20,
+    "wavelengths": 81,
+    "polarization": "both",
+    "solve_seconds": 2.39571418000196,
+    "process_peak_rss_KiB": 66644,
+    "blas_threads": 1,
+    "finite_outputs": true,
+    "claim": "One local observation; not a worst-case resource or runtime guarantee"
+  },
+  "source_hashes": {
+    "backend/rcwa_core/solver.py": "bdc954b6d6ce53ec8449b1bd05f16f9439a712acf5d5427ae090d510cbf18f2f",
+    "backend/rcwa_core/schemas.py": "7962be672f08c9ca63b0b5c72d47ff71da4e69a1455e6cb9e6bd28247efd0e8d",
+    "backend/rcwa_core/preflight.py": "c4c02f2831a99cd7d25bba669142e550d6465a507b03d4379c5c88e0ec66e3bb",
+    "backend/rcwa_core/contracts.py": "241696a6015a35811d13b60906c4062a748fc4452b799e7f100ba3d7e5e7e3a9",
+    "backend/tests/test_stack_physics.py": "483cb0f02b5df9cb2c2c63d3a1c7d9d2b0399fa2ae17f0621887a2b79ed45f5b",
+    "backend/tests/test_stack_contracts.py": "a6f1e20c709ee62e33879138fe8a315f6cc18609d7733a6560e8ad82b798e545",
+    "scripts/reference_check.py": "6f32c04f8f15e400933783abd7a5e48c7b5c8879d647320cc266c0746746a2c4"
+  }
+}

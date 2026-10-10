@@ -91,15 +91,17 @@ saving the same completed forward job again returns its existing snapshot ID.
 ## Direct structure editing
 
 Drag a dimension handle or tap Width, Height or Pitch for exact entry. The
-canonical Project feeds the viewport, forms, JSON files and solver. Ridge and
-substrate surfaces open their material editors; Materials also exposes groove
-and ambient properties. Constant and tabulated n/k inputs remain available.
+canonical Project feeds the viewport, forms, JSON files and solver. Ridge/film
+and substrate surfaces or captions open their material editors; the inspector
+tabs also expose groove and ambient properties. Constant and tabulated n/k
+inputs remain available.
 
-The viewport shows three repeats of an infinite one-dimensional model. Width,
-height and pitch share one scale; the substrate depth and groove length are
-schematic. A zero width or height removes ridge volume, and full-width ridges
-form a continuous layer. No cast or contact shadows are rendered. This view does
-not add finite-target effects, multiple layers or two-dimensional periodicity.
+The viewport shows three repeats of an infinite one-dimensional stack. Width,
+layer thicknesses and pitch share one scale; the substrate depth and invariant
+groove length are schematic. Layer order runs from ambient to substrate. A zero
+width or thickness removes ridge volume, and full-width ridges form a continuous
+film. No cast or contact shadows are rendered. This view does not add finite-target
+effects, continuous sloped walls or two-dimensional periodicity.
 
 Drag the scene to orbit, pinch or scroll to zoom, and use Reset view to return.
 With the scene focused, arrow keys orbit, +/− zoom and 0 resets the view. With a
@@ -163,3 +165,44 @@ without any API requests. Server-saved comparison still requires the local API.
 No separate offline candidate library or newly generated static spectra are
 provided. The workflow browser script covers the live and static paths and stores
 screenshots/assertions alongside the existing browser CI artifacts.
+
+## Multilayer stacks and compatibility
+
+Open the compact Layers row to select a layer or reveal Add layer's patterned
+and uniform choices. Selection closes the picker and focuses the structure's
+existing dimension/material controls. Edit selected layer opens its inspector;
+the closed Layer actions section contains move, duplicate and remove controls.
+The list is bounded to one through eight finite layers. Ambient and substrate
+stay outside that list and are reached through the material inspector tabs.
+Uniform films have no CD or groove material. Every patterned CD must remain
+within the one shared period. Each structural operation and dimension-edit
+session is one undoable change; selecting a layer is not an input edit.
+
+Legacy Project 1.0 inputs retain their original normalized fields and hash.
+An explicit stack/type operation promotes the editable project to 1.1; stored
+input/result JSON and provenance are never rewritten. Current runs return result
+1.1 with adapter 1.1.0, physical layer count, active slab count and total thickness.
+Known historical result 1.0 snapshots remain readable over HTTP, MCP and the UI.
+Synthetic CD recovery is still restricted to exactly one rectangular layer.
+
+The stack-preview HTTP/MCP operation returns `rcwa-change-proposal/1.1`. Its
+bounded patch contains the period and/or a complete finite-layer list. Tables
+remain exact in the full inputs while review diffs summarize them atomically.
+Requests remain limited to 2 MB and stack proposal responses/imports to 8 MB.
+Legacy proposal 1.0 imports retain their 2 MB cap; ordinary project imports retain
+the existing 20 MiB local-file cap. Applying a proposal does not compute a new
+spectrum or confer trusted provenance.
+
+The multilayer browser script adds real-stack snapshots, lower-layer selection,
+structural history, proposal compatibility, dense-table payload round trips and
+desktop/360/390 px screenshots. CI additionally builds the pinned official S4
+reference and compares actual application total and per-order powers. Numerical
+agreement, flux balance and harmonic refinement are distinct checks; none alone
+certifies metrology accuracy. An exact tangent retained mode inside a homogeneous
+film can still be singular in the pinned engine and is reported as a numerical
+failure, without hidden damping or perturbation.
+
+Changes are first published on a test branch. Full CI, independent numerical
+reference checks and inspection of the exact candidate's rendered screenshots
+must pass before that commit reaches main. The Pages workflow follows successful
+main checks and remains a static, precomputed-only preview.

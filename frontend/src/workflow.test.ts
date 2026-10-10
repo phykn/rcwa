@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import reference from "../public/reference-example.json";
 import geometryCases from "../../backend/tests/fixtures/geometry-preview-cases.json";
 import { defaultProject, parseProjectFile } from "./model";
-import type { ForwardResult, Project } from "./model";
+import type {
+  ForwardResult,
+  Project,
+  LegacyProject,
+  RectangleLayer,
+} from "./model";
 import {
   applyGeometryChanges,
   cloneProject,
@@ -22,15 +27,15 @@ import {
   workspaceReducer,
 } from "./workflow";
 import type {
-  ChangeProposal,
+  LegacyChangeProposal as ChangeProposal,
   GeometryChanges,
   RunRecord,
   Workspace,
 } from "./workflow";
 
-function project(width = defaultProject.layers[0].cd_nm): Project {
+function project(width = rectangle(defaultProject).cd_nm): LegacyProject {
   const value = cloneProject(defaultProject);
-  value.layers[0].cd_nm = width;
+  rectangle(value).cd_nm = width;
   return value;
 }
 function run(overrides: Partial<RunRecord> = {}): RunRecord {
@@ -66,7 +71,16 @@ function proposal(
   };
 }
 function parse(value: unknown) {
-  return parseChangeProposal(JSON.stringify(value));
+  const result = parseChangeProposal(JSON.stringify(value));
+  if (result.schema_version !== "rcwa-change-proposal/1.0")
+    throw new Error("Expected a legacy proposal fixture.");
+  return result;
+}
+function rectangle(project: Project): RectangleLayer {
+  const layer = project.layers[0];
+  if (layer.geometry !== "rectangle_1d")
+    throw new Error("Expected a rectangle fixture.");
+  return layer;
 }
 
 describe("complete semantic equality", () => {
@@ -120,7 +134,7 @@ describe("immutable browser-session workspace history", () => {
     expect(state.past).toHaveLength(1);
     expect(state.present.displayedRun).toBe(second);
     state = workspaceReducer(state, { type: "undo" });
-    expect(state.present.project.layers[0].cd_nm).toBe(180);
+    expect(rectangle(state.present.project).cd_nm).toBe(180);
     expect(state.present.displayedRun).toBe(first);
     expect(state.present.displayedRun?.origin).toBe("computed");
     expect(state.present.displayedRun?.sourceJobId).toBe("job-1");
@@ -153,14 +167,14 @@ describe("immutable browser-session workspace history", () => {
       type: "replace-project",
       project: project(160),
     });
-    expect(old.present.project.layers[0].cd_nm).toBe(180);
+    expect(rectangle(old.present.project).cd_nm).toBe(180);
     expect(state.present.displayedRun).toBe(record);
     expect(state.past[0].displayedRun).toBe(record);
     expect(state.present.displayedRun?.result).toBe(record.result);
     expect(Object.isFrozen(state.present.project.layers[0])).toBe(true);
     const mutable = cloneProject(state.present.project);
-    mutable.layers[0].cd_nm = 190;
-    expect(state.present.project.layers[0].cd_nm).toBe(160);
+    rectangle(mutable).cd_nm = 190;
+    expect(rectangle(state.present.project).cd_nm).toBe(160);
   });
   it("does not invent history or revisions for semantic no-ops", () => {
     const state = createHistory(workspace());
@@ -198,7 +212,7 @@ describe("immutable browser-session workspace history", () => {
     expect(state.past).toHaveLength(HISTORY_LIMIT);
     for (let i = 0; i < 30; i++)
       state = workspaceReducer(state, { type: "undo" });
-    expect(state.present.project.layers[0].cd_nm).toBe(185);
+    expect(rectangle(state.present.project).cd_nm).toBe(185);
     expect(state.future).toHaveLength(30);
     expect(workspaceReducer(state, { type: "undo" })).toBe(state);
     expect(
@@ -232,7 +246,7 @@ describe("immutable browser-session workspace history", () => {
       expect(state.editTransaction).toBeUndefined();
       expect(workspaceReducer(state, { type: "end-edit" })).toBe(state);
       state = workspaceReducer(state, { type: "undo" });
-      expect(state.present.project.layers[0].cd_nm).toBe(180);
+      expect(rectangle(state.present.project).cd_nm).toBe(180);
     },
   );
   it("settles an interrupted edit at its last valid value exactly once", () => {
@@ -246,14 +260,14 @@ describe("immutable browser-session workspace history", () => {
     for (let i = 0; i < 3; i++)
       state = workspaceReducer(state, { type: "end-edit" });
     expect(state.past).toHaveLength(1);
-    expect(state.present.project.layers[0].cd_nm).toBe(190);
+    expect(rectangle(state.present.project).cd_nm).toBe(190);
     state = workspaceReducer(state, { type: "begin-edit" });
     state = workspaceReducer(state, {
       type: "replace-project",
       project: project(200),
     });
     state = workspaceReducer(state, { type: "undo" });
-    expect(state.present.project.layers[0].cd_nm).toBe(190);
+    expect(rectangle(state.present.project).cd_nm).toBe(190);
     expect(state.editTransaction).toBeUndefined();
   });
   it("retains monotonic revision but no history for a transaction returning to its base", () => {
@@ -277,7 +291,7 @@ describe("immutable browser-session workspace history", () => {
     expect(state.future).toHaveLength(1);
     expect(state.revision).toBe(4);
     state = workspaceReducer(state, { type: "redo" });
-    expect(state.present.project.layers[0].cd_nm).toBe(160);
+    expect(rectangle(state.present.project).cd_nm).toBe(160);
   });
   it("does not create an edit for opening and closing a field, or a run update", () => {
     let state = createHistory(workspace());
@@ -296,7 +310,7 @@ describe("immutable browser-session workspace history", () => {
     });
     state = workspaceReducer(state, { type: "reset" });
     expect(state.present.displayedRun).toBe(initialRun);
-    expect(state.present.project.layers[0].cd_nm).toBe(180);
+    expect(rectangle(state.present.project).cd_nm).toBe(180);
     expect(state.past).toEqual([]);
     expect(state.future).toEqual([]);
     expect(state.revision).toBe(2);
@@ -305,7 +319,7 @@ describe("immutable browser-session workspace history", () => {
       workspace: workspace(200),
     });
     expect(state.revision).toBe(3);
-    expect(state.initial.project.layers[0].cd_nm).toBe(200);
+    expect(rectangle(state.initial.project).cd_nm).toBe(200);
   });
 });
 
@@ -368,7 +382,7 @@ describe("strict untrusted change proposal import", () => {
     (p: Project) => Object.assign(p.substrate, { ignored: 1 }),
     (p: Project) => Object.assign(p.layers[0], { ignored: 1 }),
     (p: Project) => Object.assign(p.layers[0].material, { ignored: 1 }),
-    (p: Project) => Object.assign(p.layers[0].background, { ignored: 1 }),
+    (p: Project) => Object.assign(rectangle(p).background, { ignored: 1 }),
     (p: Project) => Object.assign(p.illumination, { ignored: 1 }),
     (p: Project) => Object.assign(p.solver, { ignored: 1 }),
   ])("rejects unknown keys at every nested Project boundary", (mutate) => {
@@ -389,7 +403,7 @@ describe("strict untrusted change proposal import", () => {
       p.layers[0].material.n = 2.2;
     },
     (p: Project) => {
-      p.layers[0].background.source = "Forged source";
+      rectangle(p).background.source = "Forged source";
     },
     (p: Project) => {
       p.solver.harmonics = 8;

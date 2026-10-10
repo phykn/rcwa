@@ -1,0 +1,294 @@
+{
+  "id": "83b691be-9a3e-414d-ac83-51d07e7eeda6",
+  "name": "One-layer grating",
+  "created_at": "2026-10-10T11:29:24.271843+00:00",
+  "updated_at": "2026-10-10T11:29:24.271843+00:00",
+  "provenance": {
+    "source": "server_computed",
+    "job_id": "292d5edf-784b-4d29-83b5-abffc162bee0",
+    "input_hash": "edb196af13f81dd6bd16b399dca82bea32232ab8d9fe0272f3a37b8625fd0660",
+    "project_schema_version": "1.0",
+    "result_schema_version": "1.0",
+    "engine": "meent",
+    "engine_version": "0.13.2",
+    "adapter_version": "1.0.0",
+    "submitted_at": "2026-10-10T11:29:23.691831+00:00",
+    "completed_at": "2026-10-10T11:29:24.269422+00:00",
+    "canonicalization": "SHA-256; normalized Project; sorted JSON keys; compact separators; UTF-8; finite numbers"
+  },
+  "project": {
+    "schema_version": "1.0",
+    "name": "One-layer grating",
+    "period_nm": 400.0,
+    "ambient": {
+      "name": "Air",
+      "kind": "constant",
+      "n": 1.0,
+      "k": 0.0,
+      "wavelengths_nm": null,
+      "n_values": null,
+      "k_values": null,
+      "source": "User-defined synthetic optical constants"
+    },
+    "substrate": {
+      "name": "Synthetic substrate",
+      "kind": "constant",
+      "n": 1.5,
+      "k": 0.0,
+      "wavelengths_nm": null,
+      "n_values": null,
+      "k_values": null,
+      "source": "User-defined synthetic optical constants"
+    },
+    "layers": [
+      {
+        "name": "Patterned layer",
+        "geometry": "rectangle_1d",
+        "thickness_nm": 160.0,
+        "cd_nm": 180.0,
+        "material": {
+          "name": "Synthetic dielectric",
+          "kind": "constant",
+          "n": 2.1,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      }
+    ],
+    "illumination": {
+      "wavelengths_nm": [
+        650.0
+      ],
+      "angle_deg": 15.0,
+      "polarization": "both"
+    },
+    "solver": {
+      "harmonics": 3
+    }
+  },
+  "result": {
+    "result_type": "forward",
+    "schema_version": "1.0",
+    "wavelengths_nm": [
+      650.0
+    ],
+    "spectra": {
+      "s": {
+        "R": [
+          0.027433325561873133
+        ],
+        "T": [
+          0.9725666744381268
+        ],
+        "R_specular": [
+          0.027433325561873133
+        ],
+        "T_specular": [
+          0.43752147967437116
+        ],
+        "A_balance": [
+          0.0
+        ],
+        "orders": [
+          [
+            {
+              "m": -3,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": -4.616180954897479,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": -2,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": -2.9911809548974793,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": -1,
+              "R": 0.0,
+              "T": 0.5350451947637557,
+              "kx_over_k0": -1.3661809548974793,
+              "reflection_propagating": false,
+              "transmission_propagating": true,
+              "transmission_class": "propagating"
+            },
+            {
+              "m": 0,
+              "R": 0.027433325561873133,
+              "T": 0.43752147967437116,
+              "kx_over_k0": 0.25881904510252074,
+              "reflection_propagating": true,
+              "transmission_propagating": true,
+              "transmission_class": "propagating"
+            },
+            {
+              "m": 1,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 1.8838190451025207,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": 2,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 3.5088190451025207,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": 3,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 5.133819045102521,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            }
+          ]
+        ]
+      },
+      "p": {
+        "R": [
+          0.0022574148760315846
+        ],
+        "T": [
+          0.9977425851239679
+        ],
+        "R_specular": [
+          0.0022574148760315846
+        ],
+        "T_specular": [
+          0.8826840546791641
+        ],
+        "A_balance": [
+          5.551115123125783e-16
+        ],
+        "orders": [
+          [
+            {
+              "m": -3,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": -4.616180954897479,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": -2,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": -2.9911809548974793,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": -1,
+              "R": 0.0,
+              "T": 0.11505853044480376,
+              "kx_over_k0": -1.3661809548974793,
+              "reflection_propagating": false,
+              "transmission_propagating": true,
+              "transmission_class": "propagating"
+            },
+            {
+              "m": 0,
+              "R": 0.0022574148760315846,
+              "T": 0.8826840546791641,
+              "kx_over_k0": 0.25881904510252074,
+              "reflection_propagating": true,
+              "transmission_propagating": true,
+              "transmission_class": "propagating"
+            },
+            {
+              "m": 1,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 1.8838190451025207,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": 2,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 3.5088190451025207,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            },
+            {
+              "m": 3,
+              "R": 0.0,
+              "T": 0.0,
+              "kx_over_k0": 5.133819045102521,
+              "reflection_propagating": false,
+              "transmission_propagating": false,
+              "transmission_class": "evanescent"
+            }
+          ]
+        ]
+      }
+    },
+    "metadata": {
+      "engine": "meent",
+      "version": "0.13.2",
+      "adapter_version": "1.0.0",
+      "backend": "numpy",
+      "precision": "complex128",
+      "method": "1D classical RCWA, continuous Fourier integrals, inverse-rule factorization, TMM",
+      "harmonics": 3,
+      "retained_orders": [
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "basis_size": 7,
+      "geometry": "Centered exact-boundary rectangle; invariant y; one computational slab",
+      "units": "nm; vacuum wavelength",
+      "angle_convention": "degrees from +z surface normal; incidence in x-z plane",
+      "material_convention": "Public n+i*k for exp(-i*omega*t); conjugated for meent finite-layer matrices and explicit outgoing port admittances",
+      "port_adapter": "Corrected complex-port initialization: kz=conj(sqrt(N^2-kx^2)), TM admittance kz/conj(N)^2; upstream meent RCWA eigensolve/cascade/power unchanged",
+      "polarization_convention": "s: electric field along y; p: magnetic field along y; power only",
+      "power_normalization": "Unit incident normal Poynting flux; R at z=0, T at z=thickness into semi-infinite substrate (entrance-plane flux, including lossy ports)",
+      "material_interpolation": "Linear n and k separately; extrapolation forbidden",
+      "substrate_backside": "omitted; substrate is semi-infinite",
+      "max_lossless_flux_error": 5.551115123125783e-16,
+      "convergence_checked": false,
+      "elapsed_seconds": 0.0021351010000216775,
+      "regularization": "none; no damping, pseudoinverse, angular perturbation, or output clipping"
+    },
+    "warnings": [
+      "Fourier convergence is not certified by a single run. Refine harmonics for your sample."
+    ]
+  }
+}

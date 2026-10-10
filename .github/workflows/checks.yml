@@ -55,6 +55,47 @@ jobs:
       - name: Check real SDK stdio client and local HTTP validation
         run: python -m pytest backend/tests/test_mcp_protocol.py -q -k "stdio_discovery_and_validation or stdio_closes_on_eof or api_down"
 
+  independent-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-lock.txt
+      - run: pip install -r backend/requirements-lock.txt
+      - name: Prepare official pinned S4 reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y g++ make liblapack-dev libblas-dev
+          git init /tmp/rcwa-s4-upstream
+          git -C /tmp/rcwa-s4-upstream remote add origin https://github.com/victorliu/S4.git
+          git -C /tmp/rcwa-s4-upstream fetch --depth 1 origin 7fd00a231610bff51f5c7de5f723e3956eab7453
+          git -C /tmp/rcwa-s4-upstream checkout --detach FETCH_HEAD
+      - name: Compare real application powers with independent S4
+        run: |
+          mkdir -p artifacts
+          python scripts/reference_check.py --s4-source /tmp/rcwa-s4-upstream --output artifacts/independent-reference.json
+      - name: Retain independent numerical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-reference
+          path: |
+            artifacts/independent-reference.json
+            /tmp/rcwa-s4-upstream/build/rcwa_reference/build.log
+            /tmp/rcwa-s4-upstream/build/rcwa_reference/link.log
+          retention-days: 7
+          if-no-files-found: warn
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -128,6 +169,7 @@ jobs:
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs)
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs)
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs)
+          (cd frontend && timeout 240s node scripts/multilayer-browser-qa.mjs)
       - name: Collect local browser server logs
         if: always()
         shell: bash
@@ -147,6 +189,7 @@ jobs:
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json
+            artifacts/multilayer-browser-qa.json
             artifacts/agent-report.json
             artifacts/rcwa-*.log
           retention-days: 1

@@ -2117,3 +2117,161 @@ input[type="range"]:focus-visible {
     margin: 6px 0;
   }
 }
+
+.layer-stack {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+.layer-picker-toggle,
+.stack-add > summary,
+.layer-actions > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 2px;
+}
+.layer-picker-toggle::-webkit-details-marker,
+.stack-add > summary::-webkit-details-marker,
+.layer-actions > summary::-webkit-details-marker {
+  display: none;
+}
+.layer-picker-toggle > span:first-child {
+  white-space: nowrap;
+}
+.layer-picker-toggle small {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.selected-layer-label {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  font-weight: 400;
+  font-size: 12px;
+}
+.layer-stack[open] > summary .chevron,
+.stack-add[open] > summary .chevron,
+.layer-actions[open] > summary .chevron {
+  transform: rotate(180deg);
+}
+.layer-picker-toggle[aria-disabled="true"],
+.stack-add > summary[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.layer-picker-body {
+  border: 0;
+  margin: 0;
+  padding: 4px 0 8px;
+  min-width: 0;
+}
+.stack-rows {
+  max-height: 352px;
+  overflow-y: auto;
+}
+.stack-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  padding: 8px;
+  min-height: 44px;
+  font-size: 12px;
+  text-align: left;
+}
+.stack-row.selected {
+  background: var(--selected);
+  color: var(--primary);
+}
+.stack-index {
+  width: 16px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.stack-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.stack-kind {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+.stack-thickness {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.stack-edit {
+  display: block;
+  min-height: 44px;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--primary);
+}
+.stack-add > summary {
+  font-size: 12px;
+  padding: 8px;
+}
+.stack-add .chevron,
+.layer-actions .chevron {
+  margin-left: auto;
+}
+.stack-add > div {
+  display: flex;
+  gap: 8px;
+}
+.stack-add button {
+  min-height: 44px;
+  font-size: 12px;
+  color: var(--primary);
+}
+.layer-actions {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.layer-actions > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.layer-actions button {
+  min-height: 44px;
+  padding: 8px;
+  text-align: left;
+  font-size: 13px;
+}
+@media (max-width: 420px) {
+  .stack-row {
+    gap: 5px;
+  }
+  .stack-kind {
+    font-size: 9px;
+  }
+}
+
+.stack-preview-summary {
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  margin: 8px 0 0;
+}
+
+.sheet-heading > div {
+  min-width: 0;
+}
+.sheet-heading h2 {
+  overflow-wrap: anywhere;
+}

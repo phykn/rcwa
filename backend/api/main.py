@@ -14,12 +14,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError, model_validator
 
 from api.change_preview import preview_changes
+from api.stack_change_preview import ProposalTooLarge, bounded_proposal, preview_stack_changes
 from api.jobs import JobManager
 from api.storage import ProjectStore, canonical_hash
 from api.contracts import (
     Capabilities,
     ChangePreviewRequest,
     ChangeProposal,
+    StackChangePreviewRequest,
+    StackChangeProposal,
+    StoredServerSnapshot,
     ErrorResponse,
     JobRequest,
     JobResponse,
@@ -29,6 +33,7 @@ from api.contracts import (
     SnapshotRequest,
     ValidationResponse,
 )
+from rcwa_core.contracts import ForwardResult
 from rcwa_core.preflight import Diagnostic, engine_info, preflight_project
 from rcwa_core.schemas import Project, StrictModel
 
@@ -48,8 +53,10 @@ class SaveRequest(StrictModel):
         except (ValueError, TypeError) as error:
             raise ValueError("Result must contain finite JSON values") from error
         result = self.result
-        if result.get("schema_version") != "1.0":
-            raise ValueError("Result schema_version must be 1.0")
+        if result.get("schema_version") not in ("1.0", "1.1"):
+            raise ValueError("Result schema_version must be 1.0 or 1.1")
+        if result["schema_version"] == "1.1":
+            ForwardResult.model_validate(result, strict=True)
         wavelengths = self.project.illumination.wavelengths_nm
         if result.get("wavelengths_nm") != wavelengths:
             raise ValueError("Result wavelengths must match the saved project")
@@ -104,7 +111,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             app.state.store.engine.dispose()
 
     responses = {code: {"model": ErrorResponse} for code in (400, 403, 404, 409, 413, 422, 429, 503)}
-    app = FastAPI(title="RCWA Workbench", version="0.2.0", lifespan=lifespan, responses=responses)
+    app = FastAPI(title="RCWA Workbench", version="0.3.0", lifespan=lifespan, responses=responses)
     origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
     def error_response(status, code, message, diagnostics=None):
@@ -187,7 +194,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "engine": "meent",
             "engine_version": engine_info().installed_version,
             "engine_available": engine_info().available,
-            "scope": "single-layer 1D classical mounting",
+            "scope": "up to eight top-to-bottom 1D finite layers; classical mounting",
             "authentication": "local-demo-only",
         }
 
@@ -198,15 +205,18 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     @app.get("/api/capabilities", response_model=Capabilities)
     async def capabilities():
         return {
-            "api_version": "0.2.0",
-            "project_schema_version": "1.0",
-            "result_schema_version": "1.0",
+            "api_version": "0.3.0",
+            "project_schema_version": "1.1",
+            "result_schema_version": "1.1",
+            "supported_project_schema_versions": ["1.0", "1.1"],
+            "supported_result_schema_versions": ["1.0", "1.1"],
             "engine": engine_info(),
             "operations": [
-                "validate", "preview_changes", "forward", "synthetic_fit", "poll", "cancel",
+                "validate", "preview_changes", "preview_stack_changes", "forward", "synthetic_fit", "poll", "cancel",
                 "save_snapshot", "import_project",
             ],
-            "geometry": ["One isotropic rectangle_1d layer; centered ridge; invariant y; classical mounting"],
+            "geometry": ["1–8 top-to-bottom isotropic rectangle_1d or homogeneous finite layers; common period; invariant y; classical mounting",
+                         "rectangle_1d: centered ridge with material/background; homogeneous: material only"],
             "polarizations": ["s", "p", "both"],
             "materials": ["constant", "tabulated: linear n/k interpolation, no extrapolation; lossless ambient"],
             "observables": ["R", "T", "R_specular", "T_specular", "A_balance", "order-resolved R/T"],
@@ -221,7 +231,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "job_timeout_seconds": app.state.jobs.timeout,
                 "retained_jobs": 100,
                 "request_bytes": 2_000_000,
-                "layers": 1,
+                "proposal_bytes": 8_000_000,
+                "layers": 8,
                 "wavelength_count": 81,
                 "material_table_rows": 2000,
                 "harmonics_min": 1,
@@ -243,12 +254,12 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "limitations": [
                 "Local loopback, one API worker, unauthenticated; Origin/Host checks are not authentication",
                 "Static Pages is precomputed only, with no live API",
-                "No phase, Jones, ellipsometry, general multilayer, 2D geometry, or measured-data inversion",
+                "No phase, Jones, ellipsometry, arbitrary geometry, 2D patterns, anisotropy, or measured-data inversion",
                 "Validation is not a solve or convergence certification",
                 "T is substrate entrance-plane flux; no absorbing-substrate backside transmission",
                 "A_balance is a flux deficit, not independently integrated absorption",
                 "Example materials are synthetic, not calibrated optical constants",
-                "Synthetic fitting is limited to 41 wavelengths and 12 harmonics; it is not design optimization",
+                "Synthetic fitting requires exactly one rectangle and is limited to 41 wavelengths and 12 harmonics; it is not design optimization",
             ],
         }
 
@@ -276,7 +287,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     async def change_preview(request: ChangePreviewRequest):
         """Preview caller-specified geometry without solving, persisting or applying."""
         try:
-            return preview_changes(request)
+            return bounded_proposal(preview_changes(request))
         except ValidationError as error:
             # The combined candidate can violate CD <= period even when each
             # individual patch number is admissible. Preserve structured errors.
@@ -284,6 +295,19 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 {**item, "loc": ("body", "candidate_project", *item["loc"])}
                 for item in error.errors()
             ]
+            raise RequestValidationError(errors) from error
+
+    @app.exception_handler(ProposalTooLarge)
+    async def proposal_too_large(request, error):
+        return error_response(413, "proposal_too_large", str(error))
+
+    @app.post("/api/stack-change-preview", response_model=StackChangeProposal)
+    async def stack_change_preview(request: StackChangePreviewRequest):
+        """Preview one atomic stack replacement without solving, storing or applying."""
+        try:
+            return preview_stack_changes(request)
+        except ValidationError as error:
+            errors = [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()]
             raise RequestValidationError(errors) from error
 
     @app.post("/api/jobs", status_code=202, response_model=JobResponse)
@@ -359,6 +383,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         project = app.state.store.get(project_id)
         if project is None:
             raise HTTPException(404, "Project not found")
+        if project["provenance"]["source"] == "server_computed":
+            StoredServerSnapshot.model_validate(project, strict=True)
         return project
 
     return app

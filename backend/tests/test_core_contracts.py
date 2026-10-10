@@ -31,8 +31,8 @@ def fit_triple():
     return project, fit, fit_cd(project, fit)
 
 
-def test_actual_json_schema_exposes_single_layer_and_discriminated_results():
-    assert Project.model_json_schema()["properties"]["layers"]["maxItems"] == 1
+def test_actual_json_schema_exposes_bounded_layers_and_discriminated_results():
+    assert Project.model_json_schema()["properties"]["layers"]["maxItems"] == 8
     schema = TypeAdapter(Result).json_schema()
     assert schema["discriminator"]["propertyName"] == "result_type"
     assert set(schema["discriminator"]["mapping"]) == {"forward", "synthetic_fit"}
@@ -100,7 +100,15 @@ def test_cutoff_errors_and_near_cutoff_warnings_share_thresholds():
     assert diagnostics[0].message in result["warnings"]
 
 
-@pytest.mark.parametrize("installed,exists,status", [(None, False, "not_installed"), ("0.13.2", False, "not_installed"), ("9.0", True, "version_mismatch"), ("0.13.2", True, "available")])
+@pytest.mark.parametrize(
+    "installed,exists,status",
+    [
+        (None, False, "not_installed"),
+        ("0.13.2", False, "not_installed"),
+        ("9.0", True, "version_mismatch"),
+        ("0.13.2", True, "available"),
+    ],
+)
 def test_engine_information_is_actual_and_does_not_solve(monkeypatch, installed, exists, status):
     def get_version(name):
         assert name == "meent"
@@ -125,7 +133,7 @@ def test_real_forward_result_roundtrips_strict_contract(forward_pair):
     validated = validate_result("forward", result, project)
     assert isinstance(validated, ForwardResult)
     assert validated.model_dump(mode="json") == result
-    assert validated.metadata.adapter_version == "1.0.0"
+    assert validated.metadata.adapter_version == "1.1.0"
 
 
 @pytest.mark.parametrize(
@@ -162,13 +170,16 @@ def test_malformed_forward_worker_results_rejected(forward_pair, mutate):
         validate_result("forward", mutated, project)
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda p: p.illumination.wavelengths_nm.__setitem__(0, 551.0),
-    lambda p: setattr(p.illumination, "polarization", "s"),
-    lambda p: setattr(p.solver, "harmonics", 4),
-    lambda p: setattr(p, "period_nm", 401.0),
-    lambda p: setattr(p.substrate, "k", 0.1),
-])
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda p: p.illumination.wavelengths_nm.__setitem__(0, 551.0),
+        lambda p: setattr(p.illumination, "polarization", "s"),
+        lambda p: setattr(p.solver, "harmonics", 4),
+        lambda p: setattr(p, "period_nm", 401.0),
+        lambda p: setattr(p.substrate, "k", 0.1),
+    ],
+)
 def test_forward_result_is_bound_to_declared_input_fields(forward_pair, mutate):
     project, result = forward_pair
     different = project.model_copy(deep=True)
@@ -189,19 +200,22 @@ def test_real_synthetic_fit_roundtrips_distinct_contract(fit_triple):
         validate_result("fit", result, project)
 
 
-@pytest.mark.parametrize("mutate", [
-    lambda r: r.update(extra="unsupported"),
-    lambda r: r.update(fit_cd_nm="207"),
-    lambda r: r.update(rmse=float("nan")),
-    lambda r: r.update(status="not_converged"),
-    lambda r: r["fitted_project"]["layers"][0].update(cd_nm=210),
-    lambda r: r["fitted_project"].update(name="Different input"),
-    lambda r: r["diagnostics"]["residuals"].pop(),
-    lambda r: r["diagnostics"]["residuals"].__setitem__(0, 0.12345),
-    lambda r: r["diagnostics"].update(refined_harmonics=9),
-    lambda r: r["diagnostics"]["starts"][0].update(initial_cd_nm=101),
-    lambda r: r["prediction"].update(extra="unsupported"),
-])
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda r: r.update(extra="unsupported"),
+        lambda r: r.update(fit_cd_nm="207"),
+        lambda r: r.update(rmse=float("nan")),
+        lambda r: r.update(status="not_converged"),
+        lambda r: r["fitted_project"]["layers"][0].update(cd_nm=210),
+        lambda r: r["fitted_project"].update(name="Different input"),
+        lambda r: r["diagnostics"]["residuals"].pop(),
+        lambda r: r["diagnostics"]["residuals"].__setitem__(0, 0.12345),
+        lambda r: r["diagnostics"].update(refined_harmonics=9),
+        lambda r: r["diagnostics"]["starts"][0].update(initial_cd_nm=101),
+        lambda r: r["prediction"].update(extra="unsupported"),
+    ],
+)
 def test_synthetic_fit_contract_and_request_binding(fit_triple, mutate):
     project, fit, result = fit_triple
     mutated = copy.deepcopy(result)

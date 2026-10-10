@@ -8,6 +8,11 @@ import {
   linspace,
   parseProjectFile,
   validateProject,
+  editStack,
+  maximumPatternedCD,
+  stackSummary,
+  supportsSyntheticFit,
+  validLayerIndex,
 } from "./model";
 import type {
   ForwardResult,
@@ -16,9 +21,12 @@ import type {
   Project,
   SavedProject,
   SavedSummary,
+  RectangleLayer,
+  StackOperation,
 } from "./model";
 import { SpectrumPlot } from "./Visuals";
 import { ThreeStructure } from "./ThreeStructure";
+import { LayerActions, LayerStack } from "./LayerStack";
 type Dimension = "width" | "height" | "pitch";
 type Sheet =
   | Dimension
@@ -28,7 +36,8 @@ type Sheet =
   | "substrate"
   | "materials"
   | "light"
-  | "accuracy";
+  | "accuracy"
+  | "layer";
 import { SyntheticFit } from "./SyntheticFit";
 import { ComparisonPanel, ReviewPanel } from "./WorkflowPanels";
 import {
@@ -183,8 +192,10 @@ function DimensionEditor({
   onChange,
   onEditStart,
   onEditEnd,
+  multilayer = false,
 }: {
   dimension: Dimension;
+  multilayer?: boolean;
   value: number;
   max: number;
   min: number;
@@ -213,9 +224,9 @@ function DimensionEditor({
   const help = {
     width: "The width of each ridge, also called critical dimension (CD).",
     height:
-      "The ridge height above the substrate. Zero height removes the patterned layer.",
+      "The selected layer’s thickness. Zero thickness removes its optical slab.",
     pitch:
-      "The distance from one ridge to the next. Pitch cannot be smaller than the current width.",
+      "The shared period of every layer. Pitch cannot be smaller than any patterned layer’s width.",
   };
   return (
     <>
@@ -226,7 +237,9 @@ function DimensionEditor({
           dimension === "width"
             ? "Width (CD)"
             : dimension === "height"
-              ? "Height"
+              ? multilayer
+                ? "Thickness"
+                : "Height"
               : "Pitch"
         }
         id={`dimension-${dimension}`}
@@ -403,7 +416,8 @@ export default function App() {
   const startingRef = useRef(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingProject, setLoadingProject] = useState<string | null>(null);
-  function openSheet(next: Sheet) {
+  function openSheet(next: Sheet, layerIndex?: number) {
+    if (layerIndex !== undefined) selectLayer(layerIndex);
     previousFocus.current = document.activeElement as HTMLElement;
     setSheet(next);
   }
@@ -422,6 +436,7 @@ export default function App() {
     createHistory({
       project: structuredClone(defaultProject),
       displayedRun: null,
+      selectedLayer: 0,
     }),
   );
   const historyRef = useRef(history);
@@ -473,7 +488,8 @@ export default function App() {
   const busy = forwardBusy || fitBusy;
   const errors = validateProject(project);
   const stale = result !== null && !sameInputs(resultProject, project);
-  const layer = project.layers[0];
+  const selectedLayer = validLayerIndex(project, history.present.selectedLayer);
+  const layer = project.layers[selectedLayer];
   const waves = project.illumination.wavelengths_nm;
   const mean = (values: number[]) =>
     values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
@@ -667,18 +683,31 @@ export default function App() {
   function endEdit() {
     dispatch({ type: "end-edit" });
   }
-  function update(next: Project) {
+  function update(next: Project, selection?: number) {
     if (semanticEqual(next, historyRef.current.present.project)) return;
     actionVersion.current += 1;
     inputsChanged.current = true;
-    dispatch({ type: "replace-project", project: next });
+    dispatch({
+      type: "replace-project",
+      project: next,
+      selectedLayer: selection,
+    });
     setNotice("");
   }
   function install(workspace: Workspace) {
     actionVersion.current += 1;
     inputsChanged.current = true;
     endEdit();
-    dispatch({ type: "replace-workspace", workspace });
+    dispatch({
+      type: "replace-workspace",
+      workspace: {
+        ...workspace,
+        selectedLayer: validLayerIndex(
+          workspace.project,
+          workspace.selectedLayer,
+        ),
+      },
+    });
     setPolarization(workspace.displayedRun?.result.spectra.s ? "s" : "p");
     setJob(null);
   }
@@ -796,8 +825,33 @@ export default function App() {
     }
     return true;
   }
-  function updateLayer(values: Partial<typeof layer>) {
-    update({ ...project, layers: [{ ...layer, ...values }] });
+  function selectLayer(index: number) {
+    endEdit();
+    dispatch({ type: "select-layer", index });
+    // Material/dimension sheets are reopened for an explicit selection.
+    if (sheet === "width" || sheet === "groove") setSheet(null);
+  }
+  function changeStack(operation: StackOperation) {
+    if (busy || startingRef.current) return;
+    endEdit();
+    const changed = editStack(project, selectedLayer, operation);
+    update(changed.project, changed.selectedLayer);
+    if (sheet === "width" || sheet === "groove") setSheet(null);
+  }
+  function updateLayer(values: Partial<RectangleLayer>) {
+    if (
+      layer.geometry === "homogeneous" &&
+      ("cd_nm" in values || "background" in values)
+    )
+      return;
+    update({
+      ...project,
+      layers: project.layers.map((item, index) =>
+        index === selectedLayer
+          ? ({ ...item, ...values } as typeof item)
+          : item,
+      ),
+    });
   }
   function updateWavelengths(start: number, end: number, count: number) {
     update({
@@ -1058,7 +1112,10 @@ export default function App() {
           historyRef.current.present.project,
         );
         presentReview({
-          title: "Review geometry changes",
+          title:
+            proposal.schema_version === "rcwa-change-proposal/1.1"
+              ? "Review stack changes"
+              : "Review geometry changes",
           baseProject: historyRef.current.present.project,
           workspace: {
             project: proposal.candidate_project,
@@ -1066,7 +1123,7 @@ export default function App() {
           },
           revision,
           actionVersion: version,
-          note: "Review this external geometry proposal before applying it. Applying changes does not run the solver.",
+          note: "Review this external proposal before applying it. Applying changes does not run the solver.",
           warnings: proposal.diagnostics
             .filter((item) => item.severity !== "error")
             .map((item) => item.message),
@@ -1275,28 +1332,51 @@ export default function App() {
   });
   function changeDimension(dimension: Dimension, value: number) {
     if (busy) return;
-    if (dimension === "pitch") update({ ...project, period_nm: value });
-    else
+    if (dimension === "pitch") {
+      if (value < maximumPatternedCD(project)) {
+        setError("Pitch cannot be smaller than any patterned layer’s CD.");
+        return;
+      }
+      update({ ...project, period_nm: value });
+    } else
       updateLayer(
         dimension === "width" ? { cd_nm: value } : { thickness_nm: value },
       );
   }
   const dimensionValues = {
-    width: layer.cd_nm,
+    width: layer.geometry === "rectangle_1d" ? layer.cd_nm : 0,
     height: layer.thickness_nm,
     pitch: project.period_nm,
   };
   const titles: Record<Sheet, string> = {
-    width: "Ridge width",
-    height: "Ridge height",
+    width:
+      project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${layer.name} · Width`
+        : "Ridge width",
+    height:
+      project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${layer.name} · Thickness`
+        : "Layer thickness",
     pitch: "Pattern pitch",
-    ridge: "Ridge material",
-    groove: "Groove material",
+    ridge:
+      project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${layer.name} · Material`
+        : layer.geometry === "homogeneous"
+          ? "Layer material"
+          : "Ridge material",
+    groove:
+      project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${layer.name} · Groove`
+        : "Groove material",
     ambient: "Ambient material",
     substrate: "Substrate material",
-    materials: "Optical materials",
+    materials:
+      project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${layer.name} · Materials`
+        : "Optical materials",
     light: "Incident light",
     accuracy: "Calculation settings",
+    layer: `Layer ${selectedLayer + 1} · ${layer.name}`,
   };
   return (
     <div className="app-shell">
@@ -1453,11 +1533,21 @@ export default function App() {
           >
             <ThreeStructure
               project={project}
+              selectedLayer={selectedLayer}
+              onSelectLayer={selectLayer}
               disabled={busy}
               onChange={changeDimension}
               onOpen={openSheet}
               onEditStart={beginEdit}
               onEditEnd={endEdit}
+            />
+            <LayerStack
+              project={project}
+              selected={selectedLayer}
+              disabled={busy}
+              onSelect={selectLayer}
+              onEdit={() => openSheet("layer")}
+              onChange={changeStack}
             />
             <fieldset disabled={busy} className="setup-rows">
               <button
@@ -1479,16 +1569,6 @@ export default function App() {
                       : project.illumination.polarization}
                   </span>
                 </span>
-                <Icon name="arrow" />
-              </button>
-              <button
-                className="setting-row"
-                onClick={() => openSheet("materials")}
-                aria-label="Edit materials"
-              >
-                <span className="setting-icon">◈</span>
-                <span className="setting-name">Materials</span>
-                <span className="setting-value">n / k</span>
                 <Icon name="arrow" />
               </button>
               <button
@@ -1699,7 +1779,13 @@ export default function App() {
               }
               setFitBusy(next);
             }}
-            onApply={(cd_nm) => updateLayer({ cd_nm })}
+            onApply={(cd_nm) => {
+              if (!supportsSyntheticFit(project)) return;
+              const only = project.layers[0];
+              if (only.geometry !== "rectangle_1d") return;
+              endEdit();
+              update({ ...project, layers: [{ ...only, cd_nm }] });
+            }}
           />
           <details className="notes-panel">
             <summary>
@@ -1727,10 +1813,12 @@ export default function App() {
             )}
             {resultProject && (
               <p className="result-inputs">
-                Original inputs: pitch {resultProject.period_nm} nm · width{" "}
-                {resultProject.layers[0].cd_nm} nm · height{" "}
-                {resultProject.layers[0].thickness_nm} nm ·{" "}
-                {resultProject.illumination.angle_deg}° · N ={" "}
+                Original inputs: pitch {resultProject.period_nm} nm ·{" "}
+                {supportsSyntheticFit(resultProject) &&
+                resultProject.layers[0].geometry === "rectangle_1d"
+                  ? `width ${resultProject.layers[0].cd_nm} nm · height ${resultProject.layers[0].thickness_nm} nm`
+                  : stackSummary(resultProject)}{" "}
+                · {resultProject.illumination.angle_deg}° · N ={" "}
                 {resultProject.solver.harmonics}.{" "}
                 {resultProject.illumination.wavelengths_nm.length} wavelength
                 samples,{" "}
@@ -1774,9 +1862,9 @@ export default function App() {
             </div>
             <div className="notes-grid">
               <p>
-                <b>Plane-wave baseline</b>An infinite periodic grating with one
-                layer and semi-infinite ambient/substrate. Finite beam,
-                numerical aperture, and finite-target effects are omitted.
+                <b>Plane-wave baseline</b>An infinite periodic 1D stack with
+                semi-infinite ambient/substrate. Finite beam, numerical
+                aperture, and finite-target effects are omitted.
               </p>
               <p>
                 <b>Power normalization</b>R/T are normalized to incident power.
@@ -1854,11 +1942,83 @@ export default function App() {
             </button>
           </div>
           <fieldset disabled={busy}>
+            {sheet === "layer" && (
+              <>
+                <label className="field">
+                  <span>Layer name</span>
+                  <input
+                    aria-label="Layer name"
+                    value={layer.name}
+                    maxLength={100}
+                    onChange={(event) =>
+                      updateLayer({ name: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Layer type</span>
+                  <select
+                    aria-label="Layer type"
+                    value={layer.geometry}
+                    onChange={(event) =>
+                      changeStack({
+                        type: "geometry",
+                        geometry: event.target.value as
+                          "rectangle_1d" | "homogeneous",
+                      })
+                    }
+                  >
+                    <option value="rectangle_1d">Patterned</option>
+                    <option value="homogeneous">Uniform</option>
+                  </select>
+                </label>
+                <Field
+                  label="Thickness"
+                  unit="nm"
+                  value={layer.thickness_nm}
+                  min={0}
+                  max={2000}
+                  step={0.1}
+                  onChange={(thickness_nm) => updateLayer({ thickness_nm })}
+                />
+                {layer.geometry === "rectangle_1d" && (
+                  <Field
+                    label="Width (CD)"
+                    unit="nm"
+                    value={layer.cd_nm}
+                    min={0}
+                    max={project.period_nm}
+                    step={0.1}
+                    onChange={(cd_nm) => updateLayer({ cd_nm })}
+                  />
+                )}
+                <button
+                  className="text-button"
+                  onClick={() => setSheet("materials")}
+                >
+                  Edit materials
+                </button>
+                <LayerActions
+                  selected={selectedLayer}
+                  count={project.layers.length}
+                  disabled={busy}
+                  onChange={changeStack}
+                />
+              </>
+            )}
+
             {sheet && ["width", "height", "pitch"].includes(sheet) && (
               <DimensionEditor
                 dimension={sheet as Dimension}
+                multilayer={
+                  project.layers.length > 1 || layer.geometry === "homogeneous"
+                }
                 value={dimensionValues[sheet as Dimension]}
-                min={sheet === "pitch" ? Math.max(20, layer.cd_nm) : 0}
+                min={
+                  sheet === "pitch"
+                    ? Math.max(20, maximumPatternedCD(project))
+                    : 0
+                }
                 max={
                   sheet === "pitch"
                     ? 5000
@@ -1884,32 +2044,40 @@ export default function App() {
                     role="group"
                     aria-label="Choose material"
                   >
-                    {(["ridge", "groove", "ambient", "substrate"] as const).map(
-                      (key) => (
+                    {(["ridge", "groove", "ambient", "substrate"] as const)
+                      .filter(
+                        (key) =>
+                          key !== "groove" || layer.geometry === "rectangle_1d",
+                      )
+                      .map((key) => (
                         <button
                           key={key}
                           aria-pressed={sheet === key}
                           onClick={() => setSheet(key)}
                         >
-                          {key[0].toUpperCase() + key.slice(1)}
+                          {key === "ridge" && layer.geometry === "homogeneous"
+                            ? "Layer"
+                            : key[0].toUpperCase() + key.slice(1)}
                         </button>
-                      ),
-                    )}
+                      ))}
                   </div>
                   {(sheet === "ridge" || sheet === "materials") && (
                     <MaterialEditor
-                      label="Ridge"
+                      label={
+                        layer.geometry === "homogeneous" ? "Layer" : "Ridge"
+                      }
                       material={layer.material}
                       onChange={(material) => updateLayer({ material })}
                     />
                   )}
-                  {(sheet === "groove" || sheet === "materials") && (
-                    <MaterialEditor
-                      label="Groove"
-                      material={layer.background}
-                      onChange={(background) => updateLayer({ background })}
-                    />
-                  )}
+                  {layer.geometry === "rectangle_1d" &&
+                    (sheet === "groove" || sheet === "materials") && (
+                      <MaterialEditor
+                        label="Groove"
+                        material={layer.background}
+                        onChange={(background) => updateLayer({ background })}
+                      />
+                    )}
                   {(sheet === "ambient" || sheet === "materials") && (
                     <MaterialEditor
                       label="Ambient"
@@ -2040,11 +2208,11 @@ export default function App() {
                 />
                 <div className="fixed-setting">
                   <span>Geometry</span>
-                  <strong>1D rectangular grating</strong>
+                  <strong>1D finite-layer stack</strong>
                 </div>
                 <div className="fixed-setting">
                   <span>Layers</span>
-                  <strong>One</strong>
+                  <strong>{project.layers.length} · top to bottom</strong>
                 </div>
                 <p className="sheet-hint">
                   Infinite 1D model; finite-target effects are omitted.

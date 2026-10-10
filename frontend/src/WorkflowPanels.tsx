@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { Project, SavedProject, Spectrum } from "./model";
-import { semanticEqual } from "./workflow";
+import { totalThickness, stackSummary } from "./model";
+import {
+  semanticEqual,
+  comparisonConditionsDiffer,
+  stackDiff,
+  summarizeMaterial,
+} from "./workflow";
+import { materialColor } from "./structureGeometry";
 
 function Modal({
   title,
@@ -89,11 +96,7 @@ function Modal({
 }
 
 function geometry(project: Project) {
-  return {
-    width: project.layers[0].cd_nm,
-    height: project.layers[0].thickness_nm,
-    pitch: project.period_nm,
-  };
+  return { height: totalThickness(project), pitch: project.period_nm };
 }
 function GeometryCard({
   project,
@@ -104,25 +107,65 @@ function GeometryCard({
   label: string;
   scale: number;
 }) {
-  const { width, height, pitch } = geometry(project);
+  const { height, pitch } = geometry(project);
+  let depth = 0;
   return (
     <section className="geometry-preview-card">
       <h3>{label}</h3>
       <svg
         viewBox="0 0 260 128"
         role="img"
-        aria-label={`${label}: width ${width} nm, height ${height} nm, pitch ${pitch} nm. Same scale as the other preview.`}
+        aria-label={`${label}: ${stackSummary(project)}; pitch ${pitch} nm. Same geometric scale as the other preview.`}
       >
-        <line x1="15" x2="245" y1="99" y2="99" stroke="#a1a1aa" />
-        {height > 0 && width > 0 && (
-          <rect
-            x={15 + ((pitch - width) * scale) / 2}
-            y={99 - height * scale}
-            width={width * scale}
-            height={height * scale}
-            fill="#6366f1"
-          />
-        )}
+        <rect
+          x="15"
+          y="99"
+          width={pitch * scale}
+          height="7"
+          fill={materialColor(project.substrate)}
+        />
+        {project.layers.map((layer, index) => {
+          const top = 99 - (height - depth) * scale;
+          depth += layer.thickness_nm;
+          const width = layer.geometry === "rectangle_1d" ? layer.cd_nm : pitch;
+          return (
+            <g key={index}>
+              {layer.geometry === "rectangle_1d" && (
+                <rect
+                  x="15"
+                  y={top}
+                  width={pitch * scale}
+                  height={layer.thickness_nm * scale}
+                  fill={materialColor(layer.background)}
+                />
+              )}
+              {width > 0 && (
+                <rect
+                  x={15 + ((pitch - width) * scale) / 2}
+                  y={top}
+                  width={width * scale}
+                  height={layer.thickness_nm * scale}
+                  fill={materialColor(layer.material)}
+                />
+              )}
+              <line
+                x1="15"
+                x2={15 + pitch * scale}
+                y1={top}
+                y2={top}
+                stroke="#a1a1aa"
+                strokeWidth="0.5"
+              />
+            </g>
+          );
+        })}
+        <line
+          x1="15"
+          x2={15 + pitch * scale}
+          y1="99"
+          y2="99"
+          stroke="#a1a1aa"
+        />
         <line
           x1="15"
           x2={15 + pitch * scale}
@@ -141,11 +184,11 @@ function GeometryCard({
       </svg>
       <dl>
         <div>
-          <dt>Width</dt>
-          <dd>{width} nm</dd>
+          <dt>Layers</dt>
+          <dd>{project.layers.length}</dd>
         </div>
         <div>
-          <dt>Height</dt>
+          <dt>Thickness</dt>
           <dd>{height} nm</dd>
         </div>
         <div>
@@ -153,6 +196,7 @@ function GeometryCard({
           <dd>{pitch} nm</dd>
         </div>
       </dl>
+      <p className="stack-preview-summary">{stackSummary(project)}</p>
     </section>
   );
 }
@@ -162,6 +206,14 @@ function changedFields(
   path = "",
 ): { path: string; before: unknown; after: unknown }[] {
   if (semanticEqual(before, after)) return [];
+  if (path === "ambient" || path === "substrate")
+    return [
+      {
+        path,
+        before: summarizeMaterial(before as Project["ambient"]),
+        after: summarizeMaterial(after as Project["ambient"]),
+      },
+    ];
   if (
     before &&
     after &&
@@ -176,14 +228,6 @@ function changedFields(
       changedFields(a[key], b[key], path ? `${path}.${key}` : key),
     );
   }
-  if (
-    path === "layers" &&
-    Array.isArray(before) &&
-    Array.isArray(after) &&
-    before.length === 1 &&
-    after.length === 1
-  )
-    return changedFields(before[0], after[0], "layer");
   return [{ path, before, after }];
 }
 function valueSummary(value: unknown) {
@@ -197,8 +241,8 @@ function valueSummary(value: unknown) {
 }
 const fieldLabels: Record<string, string> = {
   period_nm: "Pitch",
-  "layer.cd_nm": "Width",
-  "layer.thickness_nm": "Height",
+  "layers[0].cd_nm": "Width",
+  "layers[0].thickness_nm": "Height",
 };
 export function ReviewPanel({
   title,
@@ -225,7 +269,18 @@ export function ReviewPanel({
     230 / Math.max(before.pitch, after.pitch),
     90 / Math.max(1, before.height, after.height),
   );
-  const changes = changedFields(baseProject, candidateProject);
+  const remainder = (project: Project) =>
+    Object.fromEntries(
+      Object.entries(project).filter(
+        ([key]) => !["layers", "period_nm", "schema_version"].includes(key),
+      ),
+    );
+  const baseRest = remainder(baseProject),
+    candidateRest = remainder(candidateProject);
+  const changes = [
+    ...stackDiff(baseProject, candidateProject),
+    ...changedFields(baseRest, candidateRest),
+  ];
   return (
     <Modal title={title} onClose={onClose}>
       <p className="control-note">{note}</p>
@@ -365,28 +420,11 @@ export function ComparisonPanel({
         ((wave - waves[0]) / (waves.at(-1)! - waves[0])) * (right - left);
   const y = (value: number) =>
     bottom - ((value - ymin) / (ymax - ymin)) * (bottom - top);
-  const conditionsDiffer = candidates.slice(1).some((candidate) => {
-    const first = candidates[0].project,
-      next = candidate.project;
-    return (
-      first.illumination.angle_deg !== next.illumination.angle_deg ||
-      first.solver.harmonics !== next.solver.harmonics ||
-      !semanticEqual(
-        [
-          first.ambient,
-          first.substrate,
-          first.layers[0].material,
-          first.layers[0].background,
-        ],
-        [
-          next.ambient,
-          next.substrate,
-          next.layers[0].material,
-          next.layers[0].background,
-        ],
-      )
+  const conditionsDiffer = candidates
+    .slice(1)
+    .some((candidate) =>
+      comparisonConditionsDiffer(candidates[0].project, candidate.project),
     );
-  });
   return (
     <Modal
       title="Compare candidates"
@@ -411,9 +449,8 @@ export function ComparisonPanel({
                 : "Unverified import"}
             </span>
             <p>
-              Width {candidate.project.layers[0].cd_nm} · Height{" "}
-              {candidate.project.layers[0].thickness_nm} · Pitch{" "}
-              {candidate.project.period_nm} nm
+              Pitch {candidate.project.period_nm} nm ·{" "}
+              {stackSummary(candidate.project)}
             </p>
             <p>
               {candidate.project.illumination.angle_deg}° ·{" "}

@@ -19,9 +19,11 @@ from pydantic import Field, TypeAdapter, ValidationError
 
 from api.contracts import (
     Capabilities, ChangePreviewRequest, ChangeProposal, ErrorResponse, JobRequest, JobResponse,
-    SavedProject, ServerSnapshot, ValidationResponse,
+    SavedProject, ServerSnapshot, StoredServerSnapshot, StackChangePreviewRequest, StackChangeProposal,
+    ValidationResponse,
 )
 from api.change_preview import validate_proposal_binding
+from api.stack_change_preview import validate_stack_proposal_binding
 from rcwa_core.schemas import Project, StrictModel
 from .client import AdapterError, ID_PATTERN, LocalAPI, MAX_REQUEST_BYTES
 
@@ -96,8 +98,14 @@ OPERATIONS = [
               "Inspect valid and diagnostics; an empty diff is a no-op. Save the returned JSON with your own client "
               "and use the workbench Import JSON action to review it before explicitly applying.",
               ChangePreviewRequest, ChangeProposal, "POST", "/api/change-preview"),
+    Operation("rcwa_preview_stack_changes", "Preview a bounded atomic change of common period and/or the complete "
+              "top-to-bottom finite layer list. Returns rcwa-change-proposal/1.1, exact base/candidate projects, "
+              "bounded summarized diff and preflight diagnostics. Candidate uses project schema 1.1. "
+              "Read-only: no solve, job, storage, application of edits, or predicted improvement. "
+              "Import the returned JSON into the workbench for explicit review and apply; maximum file size 8 MB.",
+              StackChangePreviewRequest, StackChangeProposal, "POST", "/api/stack-change-preview"),
     Operation("rcwa_submit", "Start one bounded forward calculation or synthetic CD-recovery fit. "
-              "Synthetic fit is not measured-data inversion or design optimization. "
+              "Synthetic fit requires exactly one rectangle; it is not measured-data inversion or design optimization. "
               "Non-idempotent: never blindly repeat a submission with an uncertain outcome. "
               "Use rcwa_get_job to poll; check kind and status before using result.",
               SubmitArguments, JobResponse, "POST", "/api/jobs", "request", read_only=False, idempotent=False),
@@ -112,7 +120,7 @@ OPERATIONS = [
               "Save before the temporary job is lost.", JobArguments, ServerSnapshot,
               "POST", "/api/snapshots", read_only=False),
     Operation("rcwa_get_snapshot", "Read a durable saved project/result and provenance. "
-              "Check provenance.source: imported/legacy data stays unverified_import. "
+              "Check provenance.source: imports stay unverified_import; known historical server snapshots preserve their versions and provenance. "
               "A local server_computed label is not a cryptographic signature or physics certification.",
               SnapshotArguments, SavedProject, "GET", "/api/projects/{snapshot_id}"),
 ]
@@ -150,7 +158,7 @@ def create_server(api: LocalAPI):
             raise MCPError(INVALID_PARAMS, "This tool is not exposed by RCWA Workbench")
         try:
             arguments = params.arguments if params.arguments is not None else {}
-            encoded = json.dumps(arguments, allow_nan=False, ensure_ascii=False).encode("utf-8")
+            encoded = json.dumps(arguments, allow_nan=False, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             if len(encoded) > MAX_REQUEST_BYTES:
                 raise AdapterError("request_too_large", "Tool arguments exceed the 2 MB limit")
             try:
@@ -160,17 +168,19 @@ def create_server(api: LocalAPI):
             values = parsed.model_dump()
             path = operation.path.format(**values)
             body = values[operation.body_field] if operation.body_field else (
-                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes"} else None
+                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes", "rcwa_preview_stack_changes"} else None
             )
             payload = await api.request(operation.method, path, body)
             try:
                 operation.response.model_validate(payload, strict=True)
                 if operation.name == "rcwa_preview_changes":
                     validate_proposal_binding(payload, parsed)
+                if operation.name == "rcwa_preview_stack_changes":
+                    validate_stack_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:
                     raise ValueError("API returned the wrong job kind")
                 if operation.name == "rcwa_get_snapshot" and payload["provenance"]["source"] == "server_computed":
-                    ServerSnapshot.model_validate(payload, strict=True)
+                    StoredServerSnapshot.model_validate(payload, strict=True)
                 if operation.name == "rcwa_save_snapshot" and payload["provenance"]["source"] != "server_computed":
                     raise ValueError("Snapshot save must return server-owned provenance")
                 if operation.arguments is JobArguments:

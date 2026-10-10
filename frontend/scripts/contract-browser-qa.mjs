@@ -206,13 +206,15 @@ try {
   await editDimension("width", 205.5);
   tableProject.layers[0].cd_nm = 205.5;
   assert.deepEqual((await exportProject()).project, tableProject);
-  await page
-    .getByRole("button", { name: "Edit materials", exact: true })
-    .click();
+  await page.locator(".scene-material").click();
   await expect(page.getByLabel("Ridge material name")).toHaveValue(
     "Synthetic imported table",
   );
   await expect(page.locator(".table-summary")).toContainText("2 samples");
+  await page
+    .locator(".material-tabs")
+    .getByRole("button", { name: "Substrate", exact: true })
+    .click();
   await expect(page.getByLabel("Substrate k", { exact: true })).toHaveValue(
     "0.05",
   );
@@ -236,7 +238,7 @@ try {
   unsupportedProject.layers.push(structuredClone(unsupportedProject.layers[0]));
   await importProject(unsupportedProject);
   await expect(page.locator(".message.error")).toContainText(
-    "exactly one grating layer",
+    "Schema 1.0 supports exactly one rectangular grating layer",
   );
   await expect(page.getByLabel("Project name")).toHaveValue(tableProject.name);
   await page
@@ -251,7 +253,7 @@ try {
     .getByRole("button", { name: "Dismiss error", exact: true })
     .click();
   checks.push(
-    "Malformed tabulated placeholders and unsupported multilayer/2D imports are rejected without replacing current inputs",
+    "Malformed tables, multilayers falsely labeled schema 1.0, and unsupported 2D imports are rejected without replacing current inputs",
   );
 
   const a = snapshot("contract-a", "Contract delayed A");

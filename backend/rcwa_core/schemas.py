@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -49,6 +49,16 @@ class Layer(StrictModel):
     background: Material = Field(default_factory=lambda: Material(name="Air", n=1.0))
 
 
+class HomogeneousLayer(StrictModel):
+    name: str = Field(default="Homogeneous layer", min_length=1, max_length=100)
+    geometry: Literal["homogeneous"] = "homogeneous"
+    thickness_nm: float = Field(default=160.0, ge=0, le=2000)
+    material: Material = Field(default_factory=lambda: Material(name="Synthetic dielectric", n=2.1))
+
+
+LayerSpec = Annotated[Layer | HomogeneousLayer, Field(discriminator="geometry")]
+
+
 class Illumination(StrictModel):
     wavelengths_nm: list[float] = Field(
         default_factory=lambda: [float(w) for w in range(450, 851, 20)], min_length=1, max_length=81
@@ -69,28 +79,75 @@ class SolverSettings(StrictModel):
     harmonics: int = Field(default=7, ge=1, le=20, strict=True)
 
 
+def _project_json_schema(schema):
+    # The public parser supplies rectangle_1d when a legacy layer omits its
+    # tag. Both model branches have constructor defaults; anyOf correctly
+    # describes those inputs without oneOf's artificial ambiguity failure.
+    items = schema["properties"]["layers"]["items"]
+    items["anyOf"] = items.pop("oneOf")
+    # Missing schema_version means the legacy default. Do not require that
+    # property in the condition: its absence must retain the one-layer scope.
+    schema["allOf"] = [
+        {
+            "if": {"properties": {"schema_version": {"const": "1.0"}}},
+            "then": {
+                "properties": {
+                    "layers": {
+                        "maxItems": 1,
+                        "items": {"properties": {"geometry": {"const": "rectangle_1d"}}},
+                    }
+                }
+            },
+        }
+    ]
+
+
 class Project(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, json_schema_extra=_project_json_schema)
+
+    schema_version: Literal["1.0", "1.1"] = "1.0"
     name: str = Field(default="One-layer grating", min_length=1, max_length=100)
     period_nm: float = Field(default=400.0, ge=20, le=5000)
     ambient: Material = Field(default_factory=lambda: Material(name="Air", n=1.0))
     substrate: Material = Field(default_factory=lambda: Material(name="Synthetic substrate", n=1.5))
-    layers: list[Layer] = Field(default_factory=lambda: [Layer()], min_length=1, max_length=1)
+    layers: list[LayerSpec] = Field(default_factory=lambda: [Layer()], min_length=1, max_length=8)
     illumination: Illumination = Field(default_factory=Illumination)
     solver: SolverSettings = Field(default_factory=SolverSettings)
 
+    @field_validator("layers", mode="before")
+    @classmethod
+    def default_legacy_geometry(cls, layers):
+        # Preserve schema 1.0 inputs that omitted the original default tag.
+        # Copy rather than mutate the caller's dictionaries.
+        if isinstance(layers, list):
+            return [
+                dict(layer, geometry=layer.get("geometry", "rectangle_1d")) if isinstance(layer, dict) else layer
+                for layer in layers
+            ]
+        return layers
+
     @model_validator(mode="after")
     def validate_supported_scope(self):
-        if len(self.layers) != 1:
-            raise ValueError("Version 1 supports exactly one finite rectangular layer")
-        if self.layers[0].cd_nm > self.period_nm:
-            raise ValueError("CD must not exceed the period")
+        if self.schema_version == "1.0" and (len(self.layers) != 1 or not isinstance(self.layers[0], Layer)):
+            raise ValueError("Schema 1.0 supports exactly one finite rectangular layer")
+        from .preflight import Diagnostic, PreflightError, material_coverage_diagnostics
+
+        invalid_cds = [
+            Diagnostic(
+                code="invalid_cd",
+                severity="error",
+                location=["layers", i, "cd_nm"],
+                message=f"Layer {i + 1}: CD must not exceed the period",
+            )
+            for i, layer in enumerate(self.layers)
+            if isinstance(layer, Layer) and layer.cd_nm > self.period_nm
+        ]
+        if invalid_cds:
+            raise PreflightError(invalid_cds)
         if (self.ambient.kind == "constant" and self.ambient.k != 0) or (
             self.ambient.kind == "tabulated" and any(k != 0 for k in self.ambient.k_values)
         ):
             raise ValueError("The incident ambient must be lossless")
-        from .preflight import PreflightError, material_coverage_diagnostics
-
         coverage = material_coverage_diagnostics(self)
         if coverage:
             raise PreflightError(coverage)
@@ -107,6 +164,8 @@ class FitRequest(StrictModel):
 
     @model_validator(mode="after")
     def validate_bounds(self):
+        if len(self.project.layers) != 1 or not isinstance(self.project.layers[0], Layer):
+            raise ValueError("Synthetic CD fitting requires exactly one rectangular layer")
         if not 0 < self.lower_cd_nm < self.upper_cd_nm < self.project.period_nm:
             raise ValueError("Fit bounds must satisfy 0 < lower < upper < period")
         if not self.lower_cd_nm < self.target_cd_nm < self.upper_cd_nm:

@@ -2,7 +2,9 @@
 
 ## Result and scope
 
-An executable comparison against **official upstream S4** was performed on 2026-10-10. It passed **19 scenarios and 150 polarization/wavelength samples**, checking total reflected/transmitted power and **every retained diffraction order**. The largest absolute cross-engine difference was **2.0151 × 10⁻¹³**; the explicit regression threshold is **1 × 10⁻⁹** in incident-normalized power.
+The current adapter `1.1.0` was compared against **official upstream S4** on 2026-10-10. It passed **40 scenarios and 276 polarization/wavelength samples**, checking total reflected/transmitted power and **every retained diffraction order**. The largest absolute cross-engine difference was **5.7477 × 10⁻¹³**; the regression threshold remains **1 × 10⁻⁹** in incident-normalized power.
+
+The default reference script retains all 19 original single-layer cases and adds 21 stack cases. These cover 2–8 layers, mixed film/pattern orderings, distinct rectangular CDs, lower-layer loss and independent n/k tables, absorbing and metal-like substrates, multiple propagating orders, zero-thickness insertions and all-zero stacks, degenerate CD limits, splitting and reversal, and separate H=3/7/11/15/19 refinement evidence. See [multilayer numerical evidence](multilayer-physics.md) and [complete current reference evidence](multilayer-reference-results.json.gz). The single-layer table below records the original regression cases, all of which remain in the current run.
 
 This is evidence that the meent adapter and S4 agree for the tested, matched finite Fourier bases. It is **not** a guarantee of Fourier convergence, validation against an instrument, a CD-accuracy claim, or validation of all allowed inputs. S4 and meent independently implement the same Fourier-modal method, so some shared methodological limitations remain.
 
@@ -29,7 +31,7 @@ The reference driver and S4 source/binary are separate from the application runt
 
 ## Exact physical and numerical matching
 
-The periodic axis is x, the invariant axis is y, and incidence is in the x-z plane. Both engines receive the same vacuum wavelength, nanometer lengths, rectangle CD and thickness, ambient/substrate index, and material tables.
+The periodic axis is x, the invariant axis is y, and incidence is in the x-z plane. Both engines receive the same vacuum wavelength, common period, ordered physical layers, nanometer lengths, rectangle CDs, ambient/substrate index, and material tables. Each stack is passed top-to-bottom to the S4 layer API; the application independently recurses bottom-to-top from its substrate load. S4 receives zero-thickness layers explicitly while the application skips them.
 
 - s polarization means electric field along y; p means magnetic field along y.
 - Public materials use `N = n + i k` and `exp(-i ωt)`. S4 receives `epsilon = N²`; the adapter maps to meent's conjugated finite-layer convention and explicit passive outgoing port admittances.
@@ -95,17 +97,17 @@ mkdir -p artifacts
   --output artifacts/independent-reference.json
 ```
 
-The final recorded run completed at `2026-10-10T05:48:18.036970+00:00` with adapter SHA-256 `e4ed30dddcab372499f2ad84e23fa92a007163adbce280eb6757e3b2a69eedae`. This includes the final zero-thickness bypass.
+The original single-layer-only run completed at `2026-10-10T05:48:18.036970+00:00` with adapter SHA-256 `e4ed30dddcab372499f2ad84e23fa92a007163adbce280eb6757e3b2a69eedae`. This includes the final zero-thickness bypass.
 
 The JSON includes every model input, all compared per-order powers, total powers, tolerance, status, package versions, compiler/link command, source commit, timestamp, and hashes of the adapter, schema, reference script, and S4 executable. A failed build or solve raises an error; a discrepancy above the threshold returns a nonzero exit status. There is no mock spectrum or pass-by-fallback path.
 
-The build and 150 numerical comparisons took about 15 seconds on the test machine. This is an observed validation runtime, not a production performance promise. The final full machine-readable evidence is included in [compressed reference evidence](independent-reference-results.json.gz); reproduce into `artifacts/` to retain your own machine-specific evidence. The optional reference check is distinct from the regular test suite and is not presented as an always-running CI gate.
+The original build and 150 single-layer numerical comparisons took about 15 seconds on the test machine. This is an observed validation runtime, not a production performance promise. The original single-layer evidence remains in [compressed legacy reference evidence](independent-reference-results.json.gz); current stack evidence is saved separately in [compressed multilayer reference evidence](multilayer-reference-results.json.gz). Reproduce into `artifacts/` to retain machine-specific evidence. The reference comparison is also a separate `independent-reference` CI job; it is not substituted for the ordinary backend tests.
 
 ## Remaining gates
 
-- Establish sample-specific Fourier/slice convergence against measurement-noise targets.
+- Establish sample-specific Fourier convergence against measurement-noise targets.
 - Validate gradients/sensitivities and blind synthetic recovery using an independent or higher-accuracy truth source.
-- Add multilayers, 2D structures, conical incidence, phase/Jones/Mueller observables, and anisotropy only with new independent tests.
+- Add 2D structures, nonrectangular profiles, conical incidence, phase/Jones/Mueller observables, and anisotropy only with new independent tests. The present bounded 1D multilayer extension does not validate those features.
 - Validate material provenance, instrument response, and held-out measured structures before metrology claims.
 - Re-run the analytical tests and this cross-engine test after any engine, port convention, or geometry-compiler change.
 

@@ -92,6 +92,7 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | `rcwa_example` | `{}` | Canonical project with synthetic optical constants |
 | `rcwa_validate` | `{"project": Project}` | Normalized project, input hash, admissibility and diagnostics; no numerical job |
 | `rcwa_preview_changes` | `{"base_project": Project, "changes": {"cd_nm": 140}}` | Versioned geometry proposal, typed diff and candidate preflight diagnostics; read-only, no solve, storage or apply |
+| `rcwa_preview_stack_changes` | `{"base_project": Project, "changes": {"layers": [Layer, ...]}}` | Read-only atomic stack proposal 1.1; common period and/or complete 1–8 layer replacement, bounded summary diff |
 | `rcwa_submit` | `{"request": {"kind": "forward", "project": Project}}` | Starts one bounded job; returns a temporary job ID and status |
 | `rcwa_get_job` | `{"job_id": "..."}` | Job status, typed result, warnings or failure information |
 | `rcwa_cancel_job` | `{"job_id": "..."}` | Cancels that running API job; safe to repeat |
@@ -103,7 +104,7 @@ Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
 not accept URLs, headers, paths, code, replacement results, or claimed provenance.
 Job and snapshot IDs accept only 1–100 ASCII letters, digits, underscores or
 hyphens. The backend capability response describes the whole backend, including
-operations beyond these nine tools; the MCP list is the exposed subset.
+operations beyond these ten tools; the MCP list is the exposed subset.
 
 `rcwa_submit` also accepts the existing synthetic-fit request:
 
@@ -119,7 +120,7 @@ operations beyond these nine tools; the MCP list is the exposed subset.
 
 An empty Project uses the API model's defaults. For an actual study, start from
 `rcwa_example` and inspect its settings rather than relying on defaults. Synthetic
-fit is a distinct CD-recovery demonstration, not a general design optimizer or
+fit requires exactly one rectangular layer and is a distinct CD-recovery demonstration, not a general design optimizer or
 measured-data inversion. Its result has its own type and cannot be saved with
 `rcwa_save_snapshot`. The forward workflow is the durable-snapshot workflow.
 
@@ -168,8 +169,8 @@ idempotent even though the shared HTTP route uses POST.
 4. Have your tool client save only the returned JSON envelope
    (`structuredContent`, or the identical JSON text content) as a UTF-8 `.json`
    file. Do not include the MCP `content`/`isError` wrapper. The MCP adapter itself
-   has no file-writing tool. Files imported into the workbench are limited to
-   2 MB.
+   has no file-writing tool. Proposal files imported into the workbench are limited to
+   8 MB; HTTP requests remain limited to 2 MB.
 5. Use **Import JSON** to review that file in the workbench, then explicitly
    Apply or cancel. Apply is available only for a nonempty applicable proposal
    whose complete base still matches the editor; neither action launches a
@@ -193,6 +194,29 @@ and treats supplied hashes as informational. A file cannot assert a trusted
 server origin. This explicit tool-result-to-file-to-import workflow does not
 imply a universal AI-client integration or a live chat connection.
 
+## Review a stack without running a calculation
+
+`rcwa_preview_stack_changes` calls only `/api/stack-change-preview`. Its strict
+request is `{ "base_project": Project, "changes": { "period_nm": 390,
+"layers": [...] } }`; either change key may be omitted, but at least one is
+required. `layers` replaces the complete top-to-bottom 1–8 layer list atomically.
+The candidate uses Project schema 1.1, with any legacy promotion shown explicitly.
+There are no arbitrary paths, IDs, hidden edits or automatic application.
+
+The returned `rcwa-change-proposal/1.1` envelope includes exact base/candidate
+Projects, both hashes, a deterministic bounded typed diff, indexed preflight
+diagnostics and `valid`. Material table diffs use count/range/source/checksum
+summaries instead of thousands of row edits. Exact table arrays remain in the
+Project data. See [the precise HTTP stack contract](agent-api.md#review-an-atomic-stack-change)
+for field names, order and checksum encoding.
+
+The adapter reconstructs the entire expected response, including candidate,
+hashes, diff and diagnostics, and rejects unrelated or altered responses.
+Neither tool preview inspects the engine, submits jobs, saves data or applies
+inputs. Use the same explicit tool-result-to-JSON-file-to-import review flow as
+legacy proposals. Proposal responses/import files allow 8 MB; tool arguments
+and HTTP request bodies still allow only 2 MB. Oversize errors are explicit.
+
 ## Results, errors and provenance
 
 Successful tool results contain unchanged API JSON in `structuredContent` and
@@ -210,7 +234,7 @@ fields, extra edits, or altered diagnostics is rejected with
 An HTTP/API failure is a tool result with `isError: true`, the original API error
 code/message/diagnostics, and `http_status`. Adapter errors use stable codes such
 as `invalid_arguments`, `request_too_large`, `adapter_capacity`,
-`api_unavailable`, `invalid_api_response`, or `outcome_unknown`. An unknown tool
+`api_unavailable`, `invalid_api_response`, `response_too_large`, or `outcome_unknown`. An unknown tool
 name is a JSON-RPC invalid-parameters error (`-32602`). The official SDK owns protocol parsing and lifecycle. Malformed raw stdio is
 outside the supported trusted-host contract; no custom parser is provided.
 
@@ -225,13 +249,14 @@ The write may already have happened. Do not blindly resubmit a calculation.
 A returned HTTP 5xx on a mutation is conservatively treated as uncertain too.
 An MCP request cancellation or broken stdio connection may prevent even this
 error from reaching the client; treat an interrupted submission as uncertain.
-Validation and geometry-preview POSTs are read-only. Transport failure for them
+Validation, geometry-preview and stack-preview POSTs are read-only. Transport failure for them
 does not claim an unknown mutation outcome; the adapter still performs no
 automatic retry.
 
 Only the API can create server-computed provenance. The save tool accepts a job
-ID, never a replacement project/result. A fetched legacy or imported record keeps
-`source: "unverified_import"`. Server provenance binds the exact submitted input
+ID, never a replacement project/result. Imported records and old records without server provenance keep
+`source: "unverified_import"`. Known historical server-computed snapshots keep
+their original version and server-computed provenance; they are not downgraded. Server provenance binds the exact submitted input
 and result but is not a cryptographic signature or proof of convergence. Read
 [the HTTP provenance contract](agent-api.md#identity-lifetime-and-provenance) and
 [the physical conventions](physics.md) before interpreting a result.
@@ -280,14 +305,14 @@ against an isolated local API and SQLite database. The Windows CI job runs
 discovery, example, validation, API-down and normal process-teardown checks;
 Linux CI additionally runs the full numerical solve/snapshot workflow. They cover legacy
 initialize/list/call (`2025-11-25`) and current SDK discovery (`2026-07-28`), a real
-forward solve, exact snapshot reload, idempotence, cancellation, API-down
-errors, and a real read-only geometry preview. Preview boundary coverage includes
+single-layer and mixed-stack forward solves, exact snapshot reload, idempotence, cancellation, API-down
+errors, and real read-only geometry/stack previews. Genuine historical snapshot fixtures verify preserved result-1.0 provenance while current jobs and saves require result-1.1. Preview boundary coverage includes
 strict finite patches, atomic cross-field validation, shared browser/server cases,
 engine independence, no storage or job effects, and complete response binding. Boundary tests cover generated schemas, unsafe targets/IDs, extra fields,
 finite JSON, per-tool/HTTP byte limits, deadlines, HTTP admission limits,
 failed/cancelled status, provenance preservation and ordinary SDK process cleanup. The normal backend CI installs the
 optional lock so these tests cannot silently skip there. Without MCP installed,
-the three optional MCP test modules are explicitly skipped by the ordinary backend suite.
+the optional MCP test modules are explicitly skipped by the ordinary backend suite.
 
 This is protocol integration evidence, not a claim that every vendor's AI host
 has been tested. References: [official Python SDK](https://github.com/modelcontextprotocol/python-sdk),

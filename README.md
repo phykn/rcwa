@@ -4,15 +4,16 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 
 ## Features
 
-- Direct 3D rectangular-grating editor with exact dimensions and plane-wave s/p illumination
+- Direct 3D stack editor for 1–8 rectangular-grating or uniform-film layers
+- Shared period, per-layer dimensions/materials, and plane-wave s/p illumination
 - Constant or tabulated optical constants, including absorbing substrates
 - Order-resolved, total and specular reflectance/transmittance
-- Synthetic CD fitting with bounded multistart optimization
+- Single-rectangular-layer synthetic CD fitting with bounded multistart optimization
 - Session undo/redo, reviewable geometry proposals, and comparison of 2–3 saved spectra
 - Project and result JSON import/export with exact server-run snapshots
 - Local HTTP/OpenAPI and optional stdio MCP tools for general AI clients
 
-Built with React, TypeScript, FastAPI and meent. The current solver supports one isotropic 1D grating layer. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
+Built with React, TypeScript, FastAPI and pinned meent 0.13.2. The solver supports isotropic, centered 1D stacks under one common period, including passive absorbing films and substrates. Project schema 1.0 and historical saved results remain readable; multilayer editing uses schema 1.1. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
 
 ## Quickstart
 

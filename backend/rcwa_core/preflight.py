@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from .schemas import Material, Project
 
 REQUIRED_ENGINE_VERSION = "0.13.2"
-ADAPTER_VERSION = "1.0.0"
+ADAPTER_VERSION = "1.1.0"
 EXACT_CUTOFF_TOLERANCE = 1e-10
 NEAR_CUTOFF_TOLERANCE = 1e-4
 
@@ -34,7 +34,7 @@ class EngineInfo(StrictModel):
     engine: Literal["meent"] = "meent"
     installed_version: str | None
     required_version: Literal["0.13.2"] = REQUIRED_ENGINE_VERSION
-    adapter_version: Literal["1.0.0"] = ADAPTER_VERSION
+    adapter_version: Literal["1.1.0"] = ADAPTER_VERSION
     available: bool
     status: Literal["available", "not_installed", "version_mismatch"]
     message: str
@@ -108,6 +108,28 @@ def refractive_index(material: Material, wavelength_nm: float) -> complex:
     )
 
 
+def active_materials(project: Project):
+    """Yield only material regions occupying positive finite-stack volume.
+
+    Coverage validation intentionally still checks every declared material,
+    including zero-thickness layers and unused degenerate-rectangle regions.
+    """
+    for layer in project.layers:
+        if layer.thickness_nm == 0:
+            continue
+        if layer.geometry == "homogeneous":
+            yield layer.material
+        else:
+            if layer.cd_nm > 0:
+                yield layer.material
+            if layer.cd_nm < project.period_nm:
+                yield layer.background
+
+
+def stack_has_loss(project: Project, wavelength_nm: float) -> bool:
+    return any(refractive_index(material, wavelength_nm).imag != 0 for material in active_materials(project))
+
+
 def material_coverage_diagnostics(project: Project) -> list[Diagnostic]:
     """Also used by Project validation to preserve its coverage guarantee."""
     wavelengths = project.illumination.wavelengths_nm
@@ -115,9 +137,11 @@ def material_coverage_diagnostics(project: Project) -> list[Diagnostic]:
     materials = [
         (project.ambient, ["ambient"]),
         (project.substrate, ["substrate"]),
-        (project.layers[0].material, ["layers", 0, "material"]),
-        (project.layers[0].background, ["layers", 0, "background"]),
     ]
+    for i, layer in enumerate(project.layers):
+        materials.append((layer.material, ["layers", i, "material"]))
+        if layer.geometry == "rectangle_1d":
+            materials.append((layer.background, ["layers", i, "background"]))
     for material, location in materials:
         if material.kind == "tabulated" and (
             min(wavelengths) < material.wavelengths_nm[0] or max(wavelengths) > material.wavelengths_nm[-1]

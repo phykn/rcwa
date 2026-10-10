@@ -25,7 +25,7 @@ from time import perf_counter
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
-from rcwa_core.schemas import Material, Project  # noqa: E402
+from rcwa_core.schemas import HomogeneousLayer, Layer, Material, Project  # noqa: E402
 from rcwa_core.solver import forward  # noqa: E402
 
 S4_COMMIT = "7fd00a231610bff51f5c7de5f723e3956eab7453"
@@ -40,19 +40,25 @@ BRIDGE_CPP = r"""
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <string>
 static void ok(int r, const char* name){if(r!=0){fprintf(stderr,"S4 %s returned %d\n",name,r); exit(2);}}
 static int mat(S4_Simulation*S,const char*name,double n,double k){double e[2]={n*n-k*k,2*n*k};int m=S4_Simulation_SetMaterial(S,-1,name,S4_MATERIAL_TYPE_SCALAR_COMPLEX,e);if(m<0) exit(2);return m;}
 int main(int argc,char**argv){
- if(argc!=14){fprintf(stderr,"usage: driver pitch cd height wavelength angle H ambient_n substrate_n ridge_n ridge_k background_n background_k substrate_k\n");return 2;}
- double pitch=atof(argv[1]),cd=atof(argv[2]),height=atof(argv[3]),wl=atof(argv[4]),angle=atof(argv[5])*acos(-1)/180;
- int H=atoi(argv[6]),N=2*H+1;
+ if(argc<9){fprintf(stderr,"usage: driver pitch wavelength angle H ambient_n substrate_n substrate_k layer_count [height cd ridge_n ridge_k background_n background_k]...\n");return 2;}
+ double pitch=atof(argv[1]),wl=atof(argv[2]),angle=atof(argv[3])*acos(-1)/180;
+ int H=atoi(argv[4]),N=2*H+1,L=atoi(argv[8]);if(L<1||L>8||argc!=9+6*L)return 2;
  std::vector<int> G(2*N,0);int gi=1;for(int m=-H;m<=H;++m){if(m){G[2*gi++]=m;}}
  for(int pol=0;pol<2;++pol){
  double lattice[4]={pitch,0,0,0};auto S=S4_Simulation_New(lattice,N,G.data());
- int a=mat(S,"ambient",atof(argv[7]),0),b=mat(S,"substrate",atof(argv[8]),atof(argv[13])),r=mat(S,"ridge",atof(argv[9]),atof(argv[10])),bg=mat(S,"background",atof(argv[11]),atof(argv[12]));
- double zero=0;int top=S4_Simulation_SetLayer(S,-1,"top",&zero,-1,a);int film=S4_Simulation_SetLayer(S,-1,"film",&height,-1,cd==pitch?r:bg);int bot=S4_Simulation_SetLayer(S,-1,"bottom",&zero,-1,b);
- if(top<0||film<0||bot<0)return 2;
+ int a=mat(S,"ambient",atof(argv[5]),0),b=mat(S,"substrate",atof(argv[6]),atof(argv[7]));
+ double zero=0;int top=S4_Simulation_SetLayer(S,-1,"top",&zero,-1,a);if(top<0)return 2;
+ for(int j=0;j<L;++j){
+ int i=9+6*j;double height=atof(argv[i]),cd=atof(argv[i+1]);std::string name="layer"+std::to_string(j);
+ int r=mat(S,(name+"_ridge").c_str(),atof(argv[i+2]),atof(argv[i+3])),bg=mat(S,(name+"_background").c_str(),atof(argv[i+4]),atof(argv[i+5]));
+ int film=S4_Simulation_SetLayer(S,-1,name.c_str(),&height,-1,cd==pitch?r:bg);if(film<0)return 2;
  if(cd>0&&cd<pitch){double hw[2]={cd/2,0},center[2]={pitch/2,0};ok(S4_Layer_SetRegionHalfwidths(S,film,r,S4_REGION_TYPE_INTERVAL,hw,center,&zero),"region");}
+ }
+ int bot=S4_Simulation_SetLayer(S,-1,"bottom",&zero,-1,b);if(bot<0)return 2;
  double freq[2]={1/wl,0},kdir[3]={sin(angle),0,cos(angle)},udir[3]={0,1,0},u[2]={double(pol==0),0},v[2]={double(pol==1),0};
  ok(S4_Simulation_SetFrequency(S,freq),"frequency");ok(S4_Simulation_ExcitationPlanewave(S,kdir,udir,u,v),"excitation");
  double ft[4],fb[4];ok(S4_Simulation_GetPowerFlux(S,top,&zero,ft),"top flux");ok(S4_Simulation_GetPowerFlux(S,bot,&zero,fb),"bottom flux");
@@ -152,25 +158,27 @@ def optical_index(material: Material, wavelength: float):
 
 
 def s4_solve(executable, project, wavelength):
-    layer = project.layers[0]
-    ambient, substrate, ridge, background = [
-        optical_index(m, wavelength) for m in (project.ambient, project.substrate, layer.material, layer.background)
-    ]
+    ambient = optical_index(project.ambient, wavelength)
+    substrate = optical_index(project.substrate, wavelength)
     args = [
         project.period_nm,
-        layer.cd_nm,
-        layer.thickness_nm,
         wavelength,
         project.illumination.angle_deg,
         project.solver.harmonics,
         ambient.real,
         substrate.real,
-        ridge.real,
-        ridge.imag,
-        background.real,
-        background.imag,
         substrate.imag,
+        len(project.layers),
     ]
+    # S4 independently receives every physical layer in top-to-bottom order,
+    # including zero-thickness layers. Homogeneous films are full-width cells.
+    for layer in project.layers:
+        ridge = optical_index(layer.material, wavelength)
+        if layer.geometry == "homogeneous":
+            cd, background = project.period_nm, ridge
+        else:
+            cd, background = layer.cd_nm, optical_index(layer.background, wavelength)
+        args.extend([layer.thickness_nm, cd, ridge.real, ridge.imag, background.real, background.imag])
     lines = command([str(executable), *map(str, args)], timeout=30).splitlines()
     result = {}
     cursor = 0
@@ -238,6 +246,87 @@ def scenarios(skip_absorbing_substrate=False):
         kind="tabulated", wavelengths_nm=[400.0, 600.0, 900.0], n_values=[2.4, 2.1, 1.9], k_values=[0.08, 0.03, 0.0]
     )
     yield p
+    yield from stack_scenarios(skip_absorbing_substrate)
+
+
+def stack_scenarios(skip_absorbing_substrate=False):
+    def material(n):
+        return Material(n=complex(n).real, k=complex(n).imag)
+
+    def rectangle(d, cd, n, background=1):
+        return Layer(thickness_nm=d, cd_nm=cd, material=material(n), background=material(background))
+
+    def film(d, n):
+        return HomogeneousLayer(thickness_nm=d, material=material(n))
+
+    def stack(name, layers, *, angle=31, substrate=1.5, period=400, H=11):
+        return Project(
+            schema_version="1.1",
+            name=name,
+            period_nm=period,
+            layers=layers,
+            substrate=material(substrate),
+            solver={"harmonics": H},
+            illumination={"wavelengths_nm": [450.0, 632.8, 850.0], "angle_deg": angle},
+        )
+
+    for h in (3, 7, 11, 15, 19):
+        yield stack(f"two_rectangles_H{h}", [rectangle(95, 167, 2.4), rectangle(130, 247, 1.8, 1.1)], H=h)
+    for angle in (0, 67):
+        yield stack(
+            f"two_rectangles_angle{angle}", [rectangle(95, 167, 2.4), rectangle(130, 247, 1.8, 1.1)], angle=angle
+        )
+    yield stack("pattern_then_lossy_lower_film", [rectangle(85, 167, 2.4), film(110, 1.8 + 0.05j)])
+    yield stack("film_then_lossy_lower_pattern", [film(110, 1.8), rectangle(85, 247, 2.4 + 0.1j, 1.1)])
+    yield stack("two_patterns_lossy_lower_background", [rectangle(95, 167, 2.4), rectangle(130, 247, 1.8, 1.1 + 0.03j)])
+    yield stack("planar_three_films", [film(71, 2.1 + 0.13j), film(123, 1.4 + 0.02j), film(58, 2.5)])
+    yield stack(
+        "zero_thickness_middle", [rectangle(95, 167, 2.4), rectangle(0, 100, 3.5 + 0.3j), rectangle(130, 247, 1.8, 1.1)]
+    )
+    yield stack("all_zero_stack", [film(0, 2.1 + 0.13j), rectangle(0, 100, 3.5 + 0.3j)])
+    yield stack("empty_full_rectangles", [rectangle(95, 0, 2.4 + 0.1j, 1.3), rectangle(130, 400, 1.8, 1.1 + 0.03j)])
+    yield stack("split_identical_pattern", [rectangle(60, 180, 2.1), rectangle(100, 180, 2.1)])
+    yield stack("reordered_planar_films", [film(125, 1.3), film(80, 2.1)])
+    yield stack(
+        "stack_many_propagating_orders", [rectangle(95, 367, 2.4), rectangle(130, 447, 1.8, 1.1)], angle=12, period=800
+    )
+    yield stack(
+        "eight_distinct_layers",
+        [rectangle(70 + 11 * j, 100 + 27 * j, 2 + 0.13 * j + 0.02j, 1 + 0.03 * j) for j in range(8)],
+    )
+    p = stack("lower_layer_independent_tables", [rectangle(95, 167, 2.4), rectangle(130, 247, 1.8, 1.1)])
+    p.layers[1].material = Material(
+        kind="tabulated", wavelengths_nm=[400, 600, 900], n_values=[2.4, 2.1, 1.9], k_values=[0.08, 0.03, 0.0]
+    )
+    p.layers[1].background = Material(
+        kind="tabulated", wavelengths_nm=[400, 700, 900], n_values=[1.1, 1.2, 1.3], k_values=[0.01, 0.02, 0.04]
+    )
+    yield p
+    if not skip_absorbing_substrate:
+        yield stack(
+            "stack_absorbing_substrate", [film(110, 1.8), rectangle(85, 247, 2.4 + 0.1j, 1.1)], substrate=3.5 + 0.1j
+        )
+        yield stack(
+            "two_patterns_metal_substrate",
+            [rectangle(95, 167, 2.4 + 0.1j), rectangle(130, 247, 1.8, 1.1 + 0.03j)],
+            substrate=0.25 + 5j,
+        )
+
+
+def refinement_evidence(records):
+    """Compare finite-basis totals separately from cross-engine agreement."""
+    sequence, previous = [], None
+    for h in (3, 7, 11, 15, 19):
+        case = next(case for case in records if case["name"] == f"two_rectangles_H{h}")
+        values = [sample["meent"][key] for sample in case["samples"] for key in ("R", "T")]
+        sequence.append(
+            {
+                "harmonics": h,
+                "max_total_R_T_change": None if previous is None else max(abs(a - b) for a, b in zip(values, previous)),
+            }
+        )
+        previous = values
+    return {"claim": "Sample-specific basis refinement evidence; no convergence certification", "sequence": sequence}
 
 
 def main():
@@ -285,7 +374,7 @@ def main():
         records.append(case)
         print(f"{project.name}: max |delta R,T,orders| = {case['max_absolute_error']:.3g}", file=sys.stderr)
     report = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "status": "passed" if max(errors) <= TOLERANCE else "failed",
         "claim_scope": "Agreement of two independent implementations at matched finite Fourier bases; not a proof of basis convergence or measured CD accuracy",
@@ -302,6 +391,7 @@ def main():
         "S4": provenance,
         "elapsed_seconds": perf_counter() - started,
         "cases": records,
+        "harmonic_refinement": refinement_evidence(records),
     }
     if args.output:
         args.output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
