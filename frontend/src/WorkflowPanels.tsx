@@ -34,6 +34,35 @@ function Modal({
       ref={dialog}
       className={`workflow-dialog ${className}`}
       aria-label={title}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const controls = Array.from(
+          event.currentTarget.querySelectorAll<HTMLElement>(
+            "button, input, select, textarea, a[href], summary, [tabindex]",
+          ),
+        ).filter(
+          (element) =>
+            !element.matches(':disabled, [hidden], [tabindex="-1"]') &&
+            element.getClientRects().length > 0,
+        );
+        const first = controls[0],
+          last = controls.at(-1);
+        if (!first || !last) {
+          event.preventDefault();
+          return;
+        }
+        const active = document.activeElement;
+        const outside =
+          active === event.currentTarget ||
+          !event.currentTarget.contains(active);
+        if (event.shiftKey && (active === first || outside)) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (active === last || outside)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
         onClose();

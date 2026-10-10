@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect as baseExpect } from "@playwright/test";
 const expect = baseExpect.configure({ timeout: 10000 });
+const displayExpect = baseExpect.configure({ timeout: 2000 });
 
 const apiUrl = process.env.RCWA_API_URL || "http://127.0.0.1:8000";
 const appUrl = process.env.RCWA_APP_URL || "http://127.0.0.1:5173";
@@ -16,6 +17,8 @@ const output = new URL("../../artifacts/", import.meta.url).pathname;
 const prefix = `Workflow QA ${Date.now()}`;
 const checks = [];
 const pageErrors = [];
+const collectedFailures = [];
+let collectedFailureWaitMs = 0;
 const snapshots = [];
 const activeJobs = new Set();
 const pendingGates = new Set();
@@ -236,41 +239,104 @@ async function compare(target, candidates) {
   }
   return comparison;
 }
+// Only independent, read-only presentation assertions are collected. Core
+// state, response identity and action preconditions remain fail-fast. Bound
+// failures and their retry time so a broken display cannot exhaust CI silently.
+async function collectReadOnly(label, assertion) {
+  const began = Date.now();
+  try {
+    await assertion();
+    return true;
+  } catch (error) {
+    collectedFailureWaitMs += Date.now() - began;
+    collectedFailures.push({ label, error: error.stack || String(error) });
+    console.error(`Collected read-only assertion failure: ${label}\n${error}`);
+    if (collectedFailures.length >= 40 || collectedFailureWaitMs >= 60000)
+      throw new Error(
+        "Read-only assertion collection reached its bounded failure budget.",
+        { cause: error },
+      );
+    return false;
+  }
+}
+async function presentationContext(target, dialog, kind) {
+  const viewport = target.viewportSize();
+  const title = dialog ? await dialog.getAttribute("aria-label") : "page";
+  return `${kind}: ${title || "dialog"}, ${viewport?.width}x${viewport?.height}`;
+}
 async function assertNoOverflow(target, dialog) {
-  assert.equal(
-    await target.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    ),
-    false,
-    "Page has no horizontal overflow",
-  );
+  const context = await presentationContext(target, dialog, "overflow");
+  await collectReadOnly(`${context}: page width`, async () => {
+    assert.equal(
+      await target.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+      "Page has no horizontal overflow",
+    );
+  });
   if (dialog) {
+    await expect(dialog).toBeVisible();
     const box = await dialog.boundingBox();
     const viewport = target.viewportSize();
-    assert.ok(
-      box && box.x >= -1 && box.x + box.width <= viewport.width + 1,
-      "Dialog fits the viewport",
-    );
-    assert.equal(
-      await dialog.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
-      false,
-      "Dialog has no horizontal overflow",
-    );
+    await collectReadOnly(`${context}: dialog bounds`, async () => {
+      assert.ok(
+        box && box.x >= -1 && box.x + box.width <= viewport.width + 1,
+        "Dialog fits the viewport",
+      );
+    });
+    await collectReadOnly(`${context}: dialog content width`, async () => {
+      assert.equal(
+        await dialog.evaluate(
+          (node) => node.scrollWidth > node.clientWidth + 1,
+        ),
+        false,
+        "Dialog has no horizontal overflow",
+      );
+    });
   }
 }
 async function assertFocusInside(target, dialog, count = 12) {
-  assert.equal(
-    await dialog.evaluate((node) => node.contains(document.activeElement)),
-    true,
-    "Modal receives focus",
-  );
-  for (let i = 0; i < count; i += 1) {
-    await target.keyboard.press("Tab");
+  await expect(dialog).toBeVisible();
+  const context = await presentationContext(target, dialog, "focus");
+  async function restoreFocus() {
+    // Restoration is a hard precondition before any later keyboard actions.
+    await dialog.getByRole("button").first().focus();
     assert.equal(
       await dialog.evaluate((node) => node.contains(document.activeElement)),
       true,
-      "Tab stays within the modal",
+      "Focus must be restored inside the current dialog before continuing",
     );
+  }
+  if (
+    !(await collectReadOnly(`${context}: initial focus`, async () => {
+      assert.equal(
+        await dialog.evaluate((node) => node.contains(document.activeElement)),
+        true,
+        "Modal receives focus",
+      );
+    }))
+  )
+    await restoreFocus();
+  for (const key of ["Tab", "Shift+Tab"]) {
+    // Starting at the first control makes the reverse boundary deterministic.
+    if (key === "Shift+Tab") await restoreFocus();
+    for (let i = 0; i < count; i += 1) {
+      await target.keyboard.press(key);
+      const contained = await collectReadOnly(
+        `${context}: ${key} ${i + 1}/${count}`,
+        async () => {
+          assert.equal(
+            await dialog.evaluate((node) =>
+              node.contains(document.activeElement),
+            ),
+            true,
+            `${key} stays within the modal`,
+          );
+        },
+      );
+      if (!contained) await restoreFocus();
+    }
   }
 }
 function exactPair(snapshot) {
@@ -361,25 +427,40 @@ async function assertComparisonValues(
   await range.focus();
   await range.press("Home");
   for (let i = 0; i < sample; i += 1) await range.press("ArrowRight");
-  await expect(dialog.locator(".comparison-sample strong")).toHaveText(
-    `${candidates[0].result.wavelengths_nm[sample]} nm`,
-  );
+  const context = `${await presentationContext(dialog.page(), dialog, "comparison")}: ${quantity}, ${polarization}, sample ${sample}`;
+  await collectReadOnly(`${context}: exact wavelength label`, async () => {
+    await displayExpect(dialog.locator(".comparison-sample strong")).toHaveText(
+      `${candidates[0].result.wavelengths_nm[sample]} nm`,
+    );
+  });
   const names = {
     R: "Total reflectance",
     T: "Total transmittance",
     R_specular: "Specular reflectance",
     T_specular: "Specular transmittance",
   };
-  await expect(dialog.locator(".comparison-plot svg")).toHaveAttribute(
-    "aria-label",
-    `${names[quantity]}, ${polarization} polarization, for ${candidates.length} saved candidates. Exact samples are listed below.`,
+  await collectReadOnly(
+    `${context}: quantity/polarization chart label`,
+    async () => {
+      await displayExpect(
+        dialog.locator(".comparison-plot svg"),
+      ).toHaveAttribute(
+        "aria-label",
+        `${names[quantity]}, ${polarization} polarization, for ${candidates.length} saved candidates. Exact samples are listed below.`,
+      );
+    },
   );
   const rows = dialog.locator(".comparison-values > p");
   await expect(rows).toHaveCount(candidates.length);
   for (let i = 0; i < candidates.length; i += 1) {
     await expect(rows.nth(i)).toContainText(candidates[i].name);
-    await expect(rows.nth(i).locator("strong")).toHaveText(
-      `${(candidates[i].result.spectra[polarization][quantity][sample] * 100).toFixed(3)}%`,
+    await collectReadOnly(
+      `${context}: ${candidates[i].id} exact stored value`,
+      async () => {
+        await displayExpect(rows.nth(i).locator("strong")).toHaveText(
+          `${(candidates[i].result.spectra[polarization][quantity][sample] * 100).toFixed(3)}%`,
+        );
+      },
     );
   }
 }
@@ -823,6 +904,7 @@ try {
   await expect(
     review.getByRole("button", { name: "Apply changes", exact: true }),
   ).toBeDisabled();
+  await assertFocusInside(page, review);
   await review.getByRole("button", { name: "Cancel", exact: true }).click();
   assert.deepEqual(await exportJson(page), mismatchedBase);
   await history(page, "undo");
@@ -1587,10 +1669,16 @@ try {
   }
 
   assert.deepEqual(pageErrors, [], "No uncaught browser errors");
+  assert.equal(
+    collectedFailures.length,
+    0,
+    `${collectedFailures.length} independent read-only assertions failed; see collectedFailures in workflow-browser-qa.json`,
+  );
   const report = {
     status: "passed",
     checks,
     pageErrors,
+    collectedFailures,
     evidence,
     date: new Date().toISOString(),
   };
@@ -1610,6 +1698,7 @@ try {
     status: "failed",
     checks,
     pageErrors,
+    collectedFailures,
     evidence,
     error: error.stack || String(error),
     date: new Date().toISOString(),

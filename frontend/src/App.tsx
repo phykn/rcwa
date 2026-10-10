@@ -546,14 +546,21 @@ export default function App() {
         document.querySelectorAll<HTMLElement>(
           ".dialog button, .dialog input, .dialog select",
         ),
-      ).filter((e) => !e.hasAttribute("disabled"));
+      ).filter(
+        (e) => !e.hasAttribute("disabled") && e.getClientRects().length > 0,
+      );
       const first = elements[0],
         last = elements.at(-1);
-      if (event.shiftKey && document.activeElement === first) {
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+      const missing = !elements.includes(document.activeElement as HTMLElement);
+      if (event.shiftKey && (document.activeElement === first || missing)) {
         event.preventDefault();
         last?.focus();
       }
-      if (!event.shiftKey && document.activeElement === last) {
+      if (!event.shiftKey && (document.activeElement === last || missing)) {
         event.preventDefault();
         first?.focus();
       }
