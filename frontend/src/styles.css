@@ -573,6 +573,11 @@ h1 input:hover {
 }
 .dimension-rail strong {
   display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
   font-family: var(--font-code);
   font-weight: 500;
   font-size: 32px;

@@ -653,6 +653,72 @@ try {
   checks.push(
     "360px material captions fit without overlap; precise constant values remain in inspectors and both n/k tables survive export unchanged",
   );
+  const fractional = structuredClone(reference.project);
+  fractional.name = "Precision rail fixture";
+  fractional.period_nm = 510.123456789;
+  fractional.layers[0].cd_nm = 201.123456789;
+  fractional.layers[0].thickness_nm = 175.987654321;
+  await setCaptionProject(fractional);
+  const fractionalValues = {
+    width: 201.123456789,
+    height: 175.987654321,
+    pitch: 510.123456789,
+  };
+  for (const [dimension, value] of Object.entries(fractionalValues)) {
+    const button = captionPage
+      .locator(".dimension-rail")
+      .getByRole("button", { name: new RegExp(dimension) });
+    const buttonBox = await button.boundingBox();
+    const displayBox = await button.locator("strong").boundingBox();
+    assert.ok(
+      displayBox.x >= buttonBox.x &&
+        displayBox.x + displayBox.width <= buttonBox.x + buttonBox.width + 1,
+      `${dimension}: long fractional display stays inside its 360px rail cell`,
+    );
+    await expect(button).toHaveAttribute(
+      "aria-label",
+      new RegExp(String(value).replaceAll(".", "\\.")),
+    );
+  }
+  assert.equal(
+    await captionPage.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+    "Long fractional geometry creates no page overflow",
+  );
+  await captionPage.evaluate(() => scrollTo(0, 0));
+  await captionPage.screenshot({
+    path: `${output}/contract-precision-rail-360.png`,
+  });
+  for (const [dimension, value] of Object.entries(fractionalValues)) {
+    await captionPage
+      .locator(".dimension-rail")
+      .getByRole("button", { name: new RegExp(dimension) })
+      .click();
+    await expect(captionPage.locator(`#dimension-${dimension}`)).toHaveValue(
+      String(value),
+    );
+    await captionPage.keyboard.press("Escape");
+  }
+  if (!(await captionMenu.evaluate((element) => element.open)))
+    await captionMenu.locator("summary").click();
+  const precisionDownloading = captionPage.waitForEvent("download");
+  await captionPage
+    .getByRole("button", { name: "Export", exact: true })
+    .click();
+  const precisionFile = await precisionDownloading;
+  await precisionFile.saveAs(`${output}/contract-precision-export.json`);
+  assert.deepEqual(
+    JSON.parse(
+      await fs.readFile(`${output}/contract-precision-export.json`, "utf8"),
+    ).project,
+    fractional,
+  );
+  checks.push(
+    "360px long fractional dimensions fit their rail cells without rounding canonical inputs; accessible labels, inspectors and export retain full precision",
+  );
+
   await captionPage.close();
 
   const preview = await browser.newPage({
