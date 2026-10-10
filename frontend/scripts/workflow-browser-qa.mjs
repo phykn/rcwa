@@ -6,7 +6,7 @@
 /* global document, window, requestAnimationFrame, innerWidth */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { chromium, expect as baseExpect } from "@playwright/test";
+import { chromium, errors, expect as baseExpect } from "@playwright/test";
 const expect = baseExpect.configure({ timeout: 10000 });
 const displayExpect = baseExpect.configure({ timeout: 2000 });
 
@@ -26,6 +26,7 @@ const evidence = {
   realJobs: [],
   snapshots: [],
   screenshots: [],
+  screenshotCaptures: [],
   negativeCases: [],
 };
 let browser;
@@ -179,8 +180,43 @@ async function widthSession(target, values) {
 }
 async function screenshot(target, name) {
   const filename = `workflow-${name}.png`;
-  await target.screenshot({ path: `${output}/${filename}`, fullPage: true });
-  evidence.screenshots.push(filename);
+  const capture = { filename, attempts: [], recovered: false };
+  const captureStarted = Date.now();
+  evidence.screenshotCaptures.push(capture);
+  // A previous timeout was immediately followed by a successful identical
+  // catch capture. Retry only that transient error, with no page mutation or
+  // extra frame wait: both attempts together stay below the former 30 seconds.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await target.screenshot({
+        path: `${output}/${filename}`,
+        fullPage: true,
+        timeout: 10000,
+      });
+      capture.attempts.push({ attempt, status: "passed" });
+      capture.recovered = attempt > 1;
+      evidence.screenshots.push(filename);
+      return;
+    } catch (error) {
+      const timedOut = error instanceof errors.TimeoutError;
+      capture.attempts.push({
+        attempt,
+        status: "failed",
+        timedOut,
+        error: error.stack || String(error),
+      });
+      if (!timedOut) throw error;
+      if (attempt === 2) {
+        collectedFailureWaitMs += Date.now() - captureStarted;
+        await collectReadOnly(`screenshot: ${filename}`, async () => {
+          throw new Error(
+            "Screenshot timed out on both bounded capture attempts.",
+            { cause: error },
+          );
+        });
+      }
+    }
+  }
 }
 async function openSaved(target) {
   await menu(target);
@@ -1566,6 +1602,10 @@ try {
     await assertNoOverflow(target, comparison);
     await assertFocusInside(target, comparison, 20);
     await screenshot(target, `comparison-${width}`);
+    await comparison
+      .locator(".comparison-plot")
+      .scrollIntoViewIfNeeded({ timeout: 5000 });
+    await screenshot(target, `comparison-${width}-chart`);
     await target.keyboard.press("Escape");
     ({ review, focus } = await localProposal(target, proposal));
     await assertNoOverflow(target, review);
