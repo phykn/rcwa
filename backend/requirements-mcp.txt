@@ -1,0 +1,3 @@
+# Optional stdio adapter; install together with requirements-lock.txt.
+mcp==2.3.0
+httpx==0.28.1

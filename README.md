@@ -9,6 +9,7 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 - Order-resolved, total and specular reflectance/transmittance
 - Synthetic CD fitting with bounded multistart optimization
 - Project and result JSON import/export
+- Local HTTP/OpenAPI and optional stdio MCP tools for general AI clients
 
 Built with React, TypeScript, FastAPI and meent. The current solver supports one isotropic 1D grating layer. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
 
@@ -37,6 +38,7 @@ Open http://localhost:5173. SQLite is used by default; see [development setup](d
 
 ```text
 backend/api/        HTTP API, bounded jobs and project storage
+backend/mcp_adapter/  Optional local MCP tools backed by the HTTP API
 backend/rcwa_core/  Input schemas, RCWA adapter and CD fitting
 backend/tests/      Physics, API and persistence tests
 frontend/src/      Editor, visualization and API client
@@ -46,7 +48,8 @@ docs/              Physical conventions and validation evidence
 ## Documentation
 
 - [Development and checks](docs/development.md)
-- [Local agent HTTP API and bounded example](docs/agent-api.md)
+- [Local HTTP API and bounded example](docs/agent-api.md)
+- [Connect an AI tool client with MCP](docs/mcp-tools.md)
 - [Physical model and conventions](docs/physics.md)
 - [Validation results](docs/validation.md)
 - [Independent S4 comparison](docs/independent-reference.md)

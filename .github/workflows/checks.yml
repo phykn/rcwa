@@ -32,9 +32,29 @@ jobs:
           python-version: '3.12'
           cache: pip
           cache-dependency-path: backend/requirements*.txt
-      - run: pip install -r backend/requirements-lock.txt
+      - run: pip install -r backend/requirements-mcp-lock.txt
+      - run: pip check
       - run: ruff check backend
       - run: PYTHONPATH=backend pytest backend/tests -q
+  mcp-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - run: python -m pip install -r backend/requirements-mcp-lock.txt
+      - run: python -m pip check
+      - run: python -m pytest backend/tests/test_mcp_adapter.py -q
+      - name: Check real SDK stdio client and local HTTP validation
+        run: python -m pytest backend/tests/test_mcp_protocol.py -q -k "stdio_discovery_and_validation or stdio_closes_on_eof or api_down"
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 10

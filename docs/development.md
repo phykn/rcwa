@@ -70,8 +70,11 @@ Lengths are in nm. Public passive-material input uses n > 0 and k ≥ 0. Interna
 
 The [agent API guide](agent-api.md) describes discovery, no-job admissibility
 checks, typed jobs, and server-owned snapshots. This is an HTTP/OpenAPI interface
-and a runnable candidate-evaluation example, not an integrated or deployed LLM
-agent. No keys or paid services are required.
+and a runnable candidate-evaluation example. An [optional stdio MCP adapter](mcp-tools.md)
+lets general tool-capable AI clients use that same API. No integrated model, keys,
+or paid services are required. Install `backend/requirements-mcp-lock.txt` to run
+the adapter and its protocol tests; the base install remains sufficient for the UI
+and HTTP example.
 
 Mutation requests reject browser Origins outside `CORS_ORIGINS`; Host must be
 `localhost`, `127.0.0.1`, or `::1`. Origin-less local HTTP scripts are supported.

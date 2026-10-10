@@ -4,6 +4,9 @@ RCWA Workbench is **locally programmatic and agent-ready through HTTP/OpenAPI**.
 
 The supported physics remains one isotropic rectangular 1D grating layer in classical mounting. Read [physical conventions](physics.md) before comparing results. The synthetic CD recovery demo (`kind: "fit"`) is a separate operation and is not a general design optimizer.
 
+An [optional local stdio MCP adapter](mcp-tools.md) exposes the same API to general
+AI tool clients. HTTP/OpenAPI remains available independently of MCP.
+
 ## Run the complete HTTP example
 
 From the repository root, install the backend dependencies as described in [development setup](development.md), then start one local API worker:
