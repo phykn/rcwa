@@ -14,11 +14,12 @@ const page = await browser.newPage({
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 const checks = [];
+let mobile;
 try {
   await page.goto("http://127.0.0.1:5173");
-  await expect(page.getByText("Solver connected", { exact: true })).toBeVisible(
-    { timeout: 20000 },
-  );
+  await expect(page.locator(".connection")).toHaveText("Solver connected", {
+    timeout: 20000,
+  });
   await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("180");
   await page.getByRole("button", { name: /Run simulation/ }).click();
   await expect(page.locator(".result-badge")).toHaveText("Computed", {
@@ -103,7 +104,7 @@ try {
     .setInputFiles(`${output}/browser-export.json`);
   await expect(page.locator(".result-badge")).toHaveText("Imported result");
   checks.push("Full input/result export and JSON reload");
-  const mobile = await browser.newPage({
+  mobile = await browser.newPage({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
   });
@@ -113,13 +114,15 @@ try {
     if (request.url().includes("/api/")) requests.push(request.url());
   });
   await mobile.goto("http://127.0.0.1:4173");
-  await expect(
-    mobile.getByText("Static preview", { exact: true }),
-  ).toBeVisible();
+  await expect(mobile.locator(".connection")).toHaveText("Static preview");
   await expect(mobile.locator(".result-badge")).toHaveText(
     "Precomputed example",
     { timeout: 15000 },
   );
+  await mobile.screenshot({
+    path: `${output}/workbench-mobile.png`,
+    fullPage: true,
+  });
   await expect(
     mobile.getByRole("link", { name: /Set up the local solver/ }),
   ).toBeVisible();
@@ -137,8 +140,14 @@ try {
     throw new Error(
       "Geometry and main inputs must fit in the first mobile screen",
     );
+  await mobile
+    .locator(".spectrum-panel")
+    .screenshot({ path: `${output}/workbench-mobile-spectrum.png` });
   await mobile.locator(".more-settings > summary").click();
-  await mobile.getByText("Light", { exact: true }).click();
+  await mobile
+    .locator(".control-section > summary")
+    .filter({ hasText: /^Light/ })
+    .click();
   await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
   await mobile.locator(".more-settings > summary").click();
   if (requests.length)
@@ -149,13 +158,6 @@ try {
     )
   )
     throw new Error("Horizontal overflow on 390px mobile");
-  await mobile.screenshot({
-    path: `${output}/workbench-mobile.png`,
-    fullPage: true,
-  });
-  await mobile
-    .locator(".spectrum-panel")
-    .screenshot({ path: `${output}/workbench-mobile-spectrum.png` });
   await mobile.getByLabel(/Width \(CD\)/).fill("210");
   await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
   await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
@@ -218,6 +220,13 @@ try {
   );
   console.log(JSON.stringify({ status: "passed", checks }, null, 2));
 } catch (error) {
+  if (mobile)
+    await mobile
+      .screenshot({
+        path: `${output}/browser-mobile-failure.png`,
+        fullPage: true,
+      })
+      .catch(() => {});
   await page
     .screenshot({ path: `${output}/browser-failure.png`, fullPage: true })
     .catch(() => {});
