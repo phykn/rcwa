@@ -153,10 +153,10 @@ h3 {
   font-family: var(--font-heading);
 }
 h1 {
-  font-size: 52px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.02em;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 h2 {
@@ -194,16 +194,7 @@ p {
 .wordmark > svg {
   color: var(--primary);
 }
-.brand-caption {
-  margin-left: 16px;
-  padding-left: 24px;
-  border-left: 1px solid var(--border);
-  font:
-    400 12px/1.4 "Inter",
-    sans-serif;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
-}
+
 .header-right {
   display: flex;
   align-items: center;
@@ -276,14 +267,14 @@ summary::-webkit-details-marker {
 main {
   max-width: 1360px;
   margin: auto;
-  padding: 56px 56px 0;
+  padding: 32px 56px;
 }
 .page-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 .page-heading > div:first-child {
   min-width: 0;
@@ -313,58 +304,23 @@ h1 input {
 h1 input:hover {
   border-color: var(--border);
 }
-.subtitle {
-  font-size: 18px;
-  line-height: 1.6;
-  margin: 16px 0 0;
-  color: var(--text-secondary);
-}
-.scope {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.scope > span {
-  border: 1px solid var(--border);
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-family: var(--font-code);
-  font-size: 12px;
-  color: var(--primary);
-  background: var(--selected);
-}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.42fr) minmax(0, 1fr);
   align-items: start;
-  gap: 56px;
+  gap: 32px;
 }
 .design,
 .results-column {
   min-width: 0;
 }
-.canvas-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-  font-size: 15px;
-  font-weight: 500;
-}
-.canvas-scale {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 400;
-}
+
 /* The scene has face lighting only. Panel elevation never casts onto geometry. */
 .three-canvas {
   position: relative;
   isolation: isolate;
-  aspect-ratio: 360/330;
+  aspect-ratio: 1.12;
   border: 1px solid var(--border);
   border-radius: var(--feature-radius);
   overflow: hidden;
@@ -383,41 +339,46 @@ h1 input:hover {
 .webgl-host canvas:active {
   cursor: grabbing;
 }
-.scene-caption {
+.scene-guide {
   position: absolute;
-  top: 20px;
-  left: 24px;
+  top: 8px;
+  left: 16px;
+  z-index: 10;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.scene-guide > summary {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  pointer-events: none;
-  z-index: 1;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
 }
-.scene-caption > span {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--label);
-}
-.scene-caption > small {
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-.camera-hint {
-  position: absolute;
-  top: 72px;
-  left: 24px;
-  pointer-events: none;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-  z-index: 1;
-}
-.touch-cue {
+.scene-guide > summary::-webkit-details-marker {
   display: none;
 }
-.pointer-cue {
-  display: inline;
+.scene-guide[open] > summary,
+.scene-guide > summary:hover {
+  color: var(--primary);
+}
+.scene-guide > div {
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  width: min(280px, calc(100vw - 96px));
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.scene-guide p {
+  margin: 0 0 12px;
+}
+.scene-guide p:last-child {
+  margin-bottom: 0;
 }
 .scene-material,
 .scene-substrate {
@@ -522,7 +483,7 @@ h1 input:hover {
 }
 .handle-name {
   position: absolute;
-  top: 100px;
+  top: 56px;
   left: 24px;
   z-index: 5;
   pointer-events: none;
@@ -609,27 +570,12 @@ h1 input:hover {
 .object-editor {
   border-bottom: 1px solid var(--border);
 }
-.gesture-note {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 56px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.reset {
-  min-width: 44px;
-  padding: 0;
-  font-size: 26px;
-  font-weight: 400;
-}
 .setting-row {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 80px;
-  padding: 12px 0;
+  min-height: 64px;
+  padding: 8px 0;
   gap: 12px;
   border: 0;
   border-bottom: 1px solid var(--border);
@@ -667,12 +613,7 @@ h1 input:hover {
   color: var(--text-secondary);
   flex-shrink: 0;
 }
-.model-footnote {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 16px 0 0;
-}
+
 .run-area {
   margin-top: 24px;
 }
@@ -763,9 +704,12 @@ h1 input:hover {
   justify-content: space-between;
   gap: 12px;
 }
-.result .panel-heading .eyebrow {
+.result .panel-heading {
+  margin-bottom: 16px;
+}
+.result .panel-heading h2 {
   margin: 0;
-  font-size: 11px;
+  font-size: 22px;
 }
 .result-badge {
   display: inline-flex;
@@ -788,17 +732,7 @@ h1 input:hover {
   color: #9a3412;
   background: #fff7ed;
 }
-.result h2 {
-  margin: 24px 0 12px;
-}
-.result-intro {
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 20px;
-}
-.stale-note,
-.reference-note {
+.stale-note {
   border-left: 3px solid var(--primary);
   background: var(--selected);
   border-radius: 0 4px 4px 0;
@@ -813,13 +747,21 @@ h1 input:hover {
   background: #fff7ed;
   color: #9a3412;
 }
-.spectrum-help {
+.reference-note,
+.preview-note {
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 0 0 20px;
+  margin: 0 0 16px;
+}
+.warning-count {
+  margin-left: auto;
+  color: #9a3412;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .plot-toolbar {
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -851,13 +793,6 @@ h1 input:hover {
   padding: 8px;
   min-height: 44px;
   font-size: 12px;
-}
-.quantity-help {
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-  margin: 12px 0;
-  min-height: 17px;
 }
 .spectrum-svg {
   display: block;
@@ -1023,7 +958,7 @@ input[type="range"]:focus-visible {
   grid-template-columns: minmax(0, 1.42fr) minmax(0, 1fr);
   gap: 48px;
   align-items: start;
-  margin-top: 40px;
+  margin-top: 24px;
 }
 .fit-panel,
 .notes-panel {
@@ -1330,9 +1265,7 @@ input[type="range"]:focus-visible {
   font-size: 26px;
   margin: 0;
 }
-.sheet-heading .eyebrow {
-  margin-bottom: 8px;
-}
+
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -1575,27 +1508,7 @@ input[type="range"]:focus-visible {
   border-color: var(--primary);
   font-size: 12px;
 }
-.page-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  min-height: 80px;
-  margin-top: 48px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-.page-footer > span {
-  font-family: var(--font-heading);
-  font-weight: 600;
-  letter-spacing: 0.09em;
-}
-.page-footer p {
-  margin: 0;
-  text-align: right;
-}
+
 .sr-only {
   position: absolute;
   height: 1px;
@@ -1606,27 +1519,11 @@ input[type="range"]:focus-visible {
   white-space: nowrap;
   border: 0;
 }
-@media (pointer: coarse) {
-  .touch-cue {
-    display: inline;
-  }
-  .pointer-cue {
-    display: none;
-  }
-}
 @media (min-width: 1000px) {
   .three-canvas {
-    aspect-ratio: 1.15;
+    aspect-ratio: 1.35;
   }
-  .scene-caption {
-    top: 24px;
-  }
-  .camera-hint {
-    top: 76px;
-  }
-  .handle-name {
-    top: 104px;
-  }
+
   .dimension-rail {
     padding: 24px 0 16px;
   }
@@ -1636,7 +1533,7 @@ input[type="range"]:focus-visible {
 }
 @media (max-width: 1000px) {
   main {
-    padding: 40px 32px 0;
+    padding: 32px;
   }
   .workspace,
   .supplemental {
@@ -1644,16 +1541,9 @@ input[type="range"]:focus-visible {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   }
   h1 {
-    font-size: 38px;
-    line-height: 1.2;
-    letter-spacing: 0.015em;
+    font-size: 26px;
   }
-  .brand-caption {
-    display: none;
-  }
-  .scope {
-    display: none;
-  }
+
   .result {
     padding: 20px 20px 0;
   }
@@ -1700,49 +1590,24 @@ input[type="range"]:focus-visible {
     font-size: 12px;
   }
   main {
-    padding: 24px 24px 0;
+    padding: 20px 24px 24px;
   }
   .page-heading {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   .eyebrow {
     margin-bottom: 12px;
   }
   h1 {
-    font-size: 38px;
-    line-height: 1.2;
-    letter-spacing: 0.015em;
+    font-size: 26px;
   }
-  .subtitle {
-    font-size: 15px;
-    line-height: 1.6;
-    margin-top: 12px;
-  }
+
   .workspace {
     display: block;
   }
-  .canvas-head {
-    font-size: 14px;
-    margin-bottom: 12px;
-  }
-  .scene-caption {
-    top: 16px;
-    left: 16px;
-    gap: 4px;
-  }
-  .scene-caption > span {
-    font-size: 12px;
-  }
-  .scene-caption > small {
-    font-size: 12px;
-  }
-  .camera-hint {
-    top: 64px;
-    left: 16px;
-    font-size: 12px;
-  }
+
   .handle-name {
-    top: 88px;
+    top: 56px;
     left: 16px;
     font-size: 12px;
   }
@@ -1792,12 +1657,9 @@ input[type="range"]:focus-visible {
     line-height: 1.4;
     margin-bottom: 12px;
   }
-  .gesture-note {
-    font-size: 12px;
-    min-height: 48px;
-  }
+
   .setting-row {
-    min-height: 72px;
+    min-height: 64px;
     gap: 8px;
   }
   .setting-name {
@@ -1813,9 +1675,7 @@ input[type="range"]:focus-visible {
     min-width: 24px;
     font-size: 24px;
   }
-  .model-footnote {
-    font-size: 12px;
-  }
+
   .result {
     margin: 24px -24px 0;
     padding: 24px 24px 0;
@@ -1824,20 +1684,12 @@ input[type="range"]:focus-visible {
     border-right: 0;
     box-shadow: none;
   }
-  .result .panel-heading .eyebrow {
-    font-size: 11px;
-  }
+
   .result-badge {
     font-size: 12px;
     padding: 4px;
   }
-  .result h2 {
-    font-size: 26px;
-    margin-top: 24px;
-  }
-  .desktop-break {
-    display: none;
-  }
+
   .plot-toolbar {
     flex-wrap: nowrap;
     gap: 8px;
@@ -1903,9 +1755,7 @@ input[type="range"]:focus-visible {
   .sheet-heading h2 {
     font-size: 26px;
   }
-  .sheet-heading .eyebrow {
-    font-size: 11px;
-  }
+
   .keyboard-note {
     display: none;
   }
@@ -1924,12 +1774,6 @@ input[type="range"]:focus-visible {
     border: 0;
     border-radius: 8px 8px 0 0;
     padding: 24px;
-  }
-  .page-footer {
-    margin-top: 24px;
-    min-height: 80px;
-    gap: 16px;
-    font-size: 12px;
   }
 }
 @media (max-width: 370px) {
@@ -1951,14 +1795,12 @@ input[type="range"]:focus-visible {
     font-size: 20px;
   }
   h1 {
-    font-size: 34px;
+    font-size: 24px;
   }
   .header-right {
     gap: 8px;
   }
-  .gesture-note {
-    font-size: 12px;
-  }
+
   .setting-name {
     font-size: 13px;
   }

@@ -233,6 +233,7 @@ try {
       );
     assert.ok(tickSize >= 11.99);
     if (width === 390) {
+      await menu(mobile);
       await mobile
         .getByRole("button", { name: "Reset example", exact: true })
         .click();
@@ -248,6 +249,7 @@ try {
       await expect(handle).toHaveAttribute("aria-valuenow", "181");
       await mobile.keyboard.press("Shift+ArrowRight");
       await expect(handle).toHaveAttribute("aria-valuenow", "191");
+      await menu(mobile);
       await mobile
         .getByRole("button", { name: "Reset example", exact: true })
         .click();
@@ -258,6 +260,7 @@ try {
       await mobile.mouse.up();
       assert.ok(Number(await handle.getAttribute("aria-valuenow")) > 180);
       await shot(mobile, "workbench-mobile-390-dragged");
+      await menu(mobile);
       await mobile
         .getByRole("button", { name: "Reset example", exact: true })
         .click();

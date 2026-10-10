@@ -338,6 +338,7 @@ try {
     await resetGate.promise;
     await route.fulfill({ json: reference.project });
   });
+  await menu();
   await page
     .getByRole("button", { name: "Reset example", exact: true })
     .click();
@@ -492,9 +493,15 @@ try {
     "Chromium should expose the WebGL context-loss test extension",
   );
   await expect(page.locator(".webgl-fallback")).toBeVisible();
-  await expect(page.locator(".gesture-note")).not.toContainText(
-    /Drag the dots/i,
+  await page.locator(".scene-guide > summary").click();
+  await expect(page.locator(".view-instructions")).toHaveText(
+    "Tap a dimension or material to edit.",
   );
+  await expect(page.locator(".scene-guide")).not.toContainText(
+    /Drag|orbit|pinch/i,
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".scene-guide")).not.toHaveAttribute("open", "");
   await editDimension("width", 203.25);
   assert.equal((await exportProject()).project.layers[0].cd_nm, 203.25);
   checks.push(
@@ -514,8 +521,17 @@ try {
   });
   await fallback.goto(appUrl);
   await expect(fallback.locator(".webgl-fallback")).toBeVisible();
-  await expect(fallback.locator(".gesture-note")).not.toContainText(
-    /Drag the dots/i,
+  await fallback.locator(".scene-guide > summary").click();
+  await expect(fallback.locator(".view-instructions")).toHaveText(
+    "Tap a dimension or material to edit.",
+  );
+  await expect(fallback.locator(".scene-guide")).not.toContainText(
+    /Drag|orbit|pinch/i,
+  );
+  await fallback.keyboard.press("Escape");
+  await expect(fallback.locator(".scene-guide")).not.toHaveAttribute(
+    "open",
+    "",
   );
   await fallback
     .locator(".dimension-rail")
@@ -719,6 +735,43 @@ try {
     "360px long fractional dimensions fit their rail cells without rounding canonical inputs; accessible labels, inspectors and export retain full precision",
   );
 
+  await captionPage.evaluate(() => scrollTo(0, 0));
+  await captionPage.locator(".scene-guide > summary").click();
+  const guide = captionPage.getByRole("region", { name: "View guide details" });
+  const guideBox = await guide.boundingBox();
+  const sceneBox = await captionPage.locator(".three-canvas").boundingBox();
+  assert.ok(
+    guideBox.y + guideBox.height <= sceneBox.y + sceneBox.height,
+    "360px guide stays inside its clipped scene",
+  );
+  assert.ok(
+    guideBox.x >= sceneBox.x &&
+      guideBox.x + guideBox.width <= sceneBox.x + sceneBox.width,
+    "360px guide stays inside the scene width",
+  );
+  await guide.focus();
+  await captionPage.keyboard.press("End");
+  await guide.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const lastGuideLine = await guide.locator("p").last().boundingBox();
+  assert.ok(
+    lastGuideLine.y + lastGuideLine.height <= guideBox.y + guideBox.height,
+    "The model and synthetic-constant note is reachable by scrolling",
+  );
+  await captionPage.screenshot({
+    path: `${output}/contract-view-guide-360.png`,
+  });
+  await captionPage.keyboard.press("Escape");
+  await expect(captionPage.locator(".scene-guide")).not.toHaveAttribute(
+    "open",
+    "",
+  );
+  await expect(captionPage.locator(".scene-guide > summary")).toBeFocused();
+  checks.push(
+    "The open 360px view guide fits the scene; its full model note is scrollable and Escape returns focus",
+  );
+
   await captionPage.close();
 
   const preview = await browser.newPage({
@@ -785,6 +838,56 @@ try {
   await expect(
     preview.getByRole("button", { name: /Run simulation/ }),
   ).toHaveCount(0);
+  const resultDetails = preview.locator(".notes-panel");
+  await resultDetails.locator(":scope > summary").click();
+  await expect(resultDetails).toContainText("Source: unverified JSON import");
+  await resultDetails.locator(":scope > summary").click();
+  await preview.locator(".file-actions input[type=file]").setInputFiles({
+    name: "warning-result.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        ...reference,
+        result: {
+          ...reference.result,
+          warnings: ["Check Fourier-order convergence."],
+        },
+      }),
+    ),
+  });
+  await expect(resultDetails).not.toHaveAttribute("open", "");
+  await expect(resultDetails.locator(":scope > summary")).toContainText(
+    "1 solver warning",
+  );
+  await resultDetails.locator(":scope > summary").click();
+  await expect(resultDetails.locator(".numerical-warnings")).toContainText(
+    "Check Fourier-order convergence.",
+  );
+  await resultDetails.locator(":scope > summary").click();
+  await preview.locator(".scene-guide > summary").click();
+  await expect(preview.locator(".view-instructions")).toContainText(
+    "Drag the scene to orbit",
+  );
+  await preview.keyboard.press("Escape");
+  await expect(preview.locator(".scene-guide")).not.toHaveAttribute("open", "");
+  await expect(preview.locator(".scene-guide > summary")).toBeFocused();
+  assert.equal(
+    await preview
+      .locator("h1")
+      .evaluate(
+        (element) => parseFloat(getComputedStyle(element).fontSize) <= 28,
+      ),
+    true,
+  );
+  assert.equal(
+    await preview
+      .getByText("Shape the structure. Explore the light.", { exact: true })
+      .count(),
+    0,
+  );
+  checks.push(
+    "Compact hierarchy keeps contextual view help keyboard-accessible; stale imports retain provenance and collapsed result details expose solver-warning counts",
+  );
   assert.deepEqual(previewApiRequests, []);
   checks.push(
     "Static preview loads all three same-origin fonts, resolves connection state after edits during startup, gives usable empty-state instructions, and labels stale imported spectra without claiming they are the reference",

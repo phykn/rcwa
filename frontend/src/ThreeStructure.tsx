@@ -742,10 +742,39 @@ export function ThreeStructure({
         onPointerDownCapture={trackPointer}
       >
         <div className="webgl-host" ref={host} hidden={failed} />
-        <div className="scene-caption">
-          <span>3D view</span>
-          <small>3 repeats · infinite 1D model</small>
-        </div>
+        <details
+          className="scene-guide"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.currentTarget.open = false;
+              event.currentTarget
+                .querySelector<HTMLElement>("summary")
+                ?.focus();
+            }
+          }}
+        >
+          <summary title="View guide">
+            View guide <span aria-hidden="true">ⓘ</span>
+          </summary>
+          <div tabIndex={0} role="region" aria-label="View guide details">
+            <p className="view-instructions">
+              {failed
+                ? "Tap a dimension or material to edit."
+                : "Drag the scene to orbit; pinch or scroll to zoom. Drag a handle or tap a value to edit."}
+            </p>
+            {!failed && (
+              <p className="keyboard-note">
+                Focus a handle and use arrow keys for 1 nm steps, or Shift for
+                10 nm. Enter opens exact entry.
+              </p>
+            )}
+            <p>
+              Three repeats of one infinite 1D layer. Width, height and pitch
+              share one scale; substrate depth and groove length are schematic.
+              Default optical constants are synthetic.
+            </p>
+          </div>
+        </details>
         {failed ? (
           <div className="webgl-fallback" role="status">
             <strong>3D view is unavailable.</strong>
@@ -825,12 +854,6 @@ export function ThreeStructure({
             >
               Substrate <span>{materialSummary(project.substrate)}</span>
             </button>
-            <div className="camera-hint">
-              <span className="touch-cue">Drag to orbit · pinch to zoom</span>
-              <span className="pointer-cue">
-                Drag to orbit · scroll to zoom
-              </span>
-            </div>
             {(active || focused) && !disabled && (
               <div className="handle-name" role="status">
                 {active || focused} · {values[(active || focused)!]} nm
@@ -873,11 +896,11 @@ export function ThreeStructure({
           </button>
         ))}
       </div>
-      <p className="scene-model-note">
-        {ridgeMode === "patterned"
-          ? "Substrate depth and groove length are schematic."
-          : stateNote}
-      </p>
+      {ridgeMode !== "patterned" && (
+        <p className="scene-model-note" role="status">
+          {stateNote}
+        </p>
+      )}
     </div>
   );
 }

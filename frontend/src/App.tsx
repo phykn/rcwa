@@ -199,12 +199,6 @@ function DimensionEditor({
         <span>{min} nm</span>
         <span>{max} nm</span>
       </div>
-      <p className="sheet-hint">
-        Changes appear immediately. Tap outside or close to return.
-      </p>
-      <p className="keyboard-note">
-        On the 3D handles, arrow keys edit by 1 nm. Hold Shift for 10 nm.
-      </p>
     </>
   );
 }
@@ -344,7 +338,6 @@ const errorText = (error: unknown) =>
 
 export default function App() {
   const [sheet, setSheet] = useState<Sheet | null>(null);
-  const [sceneFallback, setSceneFallback] = useState(false);
   const inspector = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const actionVersion = useRef(0);
@@ -829,7 +822,7 @@ export default function App() {
           >
             <path d="M4 17V7h4v10h4V7h4v10h4" />
           </svg>
-          RCWA<span className="brand-caption">Optical design</span>
+          RCWA
         </a>
         <div className="header-right">
           <details
@@ -890,6 +883,13 @@ export default function App() {
               >
                 <Icon name="save" /> Save to local server
               </button>
+              <button
+                aria-label="Reset example"
+                disabled={busy}
+                onClick={staticPreview ? loadReference : resetExample}
+              >
+                <span aria-hidden="true">↶</span> Reset example
+              </button>
               <a
                 href="https://github.com/phykn/rcwa#quickstart"
                 target="_blank"
@@ -921,7 +921,6 @@ export default function App() {
       <main id="main">
         <div className="page-heading">
           <div>
-            <p className="eyebrow">YOUR STRUCTURE</p>
             <h1>
               <input
                 aria-label="Project name"
@@ -932,10 +931,6 @@ export default function App() {
                 onChange={(e) => update({ ...project, name: e.target.value })}
               />
             </h1>
-            <p className="subtitle">Shape the structure. Explore the light.</p>
-          </div>
-          <div className="scope">
-            <span>1D</span>Single layer
           </div>
         </div>
         <div className="workspace">
@@ -944,32 +939,12 @@ export default function App() {
             id="build"
             aria-label="Interactive grating editor"
           >
-            <div className="canvas-head">
-              <span>Shape your structure</span>
-              <span className="canvas-scale">1D grating</span>
-            </div>
             <ThreeStructure
               project={project}
               disabled={busy}
               onChange={changeDimension}
               onOpen={openSheet}
-              onFallbackChange={setSceneFallback}
             />
-            <div className="gesture-note">
-              <span>
-                {sceneFallback
-                  ? "Tap a value to edit."
-                  : "Drag the dots. Tap values or materials."}
-              </span>
-              <button
-                className="reset"
-                aria-label="Reset example"
-                disabled={busy}
-                onClick={staticPreview ? loadReference : resetExample}
-              >
-                ↶
-              </button>
-            </div>
             <fieldset disabled={busy} className="setup-rows">
               <button
                 className="setting-row"
@@ -977,7 +952,7 @@ export default function App() {
                 aria-label="Edit light"
               >
                 <span className="setting-icon">☼</span>
-                <span className="setting-name">Incident light</span>
+                <span className="setting-name">Light</span>
                 <span className="setting-value">
                   {waves.length === 1
                     ? waves[0]
@@ -999,9 +974,7 @@ export default function App() {
               >
                 <span className="setting-icon">◈</span>
                 <span className="setting-name">Materials</span>
-                <span className="setting-value">
-                  Ridge · groove<span>Ambient · substrate</span>
-                </span>
+                <span className="setting-value">n / k</span>
                 <Icon name="arrow" />
               </button>
               <button
@@ -1012,17 +985,11 @@ export default function App() {
                 <span className="setting-icon">≋</span>
                 <span className="setting-name">Calculation</span>
                 <span className="setting-value">
-                  Order N = {project.solver.harmonics}
-                  <span>
-                    {2 * project.solver.harmonics + 1} retained orders
-                  </span>
+                  N = {project.solver.harmonics}
                 </span>
                 <Icon name="arrow" />
               </button>
             </fieldset>
-            <p className="model-footnote">
-              One rectangular 1D layer. Default optical constants are synthetic.
-            </p>
             <div className="run-area">
               {errors.length > 0 && (
                 <ul className="validation-list" role="alert">
@@ -1079,13 +1046,6 @@ export default function App() {
                   <button
                     className="example-button"
                     disabled={busy}
-                    onClick={resetExample}
-                  >
-                    Reset inputs
-                  </button>
-                  <button
-                    className="example-button"
-                    disabled={busy}
                     onClick={loadReference}
                   >
                     Load reference result
@@ -1094,18 +1054,14 @@ export default function App() {
               ) : null}
             </div>
 
-            {connection === "offline" && (
+            {connection === "offline" && !staticPreview && (
               <div className="connection-banner">
                 <span>
-                  {staticPreview
-                    ? "This preview edits inputs locally. New calculations require the local Python solver."
-                    : "The local solver is offline. You can still edit, import and export inputs."}
+                  Solver offline. Editing and JSON export are available.
                 </span>
-                {!staticPreview && (
-                  <button onClick={reconnect} disabled={busy}>
-                    Reconnect
-                  </button>
-                )}
+                <button onClick={reconnect} disabled={busy}>
+                  Reconnect
+                </button>
                 <a
                   href="https://github.com/phykn/rcwa#quickstart"
                   target="_blank"
@@ -1145,13 +1101,7 @@ export default function App() {
               id="spectrum"
             >
               <div className="panel-heading">
-                <div>
-                  <span className="eyebrow">
-                    {resultOrigin === "reference"
-                      ? "REFERENCE RESULT"
-                      : "YOUR RESULT"}
-                  </span>
-                </div>
+                <h2>Spectrum</h2>
                 <span
                   className={`result-badge ${stale ? "stale" : result ? "ready" : ""}`}
                   title={
@@ -1175,30 +1125,43 @@ export default function App() {
                       : "No result yet"}
                 </span>
               </div>
-              <h2>
-                Light, reflected
-                <br className="desktop-break" /> and transmitted.
-              </h2>
-              <p className="result-intro">
-                {result
-                  ? "Inspect the spectrum and its original inputs."
-                  : "Calculate how your structure interacts with light."}
-              </p>
               {stale && (
                 <div className="stale-note">
                   {staticPreview
-                    ? "Inputs changed. This stored spectrum has not recalculated; export your inputs to calculate locally."
-                    : "Inputs changed. Run again to update this spectrum."}
+                    ? "This stored spectrum no longer matches your inputs."
+                    : "Run again to update this spectrum."}
                 </div>
               )}
               {resultOrigin === "reference" && result && !stale && (
                 <div className="reference-note">
-                  Precomputed with meent.{" "}
                   {staticPreview
-                    ? "Editing does not recalculate this spectrum. "
-                    : "No new calculation was run. "}
+                    ? "Edits don't recalculate this spectrum. "
+                    : "Stored meent example. No new calculation was run."}
+                  {staticPreview && (
+                    <a
+                      href="https://github.com/phykn/rcwa#quickstart"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Run locally ↗
+                    </a>
+                  )}
                 </div>
               )}
+              {staticPreview &&
+                (stale || resultOrigin !== "reference" || !result) && (
+                  <p className="preview-note">
+                    Live calculation requires the{" "}
+                    <a
+                      href="https://github.com/phykn/rcwa#quickstart"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      local solver ↗
+                    </a>
+                    .
+                  </p>
+                )}
               <SpectrumPlot
                 result={result}
                 polarization={polarization}
@@ -1225,21 +1188,26 @@ export default function App() {
           />
           <details className="notes-panel">
             <summary>
-              Results details & model assumptions{" "}
+              Result details
+              {result && result.warnings.length > 0 && (
+                <span className="warning-count">
+                  {result.warnings.length} solver{" "}
+                  {result.warnings.length === 1 ? "warning" : "warnings"}
+                </span>
+              )}
               <span className="chevron" aria-hidden="true">
                 ⌄
               </span>
             </summary>
-            <p className="control-note">
-              The 3D view shows three finite repeats of an infinite 1D pattern.
-              Width, height and pitch share one scale. Substrate depth and
-              groove length are schematic; colors identify regions, not optical
-              constants.
-            </p>
-            {result && resultOrigin === "reference" && (
+            {result && (
               <p className="control-note">
-                This result is the bundled precomputed meent example, not a new
-                calculation.
+                {resultOrigin === "reference"
+                  ? "Source: precomputed meent example."
+                  : resultOrigin === "imported"
+                    ? "Source: unverified JSON import. Origin claims in the file are not trusted."
+                    : resultOrigin === "server"
+                      ? "Source: computed and saved by the local server."
+                      : "Source: computed by the local solver."}
               </p>
             )}
             {resultProject && (
@@ -1325,14 +1293,6 @@ export default function App() {
             )}
           </details>
         </div>
-        <footer className="page-footer">
-          <span>RCWA</span>
-          <p>
-            {staticPreview
-              ? "Stored example · calculate with the local solver"
-              : "Local optical design workbench"}
-          </p>
-        </footer>
       </main>
       <dialog
         ref={inspector}
@@ -1350,7 +1310,6 @@ export default function App() {
           <div className="sheet-grabber" />
           <div className="sheet-heading">
             <div>
-              <p className="eyebrow">EDIT STRUCTURE</p>
               <h2 id="inspector-title">{sheet ? titles[sheet] : "Settings"}</h2>
             </div>
             <button
@@ -1383,8 +1342,7 @@ export default function App() {
               ) && (
                 <>
                   <p className="sheet-help">
-                    n controls refraction; k controls absorption. Constant
-                    values and imported tables both drive the same solver.
+                    n: refractive index · k: extinction coefficient
                   </p>
                   <div
                     className="material-tabs"
@@ -1444,8 +1402,7 @@ export default function App() {
             {sheet === "light" && (
               <>
                 <p className="sheet-help">
-                  Light arrives from the ambient toward the grating. The angle
-                  is measured from the surface normal.
+                  Incidence angle is measured from the surface normal.
                 </p>
                 <div className="field-grid">
                   <Field
@@ -1555,8 +1512,7 @@ export default function App() {
                   <strong>One</strong>
                 </div>
                 <p className="sheet-hint">
-                  The 3D view illustrates a 1D model. It does not add a finite
-                  target, multiple layers or 2D periodicity.
+                  Infinite 1D model; finite-target effects are omitted.
                 </p>
               </>
             )}

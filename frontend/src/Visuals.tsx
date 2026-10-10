@@ -57,10 +57,6 @@ export function SpectrumPlot({
   const y = (v: number) => top + height - ((v - ymin) / (ymax - ymin)) * height;
   return (
     <div ref={plotRef} className="spectrum-content">
-      <p className="spectrum-help">
-        Reflectance: light sent back. Transmittance: light entering the
-        substrate.
-      </p>
       <div className="plot-toolbar">
         <div className="segmented" aria-label="Spectrum polarization">
           {(["s", "p"] as const).map((p) => (
@@ -80,6 +76,7 @@ export function SpectrumPlot({
         </div>
         <select
           aria-label="Spectrum quantity"
+          aria-describedby="spectrum-quantity-help"
           value={view}
           onChange={(e) => setView(e.target.value as typeof view)}
         >
@@ -88,7 +85,7 @@ export function SpectrumPlot({
           <option value="specular">Specular only</option>
         </select>
       </div>
-      <p className="quantity-help">
+      <p className="sr-only" id="spectrum-quantity-help">
         {view === "total"
           ? "Total includes all diffraction directions."
           : "Specular is the zeroth order: mirror reflection and the directly transmitted beam."}
@@ -98,7 +95,7 @@ export function SpectrumPlot({
           <h3>No spectrum yet</h3>
           <p>
             {staticPreview
-              ? "Import a saved result or reset the example. New calculations require the local solver."
+              ? "Import a saved result or choose Project → Reset example."
               : "Select Run simulation to calculate these inputs."}
           </p>
         </div>
