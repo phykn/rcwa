@@ -13,6 +13,7 @@ from mcp.shared.exceptions import MCPError
 from jsonschema import Draft202012Validator
 
 from api.contracts import JobResponse
+from api.storage import canonical_hash
 from mcp_adapter.client import AdapterError, LocalAPI, MAX_ACTIVE_CALLS, local_url
 from mcp_adapter.server import create_server, OPERATIONS
 from rcwa_core.schemas import Project
@@ -275,7 +276,7 @@ async def test_unverified_import_stays_unverified_and_bad_response_rejected():
 @pytest.mark.anyio
 async def test_synthetic_fit_is_forwarded_with_its_distinct_kind():
     job = JobResponse(id="fit-job", kind="fit", status="running", created_at="now", completed_at=None,
-                      input_hash="hash", result=None, error=None, error_code=None).model_dump()
+                      input_hash=canonical_hash(Project().model_dump()), result=None, error=None, error_code=None).model_dump()
     sent = []
     def respond(request):
         sent.append(json.loads(request.content))

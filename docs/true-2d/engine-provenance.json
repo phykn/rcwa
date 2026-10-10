@@ -1,0 +1,15 @@
+{
+  "release_baseline": "41b81d56ce1c6f19c37d3c732ea46c36d71f53c6",
+  "versions": {
+    "meent": "0.13.2",
+    "numpy": "2.5.3",
+    "scipy": "1.17.1",
+    "pydantic": "2.12.5"
+  },
+  "engine_source_sha256": {
+    "transfer_method.py": "b9289812e56d46cd700026d4a1430ad12bbb29cd71caf0c574dd6f690b683213",
+    "convolution_matrix.py": "6de8aca0a3323a3d5bf5209905ecd22c0cf73f8e5046a3c16394cd6f16763bfb",
+    "fourier_analysis.py": "5d61002014c4dbe90b9dc1debe33cd1408afa89e8cdadd01447f0a82a927993f",
+    "_base.py": "59993d4d95c8fd03badc8fb0351ef64840a1c7ca84e09cb1038ee03e351ccfee"
+  }
+}

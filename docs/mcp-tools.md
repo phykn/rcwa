@@ -318,3 +318,50 @@ This is protocol integration evidence, not a claim that every vendor's AI host
 has been tested. References: [official Python SDK](https://github.com/modelcontextprotocol/python-sdk),
 [SDK client lifecycle](https://py.sdk.modelcontextprotocol.io/client/), and
 [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
+
+## Explicit 1.2 and bounded stdio output
+
+The existing forward/validate/job/snapshot tools share the API's explicit 1.2
+contracts. They do not implement another solver. The canonical example, fitting
+and change-preview tools remain legacy-only in this backend increment; inspect
+version-specific capability profiles before using an operation. Harmonics use
+strict integer JSON tokens, so `3.0` is rejected even though JSON Schema's integer
+semantics treat it as integral.
+
+The stdio adapter accepts protocol IDs of at most 1024 serialized UTF-8 JSON
+bytes, including quoting/escaping and integer digit count. Unsupported IDs close
+the stdio connection before a handler or HTTP operation runs; they are never
+rewritten or truncated. Start a fresh client with an ordinary ID afterward.
+
+The output cap is 8,000,000 bytes for the actual UTF-8 JSON-RPC line, including
+the real request ID, the SDK's version-specific fields/metadata, duplicate text
+and structured result data, escape expansion and the trailing newline. The
+post-serialization check returns a small structured `response_too_large` error,
+not truncated physics data. For a mutation it sets `outcome_unknown` and says not
+to resubmit blindly. The tool cannot return the blocked complete payload.
+
+A large snapshot can be about 4.23 MB as HTTP JSON but about 8.98 MB as the MCP
+line, so these limits intentionally differ. For an oversized snapshot-save
+response, use the existing HTTP `POST /api/snapshots` with the same job ID to
+retrieve the idempotently saved snapshot; do not launch a new calculation. Known
+snapshots/jobs can be read with the existing HTTP GET route stated in the error.
+That ID-only save recovery requires the volatile job to remain retained. After
+eviction or restart, inspect existing `GET /api/projects` summaries (latest 100),
+match `provenance.job_id`, and read the saved snapshot ID with
+`GET /api/projects/{id}`. Retain snapshot IDs for older records. These are HTTP
+recovery instructions, not a claim that an MCP-only client can fetch a payload
+that its tool response limit blocks.
+No new pagination/export service or automatic retry is introduced.
+
+The pinned SDK's standard input reader shields blocking reads, which can stall
+connection closure while a client leaves stdin open. A small input wrapper makes
+that read cancellable while retaining the SDK's private descriptor ownership and
+diversion helpers, JSON/MCP parser and writer. This dependency is covered by real
+process tests and must be rechecked when upgrading the SDK; no alternate protocol
+or numerical pipeline is used.
+
+Local MCP argument errors use the same 50-diagnostic and 512-byte message/location
+policy as HTTP, including structured preflight expansion. The error JSON payload
+is below 64 KB; MCP's duplicated text/structured representation can be larger
+(about 98 KB in the adversarial fixture) and is still checked against the complete
+8 MB line cap. Large input text is not echoed without bounds.

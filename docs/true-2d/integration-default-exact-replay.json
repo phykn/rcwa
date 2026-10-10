@@ -1,0 +1,21 @@
+{
+  "PublicForwardResult2D_passed": true,
+  "shared_validate_result_for_project_passed": true,
+  "exact_shared_hash_matched": true,
+  "metadata_stage": "bounded_forward",
+  "adapter_version": "1.2.0",
+  "validate_result_2d_passed": true,
+  "generation_id": "89f065c3196b2e8068d57f832aa1751eaeacafbf528d93cf8c2bd892b8cfed81",
+  "input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+  "seconds": 7.471050711996213,
+  "offline_reference_override": false,
+  "maximum_vs_single_wavelength_actual_samples": {
+    "absolute": 0.0,
+    "signed": 0.0,
+    "wavelength_nm": 450.0,
+    "polarization": "s",
+    "m": -5,
+    "n": -5,
+    "field": "R"
+  }
+}

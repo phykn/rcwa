@@ -62,7 +62,18 @@ The workflow is prepared to publish the static preview after `Checks` succeeds o
 
 ## Job and storage lifetime
 
-Run the API with **one worker**. It retains at most 100 job records in memory; restarting the API removes them. It accepts up to two simultaneous calculations and returns HTTP 429 when both slots are occupied. Each job has a 120-second deadline that terminates the numerical process. Save completed results to the database or export JSON to retain them. Saving creates a new snapshot rather than overwriting an existing project.
+Run the API with **one worker**. Volatile job history is limited to 100 records and
+64 MB of estimated completed-input/result object memory; oldest completed records
+are evicted, and restarting removes all jobs. Active and cleanup-owned records
+remain protected. Saved database snapshots survive eviction and restart. There
+can be a temporary overage while terminal records still own cleanup resources;
+the byte bound applies to evictable completed history after cleanup. Unreaped
+children retain their slots, and pending cleanup blocks new admission. There
+are at most two simultaneous calculations, including at most one schema 1.2 2D
+calculation; unavailable slots return HTTP 429 without a queue. Each job has a
+120-second acceptance deadline that terminates its owned numerical process.
+Save useful completed results promptly. Snapshot save is append-only and
+idempotent by server job ID, never overwriting an existing project.
 
 Lengths are in nm. Public passive-material input uses n > 0 and k ≥ 0. Internal complex signs, diffraction-order conventions, and power normalization are documented in result metadata and [the physics contract](physics.md). Example optical constants are synthetic values, not a calibrated material database.
 

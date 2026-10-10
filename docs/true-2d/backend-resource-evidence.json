@@ -1,0 +1,26 @@
+{
+  "implementation_checkpoint": "fbd8eec6822b38cb0c7abcd3e01ef7862e46f8ff",
+  "archive": "backend-resource-evidence.tar.gz",
+  "archive_sha256": "e21c0de28fc3b8cbe3eb1503320b1b699ff9831d5896ea5235d6a0298cc4cb23",
+  "archive_bytes": 1730312,
+  "indexed_files": 10,
+  "checks": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "3",
+    "tests": "1427",
+    "time": "270.861",
+    "timestamp": "2026-10-11T01:34:50.846057+09:00",
+    "hostname": "376d26fcb52d"
+  },
+  "watchdog": [
+    {
+      "classname": "backend.tests.test_2d_worker_integration",
+      "name": "test_real_120_second_blocked_worker_watchdog",
+      "time": "120.348"
+    }
+  ],
+  "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 RCWA_RUN_120S_WATCHDOG=1 .venv/bin/pytest backend/tests -q --junitxml=/tmp/rcwa-final-worker-validation/full-backend.xml --durations=10",
+  "scope": "Resource/transport/lifecycle evidence, not numerical convergence of the high-contrast resource inputs. Runtime and RSS are observations on this host, not portable guarantees."
+}

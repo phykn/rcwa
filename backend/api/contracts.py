@@ -5,18 +5,32 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BeforeValidator, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 from typing_extensions import TypedDict
 
-from rcwa_core.contracts import ForwardResult, Result, StoredForwardResult
+from rcwa_core.contracts import ForwardResult, ForwardResult1_0, SyntheticFitResult
+from rcwa_core.contracts_2d import PublicForwardResult2D
+from rcwa_core.identity import canonical_hash
 from rcwa_core.preflight import Diagnostic, EngineInfo
+from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, parse_project, validate_result_for_project
 from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
+from rcwa_core.schemas_2d import Project2D
 
 
 def _strict_project(value):
     # Strictness must propagate through nested models at new request boundaries.
     # Leave the shared Project model's historical read/normalization behavior intact.
-    return Project.model_validate(value, strict=True)
+    project = parse_project(value)
+    if isinstance(project, Project2D):
+        raise ValueError("This preview operation supports only project schemas 1.0 and 1.1")
+    return project
 
 
-InputProject = Annotated[Project, BeforeValidator(_strict_project)]
+LegacyInputProject = Annotated[Project, BeforeValidator(_strict_project)]
+CurrentForwardResult = Annotated[ForwardResult | PublicForwardResult2D, Field(discriminator="schema_version")]
+# OpenAPI discriminator mappings must be references, not an embedded nested union.
+# Literal result_type fields still make the forward/fit alternatives unambiguous.
+CurrentResult = CurrentForwardResult | SyntheticFitResult
+StoredForwardResult = Annotated[
+    ForwardResult1_0 | ForwardResult | PublicForwardResult2D, Field(discriminator="schema_version")
+]
 
 
 class FitOptions(StrictModel):
@@ -35,6 +49,8 @@ class JobRequest(StrictModel):
         if self.kind == "forward" and self.fit is not None:
             raise ValueError("Forward jobs must not include fit options")
         if self.kind == "fit":
+            if isinstance(self.project, Project2D):
+                raise ValueError("Schema 1.2 supports forward calculations only; 2D fitting is not supported")
             if self.fit is None:
                 raise ValueError("Synthetic fit requires fit options")
             FitRequest(project=self.project, **self.fit.model_dump())
@@ -59,14 +75,22 @@ class JobResponse(StrictModel):
     created_at: str
     completed_at: str | None
     input_hash: str
-    result: Result | None
+    result: CurrentResult | None
     error: str | None
     error_code: str | None
+
+    @model_validator(mode="after")
+    def bind_2d_identity(self):
+        if isinstance(self.result, PublicForwardResult2D) and (
+            self.kind != "forward" or self.status != "succeeded" or self.input_hash != self.result.metadata.input_hash
+        ):
+            raise ValueError("2D job status, kind or input hash disagrees with its result")
+        return self
 
 
 class ValidationResponse(StrictModel):
     valid: bool
-    project: Project | None
+    project: ProjectDocument | None
     input_hash: str | None
     diagnostics: list[Diagnostic]
     meaning: Literal["Admissible input only; numerical success and convergence are not guaranteed."] = (
@@ -99,7 +123,7 @@ GeometryField = Literal["period_nm", "cd_nm", "thickness_nm"]
 
 
 class ChangePreviewRequest(StrictModel):
-    base_project: InputProject
+    base_project: LegacyInputProject
     changes: GeometryPatch
 
     @model_validator(mode="after")
@@ -150,7 +174,7 @@ StackPatch = Annotated[
 
 
 class StackChangePreviewRequest(StrictModel):
-    base_project: InputProject
+    base_project: LegacyInputProject
     changes: StackPatch
 
     @field_validator("changes", mode="before")
@@ -248,28 +272,68 @@ class SavedSummary(StrictModel):
 
 
 class SavedProject(SavedSummary):
-    project: Project
+    project: ProjectDocument
     # Compatibility: imported legacy files have a deliberately weaker shape;
     # provenance, never result fields, distinguishes them from server results.
     result: dict | None
 
+    @model_validator(mode="after")
+    def bind_2d_import(self):
+        if self.result is not None and (
+            isinstance(self.project, Project2D) or self.result.get("schema_version") == "1.2"
+        ):
+            validate_result_for_project("forward", self.result, self.project)
+        return self
+
 
 class ServerSnapshot(SavedSummary):
-    project: Project
-    result: ForwardResult
+    project: ProjectDocument
+    result: CurrentForwardResult
+
+    @model_validator(mode="after")
+    def bind_2d(self):
+        _bind_2d_snapshot(self)
+        return self
 
 
 class StoredServerSnapshot(SavedSummary):
     """Read known historical server results without changing their provenance."""
 
-    project: Project
+    project: ProjectDocument
     result: StoredForwardResult
+
+    @model_validator(mode="after")
+    def bind_2d(self):
+        _bind_2d_snapshot(self)
+        return self
+
+
+def _bind_2d_snapshot(snapshot):
+    if not isinstance(snapshot.project, Project2D) and snapshot.result.schema_version != "1.2":
+        return  # Known historical 1.0/1.1 readers retain their existing behavior.
+    if not isinstance(snapshot.project, Project2D) or snapshot.result.schema_version != "1.2":
+        raise ValueError("Snapshot project/result versions disagree")
+    project = snapshot.project.model_dump(mode="json")
+    validate_result_for_project("forward", snapshot.result.model_dump(mode="json"), project)
+    provenance = snapshot.provenance
+    if (
+        provenance.source != "server_computed"
+        or provenance.input_hash != canonical_hash(project)
+        or provenance.project_schema_version != "1.2"
+        or provenance.result_schema_version != "1.2"
+        or provenance.engine != snapshot.result.metadata.engine
+        or provenance.engine_version != snapshot.result.metadata.version
+        or provenance.adapter_version != snapshot.result.metadata.adapter_version
+        or not provenance.job_id
+    ):
+        raise ValueError("Server snapshot provenance differs from its exact input/result")
 
 
 class ResourceLimits(StrictModel):
     simultaneous_jobs: int
     job_timeout_seconds: float
     retained_jobs: int
+    retained_completed_bytes: int
     request_bytes: int
     proposal_bytes: int
     layers: int
@@ -301,5 +365,17 @@ class Capabilities(StrictModel):
     observables: list[str]
     units: dict[str, str]
     limits: ResourceLimits
+    project_profiles: dict[str, "ProjectProfile"]
     persistence: dict[str, str]
     limitations: list[str]
+
+
+class ProjectProfile(StrictModel):
+    operations: list[str]
+    geometry: list[str]
+    wavelength_count: int
+    harmonics: dict[str, list[int]]
+    basis_size_max: int
+    simultaneous_profile_jobs: int
+    adapter_version: str
+    integer_representation: str

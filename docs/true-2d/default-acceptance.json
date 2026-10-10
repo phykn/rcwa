@@ -1,0 +1,1287 @@
+{
+  "accepted": true,
+  "scope": "Exact synthetic lossless subwavelength centered-rectangle multilayer candidate, Hx=Hy=5,21default wavelengths450:20:850nm;40additional dense samples around discovered extrema/steepest intervals",
+  "core_checkpoint": "d2c00e55a699e75b58cc20de69d0f148718dc0c2",
+  "exact_candidate_input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+  "generation_ids": {
+    "meent": "89f065c3196b2e8068d57f832aa1751eaeacafbf528d93cf8c2bd892b8cfed81",
+    "S4": "a425a902a225dbd0fa8f4ea9823960b000dd0ef62701754a69a59a4c4002fd17"
+  },
+  "default_samples": 21,
+  "dense_samples": 40,
+  "unique_default_and_dense_samples": 60,
+  "gates": [
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H5_H7",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "kind": "total",
+        "field": "R_s",
+        "signed_delta": 2.5534947141192532e-06,
+        "absolute": 2.5534947141192532e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H5_H7_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H7_H9",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "kind": "total",
+        "field": "R_s",
+        "signed_delta": 1.094844699844888e-06,
+        "absolute": 1.094844699844888e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H7_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "S4_H5_H7",
+      "maximum": {
+        "wavelength_nm": 530,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -3.0478507021092227e-05,
+        "absolute": 3.0478507021092227e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "S4_H5_H7_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "field": "R",
+        "sum": -1.2764788077884265e-22,
+        "absolute": 1.2764788077884265e-22
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "S4_H7_H9",
+      "maximum": {
+        "wavelength_nm": 530,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -2.0092416621264597e-05,
+        "absolute": 2.0092416621264597e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "S4_H7_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "p",
+        "field": "R",
+        "sum": -3.119784105383806e-23,
+        "absolute": 3.119784105383806e-23
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H5_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H5_S4_H9",
+      "maximum": {
+        "wavelength_nm": 530,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": 7.174880156779473e-05,
+        "absolute": 7.174880156779473e-05
+      },
+      "tolerance": 0.002,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H5_S4_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "p",
+        "field": "R",
+        "sum": -1.1710647394905935e-22,
+        "absolute": 1.1710647394905935e-22
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "default_21_wavelengths",
+      "comparison": "meent_H9_S4_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0,
+        "absolute": 0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H5_H7",
+      "maximum": {
+        "wavelength_nm": 450.5,
+        "polarization": "s",
+        "kind": "total",
+        "field": "R_s",
+        "signed_delta": 2.545999245040509e-06,
+        "absolute": 2.545999245040509e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H5_H7_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450.5,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H7_H9",
+      "maximum": {
+        "wavelength_nm": 450.5,
+        "polarization": "s",
+        "kind": "total",
+        "field": "R_s",
+        "signed_delta": 1.0916870084587416e-06,
+        "absolute": 1.0916870084587416e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H7_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450.5,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "S4_H5_H7",
+      "maximum": {
+        "wavelength_nm": 512.0,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -2.7557441962478002e-05,
+        "absolute": 2.7557441962478002e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "S4_H5_H7_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 506.0,
+        "polarization": "s",
+        "field": "T",
+        "sum": 1.6723568484070322e-22,
+        "absolute": 1.6723568484070322e-22
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "S4_H7_H9",
+      "maximum": {
+        "wavelength_nm": 512.0,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -1.809471779268268e-05,
+        "absolute": 1.809471779268268e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "S4_H7_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 500.5,
+        "polarization": "s",
+        "field": "T",
+        "sum": 6.62588877850203e-23,
+        "absolute": 6.62588877850203e-23
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H5_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 450.5,
+        "polarization": "s",
+        "field": "R",
+        "sum": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H5_S4_H9",
+      "maximum": {
+        "wavelength_nm": 512.0,
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": 6.38935007207797e-05,
+        "absolute": 6.38935007207797e-05
+      },
+      "tolerance": 0.002,
+      "pass": true
+    },
+    {
+      "scope": "dense_40_samples",
+      "comparison": "meent_H5_S4_H9_summed_added_order_tail",
+      "maximum": {
+        "wavelength_nm": 509.5,
+        "polarization": "s",
+        "field": "T",
+        "sum": 1.2547269224205974e-22,
+        "absolute": 1.2547269224205974e-22
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "meent_H5_H7",
+      "maximum": {
+        "polarization": "p",
+        "kind": "total",
+        "field": "R_p",
+        "signed_delta": 1.620674362531882e-06,
+        "absolute": 1.620674362531882e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "meent_H7_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": 2.548212767461422e-07,
+        "absolute": 2.548212767461422e-07
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "S4_H5_H7",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -4.529728758317919e-05,
+        "absolute": 4.529728758317919e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "S4_H7_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -1.1969270483858097e-05,
+        "absolute": 1.1969270483858097e-05
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "meent_H5_S4_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": 7.148375292143072e-05,
+        "absolute": 7.148375292143072e-05
+      },
+      "tolerance": 0.002,
+      "pass": true
+    },
+    {
+      "scope": "control_top_width_y_halved",
+      "comparison": "effect_exceeds_sum_observed_reference_discrepancies",
+      "ratio": 33.12925704461116,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "meent_H5_H7",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "R",
+        "signed_delta": 1.4483292150105354e-06,
+        "absolute": 1.4483292150105354e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "meent_H7_H9",
+      "maximum": {
+        "polarization": "p",
+        "kind": "total",
+        "field": "R_p",
+        "signed_delta": 4.3097393390145733e-07,
+        "absolute": 4.3097393390145733e-07
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "S4_H5_H7",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -5.6082342115848505e-06,
+        "absolute": 5.6082342115848505e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "S4_H7_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": -8.38706171157888e-06,
+        "absolute": 8.38706171157888e-06
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "meent_H5_S4_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T_s",
+        "signed_delta": 1.1123046905203715e-05,
+        "absolute": 1.1123046905203715e-05
+      },
+      "tolerance": 0.002,
+      "pass": true
+    },
+    {
+      "scope": "control_lower_width_y_halved",
+      "comparison": "effect_exceeds_sum_observed_reference_discrepancies",
+      "ratio": 256.52343948766946,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "meent_H5_H7",
+      "maximum": {
+        "polarization": "p",
+        "kind": "total",
+        "field": "T",
+        "signed_delta": 3.3306690738754696e-16,
+        "absolute": 3.3306690738754696e-16
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "meent_H7_H9",
+      "maximum": {
+        "polarization": "p",
+        "kind": "total",
+        "field": "T",
+        "signed_delta": -3.3306690738754696e-16,
+        "absolute": 3.3306690738754696e-16
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "S4_H5_H7",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "R",
+        "signed_delta": 0.0,
+        "absolute": 0.0
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "S4_H7_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "order",
+        "m": 0,
+        "n": 0,
+        "field": "R",
+        "signed_delta": -1.3877787807814457e-17,
+        "absolute": 1.3877787807814457e-17
+      },
+      "tolerance": 0.0005,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "meent_H5_S4_H9",
+      "maximum": {
+        "polarization": "s",
+        "kind": "total",
+        "field": "T",
+        "signed_delta": 1.2212453270876722e-15,
+        "absolute": 1.2212453270876722e-15
+      },
+      "tolerance": 0.002,
+      "pass": true
+    },
+    {
+      "scope": "control_both_patterns_removed_background",
+      "comparison": "effect_exceeds_sum_observed_reference_discrepancies",
+      "ratio": 1010.4837086384787,
+      "pass": true
+    },
+    {
+      "scope": "provenance",
+      "comparison": "engine_source_and_binary_unchanged",
+      "pass": true
+    },
+    {
+      "scope": "exact_candidate_input",
+      "comparison": "ordinary_H5_full21_replay_vs_fingerprinted_samples",
+      "maximum": {
+        "absolute": 0.0,
+        "signed": 0.0,
+        "wavelength_nm": 450.0,
+        "polarization": "s",
+        "m": -5,
+        "n": -5,
+        "field": "R"
+      },
+      "tolerance": 1e-12,
+      "pass": true
+    }
+  ],
+  "cache_audit_verified_samples": 438,
+  "all_orders_lossless_tails_note": "Every newly added order is evanescent in both lossless ports, so physical added-order flux tails are zero; retained S4 floating-point signed tail residuals reach 1.673e-22 in the default/dense gates. This is not absorbing-port tail evidence.",
+  "reciprocal_light_line_lower_bound": 2.657979856674331,
+  "largest_finite_index": 2.1,
+  "dense_peak_shifts": [
+    {
+      "center_nm": 451.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 450.5,
+      "H7_nm": 450.5,
+      "H9_nm": 450.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 452.5,
+      "H7_nm": 452.5,
+      "H9_nm": 452.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 450.5,
+      "H7_nm": 450.5,
+      "H9_nm": 450.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 452.5,
+      "H7_nm": 452.5,
+      "H9_nm": 452.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 450.5,
+      "H7_nm": 450.5,
+      "H9_nm": 450.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 452.5,
+      "H7_nm": 452.5,
+      "H9_nm": 452.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 450.5,
+      "H7_nm": 450.5,
+      "H9_nm": 450.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 451.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 452.5,
+      "H7_nm": 452.5,
+      "H9_nm": 452.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 451.5,
+      "H7_nm": 451.5,
+      "H9_nm": 451.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 453.5,
+      "H7_nm": 453.5,
+      "H9_nm": 453.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 451.5,
+      "H7_nm": 451.5,
+      "H9_nm": 451.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 453.5,
+      "H7_nm": 453.5,
+      "H9_nm": 453.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 451.5,
+      "H7_nm": 451.5,
+      "H9_nm": 451.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 453.5,
+      "H7_nm": 453.5,
+      "H9_nm": 453.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 451.5,
+      "H7_nm": 451.5,
+      "H9_nm": 451.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 452.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 453.5,
+      "H7_nm": 453.5,
+      "H9_nm": 453.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 498.5,
+      "H7_nm": 498.5,
+      "H9_nm": 498.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 500.5,
+      "H7_nm": 500.5,
+      "H9_nm": 500.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 498.5,
+      "H7_nm": 498.5,
+      "H9_nm": 498.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 500.5,
+      "H7_nm": 500.5,
+      "H9_nm": 500.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 498.5,
+      "H7_nm": 498.5,
+      "H9_nm": 498.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 500.5,
+      "H7_nm": 500.5,
+      "H9_nm": 500.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 498.5,
+      "H7_nm": 498.5,
+      "H9_nm": 498.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 499.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 500.5,
+      "H7_nm": 500.5,
+      "H9_nm": 500.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 503.5,
+      "H7_nm": 503.5,
+      "H9_nm": 503.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 503.5,
+      "H7_nm": 503.5,
+      "H9_nm": 503.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 503.5,
+      "H7_nm": 503.5,
+      "H9_nm": 503.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 503.5,
+      "H7_nm": 503.5,
+      "H9_nm": 503.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 504.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 507.5,
+      "H7_nm": 507.5,
+      "H9_nm": 507.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 507.5,
+      "H7_nm": 507.5,
+      "H9_nm": 507.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 507.5,
+      "H7_nm": 507.5,
+      "H9_nm": 507.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 505.5,
+      "H7_nm": 505.5,
+      "H9_nm": 505.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 506.5,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 507.5,
+      "H7_nm": 507.5,
+      "H9_nm": 507.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 508.0,
+      "H7_nm": 508.0,
+      "H9_nm": 508.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 509.0,
+      "H7_nm": 509.0,
+      "H9_nm": 509.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 508.0,
+      "H7_nm": 508.0,
+      "H9_nm": 508.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 510.0,
+      "H7_nm": 510.0,
+      "H9_nm": 510.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 508.0,
+      "H7_nm": 508.0,
+      "H9_nm": 508.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 509.0,
+      "H7_nm": 509.0,
+      "H9_nm": 509.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 508.0,
+      "H7_nm": 508.0,
+      "H9_nm": 508.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 509.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 510.0,
+      "H7_nm": 510.0,
+      "H9_nm": 510.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 512.0,
+      "H7_nm": 512.0,
+      "H9_nm": 512.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 510.0,
+      "H7_nm": 510.0,
+      "H9_nm": 510.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 512.0,
+      "H7_nm": 512.0,
+      "H9_nm": 512.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 511.0,
+      "H7_nm": 511.0,
+      "H9_nm": 511.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 512.0,
+      "H7_nm": 512.0,
+      "H9_nm": 512.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 510.0,
+      "H7_nm": 510.0,
+      "H9_nm": 510.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 512.0,
+      "H7_nm": 512.0,
+      "H9_nm": 512.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 511.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 511.0,
+      "H7_nm": 511.0,
+      "H9_nm": 511.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 637.0,
+      "H7_nm": 637.0,
+      "H9_nm": 637.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 635.0,
+      "H7_nm": 635.0,
+      "H9_nm": 635.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 636.5,
+      "H7_nm": 636.5,
+      "H9_nm": 636.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 635.0,
+      "H7_nm": 635.0,
+      "H9_nm": 635.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 637.0,
+      "H7_nm": 637.0,
+      "H9_nm": 637.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 635.0,
+      "H7_nm": 635.0,
+      "H9_nm": 635.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 636.5,
+      "H7_nm": 636.5,
+      "H9_nm": 636.5,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 636.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 635.0,
+      "H7_nm": 635.0,
+      "H9_nm": 635.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 642.0,
+      "H7_nm": 642.0,
+      "H9_nm": 642.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "meent",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 641.0,
+      "H7_nm": 641.0,
+      "H9_nm": 641.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 641.0,
+      "H7_nm": 641.0,
+      "H9_nm": 641.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "meent",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 643.0,
+      "H7_nm": 643.0,
+      "H9_nm": 643.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "maximum",
+      "H5_nm": 642.0,
+      "H7_nm": 642.0,
+      "H9_nm": 642.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "S4",
+      "polarization": "s",
+      "extremum": "minimum",
+      "H5_nm": 641.0,
+      "H7_nm": 641.0,
+      "H9_nm": 641.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "maximum",
+      "H5_nm": 641.0,
+      "H7_nm": 641.0,
+      "H9_nm": 641.0,
+      "H5_H9_shift_nm": 0.0
+    },
+    {
+      "center_nm": 642.0,
+      "engine": "S4",
+      "polarization": "p",
+      "extremum": "minimum",
+      "H5_nm": 643.0,
+      "H7_nm": 643.0,
+      "H9_nm": 643.0,
+      "H5_H9_shift_nm": 0.0
+    }
+  ],
+  "largest_sampled_H5_H9_peak_position_shift_nm": 0.0,
+  "sampling_limitation": "Peak positions are sampled at0.5nm in local windows and at1nm in the exploratory discovery scan. This is not a proof that every sub-grid resonance is absent or that arbitrary edits converge."
+}

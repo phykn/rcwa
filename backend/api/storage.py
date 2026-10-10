@@ -4,13 +4,14 @@ Provenance lives in a new sidecar table: old databases need no destructive colum
 migration and old rows remain explicitly unverified. Never infer origin from JSON.
 """
 
-import hashlib
 import json
 import os
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import Column, ForeignKey, MetaData, String, Table, Text, create_engine, select
+
+from rcwa_core.identity import canonical_hash as canonical_hash
 
 metadata = MetaData()
 projects = Table(
@@ -32,12 +33,6 @@ run_provenance = Table(
     Column("job_id", String(36), nullable=False, unique=True),
     Column("data", Text, nullable=False),
 )
-
-
-def canonical_hash(project: dict) -> str:
-    """SHA-256 of normalized Project JSON, sorted keys, compact UTF-8, no NaN."""
-    encoded = json.dumps(project, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
 class ProjectStore:

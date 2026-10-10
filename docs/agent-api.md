@@ -267,3 +267,62 @@ discovery, actual single-layer and mixed-stack calculations, snapshot reload,
 and read-only stack previews. GitHub Checks must additionally run PostgreSQL and
 live/static browser checks for the exact test-branch commit. Local tests do not
 substitute for those acceptance gates.
+
+## Backend-only explicit schema 1.2
+
+Schema 1.2 adds centered rectangular two-dimensional multilayers to the existing
+validate/jobs/snapshot/import routes. It requires explicit `schema_version: "1.2"`,
+`period_nm` (x), `period_y_nm` (y), every layer's geometry tag, and separate
+`harmonics_x` / `harmonics_y`. Rectangle widths are `cd_x_nm` / `cd_y_nm`;
+illumination adds `azimuth_deg`. Per-order results retain integer `(m,n)` and
+outgoing local `R_s`, `R_p`, `T_s`, `T_p` powers. All ordinary results still state
+that convergence is not assessed. The synthetic numerical fixture is not a
+calibrated or actual HBM device.
+
+Read `project_profiles` in capabilities. The legacy scalar limits remain legacy
+limits: 1.2 instead allows 31 wavelengths, Hx/Hy 1–5 (121 orders), eight finite
+layers and one active 2D process within two total slots. Harmonics require integer
+JSON tokens: runtime rejects `3.0`, although JSON Schema's mathematical integer
+type accepts it. Missing project version retains 1.0; 1.2 never appears by guessing
+fields or migrating an import. Legacy hashes, saved readers and signed-zero /
+Unicode serialization remain unchanged.
+
+This backend increment does not add 2D fitting, change proposals, UI editing or a
+new public default. The example and current frontend remain legacy. A 1.2 request
+to a legacy-only operation fails before worker allocation.
+
+Job inputs are copied and normalized. A validated 2D result, its job and saved
+snapshot share one UTF-8 canonical input hash. Snapshot provenance uses the actual
+result adapter version. Imported files remain unverified even when their powers
+and identities are internally consistent. Save by succeeded job ID remains
+idempotent; cancelled/failed work cannot be saved as a computed snapshot.
+
+Volatile job history has both a 100-record cap and a 64,000,000-byte estimated
+completed-input/result memory budget (`limits.retained_completed_bytes`). The
+manager caches recursive Python-object sizes and evicts oldest completed records
+with their captured input until both limits hold. Polling an evicted job returns
+404; save useful completed results promptly. Persisted snapshots remain available
+by snapshot ID after history eviction and API restart. Active jobs and records
+still owning cleanup resources are protected; cleanup-pending records block new
+admission rather than accumulating more work. An individual successful result
+larger than the history budget becomes a `history_limit` failure before acceptance.
+The byte bound applies after cleanup to evictable completed history; protected
+terminal records can temporarily exceed it while resource ownership remains.
+Unreaped children still consume numerical slots, and cleanup-pending records
+block all new admission until cleanup succeeds.
+
+The memory budget bounds retained history, not total RSS, concurrent serialization
+copies or active solver allocations. The actual normalized maximum-table completed
+job and input consume about 8.56 MB under this estimator. A ten-record regression
+retains exactly the newest seven (59.89 MB) and evicts the oldest three.
+Two active bounded workers plus their API process peaked near 396 MiB in the
+local resource probe before retained history. This is evidence of headroom, not
+a portable operating-system memory guarantee.
+
+The 2 MB HTTP request cap is unchanged. An exported full-result file may exceed
+it, particularly with 31 wavelengths or large material tables. Oversized imports
+return structured HTTP 413 (`body_too_large`) before parsing or persistence.
+Project-only imports within the cap and ID-only `POST /api/snapshots` remain
+available. A full valid snapshot can be retrieved with the existing
+`GET /api/projects/{snapshot_id}`. Browser-local file viewing is distinct from
+HTTP persistence and does not enlarge the POST cap.

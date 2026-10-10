@@ -1,0 +1,13 @@
+{
+  "historical_manifest_sha256": "b16794f32306b510521324db5fa16e7737879d37185f6c425e56f8c692e6843e",
+  "source": "immutable old provenance-final.json",
+  "verified_hashes": {
+    "/tmp/rcwa-2d-default-validation/s4_2d_cross_cached.cpp": "1173788c7cd0d534d5d36f495cbb459e09c7fca870e935ba21919e48cd170b6e",
+    "/tmp/rcwa-2d-default-validation/build_reference.sh": "4f551d5fd3a7ce8cd339689e0e0be8ea1fe56773000d42a601efab03276d9a0d",
+    "/tmp/rcwa-2d-default-validation/libS4_lapack.a": "c1a324a34ba3359d74dada7fbd482fe900800ffe8ff92483c8a7899d8be41190",
+    "/tmp/rcwa-s4-upstream/S4/rcwa.cpp": "73423c0c73b55ee3042bbf070deb24019fa7228b0fc892a546bcf3ca3cf4c255",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/casadi/libcasadi-tp-openblas.so": "ed1f2f612a6be8cea404c3c18d6c1b1ad917014df73c71c2dcdb911fb6387e8d",
+    "/tmp/rcwa-2d-default-validation/s4_2d_cross_cached": "2642a64c7932c0c0e2b6640d9ab3cf527ac8ff93cbc10f8cdbd46b429b4c3873"
+  },
+  "accepted_samples_reused": false
+}

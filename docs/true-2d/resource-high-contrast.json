@@ -1,0 +1,297 @@
+{
+  "case": "high_contrast",
+  "input": {
+    "schema_version": "1.2",
+    "name": "Numerical resource high_contrast",
+    "period_nm": 460.0,
+    "period_y_nm": 420.0,
+    "ambient": {
+      "name": "Air",
+      "kind": "constant",
+      "n": 1.0,
+      "k": 0.0,
+      "wavelengths_nm": null,
+      "n_values": null,
+      "k_values": null,
+      "source": "User-defined synthetic optical constants"
+    },
+    "substrate": {
+      "name": "Synthetic material",
+      "kind": "constant",
+      "n": 0.4,
+      "k": 3.1,
+      "wavelengths_nm": null,
+      "n_values": null,
+      "k_values": null,
+      "source": "User-defined synthetic optical constants"
+    },
+    "layers": [
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 100.0,
+        "cd_y_nm": 90.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 2.5,
+          "k": 0.03,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.01,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 137.0,
+        "cd_y_nm": 125.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 2.67,
+          "k": 0.04,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.07,
+          "k": 0.013000000000000001,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 174.0,
+        "cd_y_nm": 160.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 2.84,
+          "k": 0.05,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.1400000000000001,
+          "k": 0.016,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 211.0,
+        "cd_y_nm": 195.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 3.01,
+          "k": 0.06,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.21,
+          "k": 0.019000000000000003,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 248.0,
+        "cd_y_nm": 230.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 3.18,
+          "k": 0.07,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.28,
+          "k": 0.022,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 285.0,
+        "cd_y_nm": 265.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 3.35,
+          "k": 0.08,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.35,
+          "k": 0.025,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 322.0,
+        "cd_y_nm": 300.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 3.52,
+          "k": 0.09,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.42,
+          "k": 0.028000000000000004,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      },
+      {
+        "name": "Synthetic rectangular pattern",
+        "geometry": "rectangle_2d",
+        "thickness_nm": 2000.0,
+        "cd_x_nm": 359.0,
+        "cd_y_nm": 335.0,
+        "material": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 3.6900000000000004,
+          "k": 0.1,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "background": {
+          "name": "Synthetic material",
+          "kind": "constant",
+          "n": 1.49,
+          "k": 0.031,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        }
+      }
+    ],
+    "illumination": {
+      "wavelengths_nm": [
+        450.0,
+        463.3333333333333,
+        476.6666666666667,
+        490.0,
+        503.3333333333333,
+        516.6666666666666,
+        530.0,
+        543.3333333333334,
+        556.6666666666666,
+        570.0,
+        583.3333333333334,
+        596.6666666666667,
+        610.0,
+        623.3333333333334,
+        636.6666666666667,
+        650.0,
+        663.3333333333334,
+        676.6666666666667,
+        690.0,
+        703.3333333333334,
+        716.6666666666667,
+        730.0,
+        743.3333333333334,
+        756.6666666666667,
+        770.0,
+        783.3333333333334,
+        796.6666666666667,
+        810.0,
+        823.3333333333334,
+        836.6666666666667,
+        850.0
+      ],
+      "angle_deg": 37.0,
+      "polarization": "both",
+      "azimuth_deg": 25.0
+    },
+    "solver": {
+      "harmonics_x": 5,
+      "harmonics_y": 5
+    }
+  },
+  "seconds": 34.765314331998525,
+  "peak_RSS_KiB": 101652,
+  "serialized_bytes": 2240566,
+  "target_seconds": 90,
+  "target_bytes": 6000000,
+  "passed_standalone_targets": true,
+  "worker_admission_cancellation_timeout_restart": "not tested; deferred application gate",
+  "deployed_resource_class": "not established; local observation only"
+}

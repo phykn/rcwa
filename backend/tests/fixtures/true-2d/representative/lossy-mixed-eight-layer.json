@@ -1,0 +1,207 @@
+{
+  "schema_version": "1.2",
+  "name": "Synthetic eight-layer lossy mixed stack and absorbing port",
+  "period_nm": 460.0,
+  "period_y_nm": 420.0,
+  "ambient": {
+    "name": "Synthetic material",
+    "kind": "constant",
+    "n": 1.33,
+    "k": 0.0,
+    "wavelengths_nm": null,
+    "n_values": null,
+    "k_values": null,
+    "source": "User-defined synthetic optical constants"
+  },
+  "substrate": {
+    "name": "Synthetic material",
+    "kind": "constant",
+    "n": 0.4,
+    "k": 3.1,
+    "wavelengths_nm": null,
+    "n_values": null,
+    "k_values": null,
+    "source": "User-defined synthetic optical constants"
+  },
+  "layers": [
+    {
+      "name": "Synthetic rectangular pattern",
+      "geometry": "rectangle_2d",
+      "thickness_nm": 15.0,
+      "cd_x_nm": 220.0,
+      "cd_y_nm": 180.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.65,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      },
+      "background": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.45,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Homogeneous layer",
+      "geometry": "homogeneous",
+      "thickness_nm": 20.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.5,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Patterned layer",
+      "geometry": "rectangle_1d",
+      "thickness_nm": 15.0,
+      "cd_nm": 190.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.6,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      },
+      "background": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.45,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Homogeneous layer",
+      "geometry": "homogeneous",
+      "thickness_nm": 10.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.55,
+        "k": 0.005,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Synthetic rectangular pattern",
+      "geometry": "rectangle_2d",
+      "thickness_nm": 20.0,
+      "cd_x_nm": 290.0,
+      "cd_y_nm": 240.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.45,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      },
+      "background": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.6,
+        "k": 0.01,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Homogeneous layer",
+      "geometry": "homogeneous",
+      "thickness_nm": 15.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.5,
+        "k": 0.005,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Synthetic rectangular pattern",
+      "geometry": "rectangle_2d",
+      "thickness_nm": 15.0,
+      "cd_x_nm": 200.0,
+      "cd_y_nm": 170.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.6,
+        "k": 0.01,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      },
+      "background": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.45,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    },
+    {
+      "name": "Homogeneous layer",
+      "geometry": "homogeneous",
+      "thickness_nm": 15.0,
+      "material": {
+        "name": "Synthetic material",
+        "kind": "constant",
+        "n": 1.5,
+        "k": 0.0,
+        "wavelengths_nm": null,
+        "n_values": null,
+        "k_values": null,
+        "source": "User-defined synthetic optical constants"
+      }
+    }
+  ],
+  "illumination": {
+    "wavelengths_nm": [
+      632.8
+    ],
+    "angle_deg": 31.0,
+    "polarization": "both",
+    "azimuth_deg": 37.0
+  },
+  "solver": {
+    "harmonics_x": 5,
+    "harmonics_y": 4
+  }
+}

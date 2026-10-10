@@ -1,0 +1,12 @@
+{
+  "archive_integrity_verified": true,
+  "array_round_trip_verified_samples": 839,
+  "archive": "/tmp/rcwa-2d-integration-validation/true-2d-default-convergence-evidence.tar.gz",
+  "archive_sha256": "8aeebeef8a85ef203c902952a3b9e3906b3ff5b6ed235ab8fba71f4a1faa8a2d",
+  "archive_bytes": 8322017,
+  "file_count": 973,
+  "candidate_json": "/tmp/rcwa-2d-integration-validation/subwavelength/candidate-project.json",
+  "summary": "/tmp/rcwa-2d-integration-validation/subwavelength/ACCEPTANCE.txt",
+  "input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+  "accepted": true
+}

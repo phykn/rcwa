@@ -14,9 +14,15 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError, model_validator
 
+from api.diagnostics import (
+    MAX_ERROR_DIAGNOSTICS as MAX_ERROR_DIAGNOSTICS,
+    MAX_ERROR_LOCATION_BYTES as MAX_ERROR_LOCATION_BYTES,
+    MAX_ERROR_TEXT_BYTES as MAX_ERROR_TEXT_BYTES,
+    _bounded_diagnostics, _bounded_text,
+)
 from api.change_preview import preview_changes
 from api.stack_change_preview import ProposalTooLarge, bounded_proposal, preview_stack_changes
-from api.jobs import JobManager
+from api.jobs import MAX_HISTORY_JOBS, JobManager
 from api.storage import ProjectStore, canonical_hash
 from api.contracts import (
     Capabilities,
@@ -36,8 +42,10 @@ from api.contracts import (
     ValidationResponse,
 )
 from rcwa_core.contracts import ForwardResult
-from rcwa_core.preflight import Diagnostic, engine_info, preflight_project
+from rcwa_core.preflight import Diagnostic, engine_info
+from rcwa_core.project_io import preflight_project_any, validate_result_for_project
 from rcwa_core.schemas import Project, StrictModel
+from rcwa_core.schemas_2d import Project2D
 
 
 class SaveRequest(StrictModel):
@@ -55,6 +63,9 @@ class SaveRequest(StrictModel):
         except (ValueError, TypeError, UnicodeError) as error:
             raise ValueError("Result must contain finite JSON values and valid Unicode") from error
         result = self.result
+        if isinstance(self.project, Project2D):
+            validate_result_for_project("forward", result, self.project)
+            return self
         if result.get("schema_version") not in ("1.0", "1.1"):
             raise ValueError("Result schema_version must be 1.0 or 1.1")
         if result["schema_version"] == "1.1":
@@ -87,58 +98,6 @@ class SaveRequest(StrictModel):
         if not isinstance(result.get("metadata"), dict):
             raise ValueError("Result metadata must be an object")
         return self
-
-
-# Limits include JSON escaping, not just character counts. Fifty diagnostics,
-# each with at most 512-byte message/location and 64-byte code, stay below 64 KB.
-MAX_ERROR_DIAGNOSTICS = 50
-MAX_ERROR_TEXT_BYTES = 512
-MAX_ERROR_LOCATION_BYTES = 512
-MAX_ERROR_CODE_BYTES = 64
-TRUNCATED = " [truncated]"
-
-
-def _json_bytes(value):
-    return len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
-
-
-def _bounded_text(value, limit=MAX_ERROR_TEXT_BYTES):
-    if _json_bytes(value) <= limit:
-        return value
-    # First bound the work for long messages; then account for JSON escaping.
-    prefix = value.encode("utf-8")[:limit].decode("utf-8", errors="ignore")
-    while _json_bytes(prefix + TRUNCATED) > limit:
-        prefix = prefix[:len(prefix) // 2]
-    return prefix + TRUNCATED
-
-
-def _bounded_location(location):
-    result = []
-    for part in location:
-        part = _bounded_text(part, 128) if isinstance(part, str) else part
-        if _json_bytes([*result, part, TRUNCATED.strip()]) > MAX_ERROR_LOCATION_BYTES:
-            result.append(TRUNCATED.strip())
-            break
-        result.append(part)
-    return result
-
-
-def _bounded_diagnostics(diagnostics):
-    result = []
-    for item in diagnostics:
-        if len(result) == MAX_ERROR_DIAGNOSTICS:
-            result[-1] = {
-                "code": "diagnostics_truncated", "severity": "error", "location": [],
-                "message": f"Additional validation diagnostics omitted; at most {MAX_ERROR_DIAGNOSTICS} are returned.",
-            }
-            break
-        result.append({
-            "code": _bounded_text(item["code"], MAX_ERROR_CODE_BYTES),
-            "severity": item["severity"],
-            "location": _bounded_location(item["location"]),
-            "message": _bounded_text(item["message"]),
-        })
-    return result
 
 
 def _request_diagnostics(error):
@@ -176,7 +135,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             app.state.store.engine.dispose()
 
     responses = {code: {"model": ErrorResponse} for code in (400, 403, 404, 409, 413, 422, 429, 503)}
-    app = FastAPI(title="RCWA Workbench", version="0.3.0", lifespan=lifespan, responses=responses)
+    app = FastAPI(title="RCWA Workbench", version="0.4.0", lifespan=lifespan, responses=responses)
     origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
     def error_response(status, code, message, diagnostics=None):
@@ -255,7 +214,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "engine": "meent",
             "engine_version": engine_info().installed_version,
             "engine_available": engine_info().available,
-            "scope": "up to eight top-to-bottom 1D finite layers; classical mounting",
+            "scope": "up to eight finite layers; legacy 1D or explicit 1.2 centered rectangular 2D patterns",
             "authentication": "local-demo-only",
         }
 
@@ -266,21 +225,23 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     @app.get("/api/capabilities", response_model=Capabilities)
     async def capabilities():
         return {
-            "api_version": "0.3.0",
-            "project_schema_version": "1.1",
-            "result_schema_version": "1.1",
-            "supported_project_schema_versions": ["1.0", "1.1"],
-            "supported_result_schema_versions": ["1.0", "1.1"],
+            "api_version": "0.4.0",
+            "project_schema_version": "1.2",
+            "result_schema_version": "1.2",
+            "supported_project_schema_versions": ["1.0", "1.1", "1.2"],
+            "supported_result_schema_versions": ["1.0", "1.1", "1.2"],
             "engine": engine_info(),
             "operations": [
                 "validate", "preview_changes", "preview_stack_changes", "forward", "synthetic_fit", "poll", "cancel",
                 "save_snapshot", "import_project",
             ],
             "geometry": ["1–8 top-to-bottom isotropic rectangle_1d or homogeneous finite layers; common period; invariant y; classical mounting",
-                         "rectangle_1d: centered ridge with material/background; homogeneous: material only"],
+                         "rectangle_1d: centered ridge with material/background; homogeneous: material only",
+                         "1.2: centered axis-aligned rectangle_2d inclusions/holes, rectangle_1d or homogeneous; common orthogonal x/y periods"],
             "polarizations": ["s", "p", "both"],
             "materials": ["constant", "tabulated: linear n/k interpolation, no extrapolation; lossless ambient"],
-            "observables": ["R", "T", "R_specular", "T_specular", "A_balance", "order-resolved R/T"],
+            "observables": ["R", "T", "R_specular", "T_specular", "A_balance", "order-resolved R/T",
+                            "1.2: integer (m,n) and outgoing local R_s/R_p/T_s/T_p powers"],
             "units": {
                 "length": "nm",
                 "wavelength": "vacuum nm",
@@ -290,7 +251,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "limits": {
                 "simultaneous_jobs": app.state.jobs.max_workers,
                 "job_timeout_seconds": app.state.jobs.timeout,
-                "retained_jobs": 100,
+                "retained_jobs": MAX_HISTORY_JOBS,
+                "retained_completed_bytes": app.state.jobs.max_history_bytes,
                 "request_bytes": 2_000_000,
                 "proposal_bytes": 8_000_000,
                 "layers": 8,
@@ -308,14 +270,38 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "cd": "0 <= CD <= period",
             },
             "persistence": {
-                "jobs": "Volatile; lost on restart or oldest-completed eviction at 100 records",
+                "jobs": "Volatile; lost on restart or oldest-completed eviction at 100 records or the reported "
+                        "estimated completed-input/result memory budget. The byte bound applies to evictable history "
+                        "after cleanup; ownership-protected terminal records may temporarily exceed it. "
+                        "Unreaped children consume slots; cleanup-pending records block new admission. "
+                        "An individually oversized result fails with history_limit. Save completed results promptly.",
                 "snapshots": "Append-only database records; survive restart; save by succeeded forward job ID",
                 "imports": "Always unverified, including legacy records and claimed provenance in JSON",
+            },
+            "project_profiles": {
+                version: {
+                    "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project"]
+                    + ([] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
+                    "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d"] if version == "1.2" else (
+                        ["rectangle_1d"] if version == "1.0" else ["rectangle_1d", "homogeneous"]
+                    ),
+                    "wavelength_count": 31 if version == "1.2" else 81,
+                    "harmonics": {"x": [1, 5], "y": [1, 5]} if version == "1.2" else {"x": [1, 20]},
+                    "basis_size_max": 121 if version == "1.2" else 41,
+                    "simultaneous_profile_jobs": 1 if version == "1.2" else app.state.jobs.max_workers,
+                    "adapter_version": "1.2.0" if version == "1.2" else engine_info().adapter_version,
+                    "integer_representation": "Harmonics require integer JSON tokens; runtime rejects 3.0 although JSON Schema integer accepts it.",
+                }
+                for version in ("1.0", "1.1", "1.2")
             },
             "limitations": [
                 "Local loopback, one API worker, unauthenticated; Origin/Host checks are not authentication",
                 "Static Pages is precomputed only, with no live API",
-                "No phase, Jones, ellipsometry, arbitrary geometry, 2D patterns, anisotropy, or measured-data inversion",
+                "No phase, Jones, ellipsometry, arbitrary or offset/rotated geometry, anisotropy, or measured-data inversion",
+                "1.2 forward only: no 2D fitting, change proposals, UI adapter or default switch in this backend stage",
+                "At most one 1.2 process within two total jobs; legacy limits above do not describe 1.2, use project_profiles",
+                "The example remains legacy. 1.2 requires explicit schema_version and every layer geometry tag",
+                "Full-result imports above the 2 MB request cap return 413; use project-only import or save a succeeded job by ID",
                 "Validation is not a solve or convergence certification",
                 "T is substrate entrance-plane flux; no absorbing-substrate backside transmission",
                 "A_balance is a flux deficit, not independently integrated absorption",
@@ -325,7 +311,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         }
 
     def admissibility(project):
-        diagnostics = preflight_project(project)
+        diagnostics = preflight_project_any(project)
         engine = engine_info()
         if not engine.available:
             diagnostics.append(
@@ -391,8 +377,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
 
     @app.get("/api/jobs/{job_id}", response_model=JobResponse)
     async def get_job(job_id: str):
-        app.state.jobs.poll()
-        job = app.state.jobs.jobs.get(job_id)
+        job = app.state.jobs.get(job_id)
         if job is None:
             raise HTTPException(
                 404, {"code": "job_missing", "message": "Job missing or expired; jobs are lost on API restart"}
@@ -408,14 +393,22 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
 
     @app.post("/api/snapshots", status_code=201, response_model=ServerSnapshot)
     async def save_snapshot(request: SnapshotRequest):
-        app.state.jobs.poll()
-        job = app.state.jobs.jobs.get(request.job_id)
-        if job is None:
+        captured = app.state.jobs.capture(request.job_id)
+        if captured is None:
             raise HTTPException(404, {"code": "job_missing", "message": "Job missing or expired; cannot save it"})
+        job, inputs = captured
         if job["kind"] != "forward" or job["status"] != "succeeded":
             raise HTTPException(409, "Only a succeeded forward job can be saved as a server snapshot")
-        project = app.state.jobs.inputs[request.job_id]["project"]
+        project = inputs["project"]
         result = job["result"]
+        try:
+            validate_result_for_project("forward", result, project)
+            if job["input_hash"] != canonical_hash(project):
+                raise ValueError("Captured job input hash mismatch")
+        except (ValueError, TypeError, KeyError) as error:
+            raise HTTPException(
+                409, {"code": "invalid_job_output", "message": "Job input/result failed integrity validation."}
+            ) from error
         provenance = {
             "source": "server_computed",
             "job_id": job["id"],
@@ -424,7 +417,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "result_schema_version": result["schema_version"],
             "engine": result["metadata"]["engine"],
             "engine_version": result["metadata"]["version"],
-            "adapter_version": engine_info().adapter_version,
+            "adapter_version": result["metadata"]["adapter_version"],
             "submitted_at": job["created_at"],
             "completed_at": job["completed_at"],
             "canonicalization": "SHA-256; normalized Project; sorted JSON keys; compact separators; UTF-8; finite numbers",
@@ -444,8 +437,14 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         project = app.state.store.get(project_id)
         if project is None:
             raise HTTPException(404, "Project not found")
-        if project["provenance"]["source"] == "server_computed":
-            StoredServerSnapshot.model_validate(project, strict=True)
+        try:
+            SavedProject.model_validate(project, strict=True)
+            if project["provenance"]["source"] == "server_computed":
+                StoredServerSnapshot.model_validate(project, strict=True)
+        except (ValueError, TypeError, KeyError) as error:
+            raise HTTPException(
+                409, {"code": "invalid_stored_snapshot", "message": "Saved input/result failed integrity validation."}
+            ) from error
         return project
 
     return app

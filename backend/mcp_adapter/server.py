@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import asynccontextmanager
 import json
 from dataclasses import dataclass
+import sys
 from typing import Annotated
 
 import anyio
 from mcp.server import Server
-from mcp.server.stdio import stdio_server
+from mcp.server.stdio import _claim_fd, _open_stdin_diversion, _UnownedTextWrapper, stdio_server
 from mcp.shared.exceptions import MCPError
 from mcp.types import (
-    INVALID_PARAMS, CallToolResult,
+    INVALID_PARAMS, CallToolResult, JSONRPCResponse,
     ListToolsResult, TextContent, Tool, ToolAnnotations,
 )
+from mcp.types.methods import serialize_server_result
 from pydantic import Field, TypeAdapter, ValidationError
 
 from api.contracts import (
@@ -22,10 +25,71 @@ from api.contracts import (
     SavedProject, ServerSnapshot, StoredServerSnapshot, StackChangePreviewRequest, StackChangeProposal,
     ValidationResponse,
 )
+from api.diagnostics import _bounded_diagnostics
 from api.change_preview import validate_proposal_binding
 from api.stack_change_preview import validate_stack_proposal_binding
 from rcwa_core.schemas import Project, StrictModel
+from rcwa_core.project_io import InputProject, normalized_project_and_hash
 from .client import AdapterError, ID_PATTERN, LocalAPI, MAX_REQUEST_BYTES
+
+MAX_STDIO_RESPONSE_BYTES = 8_000_000
+MAX_PROTOCOL_ID_BYTES = 1024
+
+
+class ProtocolIDTooLarge(Exception):
+    """No bounded, protocol-compliant response can echo an arbitrarily large ID."""
+
+
+class CancellableStdin(anyio.AsyncFile):
+    async def readline(self):
+        # AsyncFile's default shielded thread can block shutdown while a client
+        # keeps its pipe open. This private SDK-owned descriptor is never recycled
+        # underneath a blocked thread; abandonment ends only this stdio process.
+        return await anyio.to_thread.run_sync(self.wrapped.readline, abandon_on_cancel=True)
+
+
+@asynccontextmanager
+async def cancellable_stdio_server():
+    # Retain the pinned SDK's fd diversion/ownership protection and its entire
+    # JSON/MCP parser and writer. Only input-read cancellation differs. These
+    # three private SDK helpers are covered by real-process Linux/Windows tests.
+    buffer, restore = _claim_fd(0, sys.stdin, "rb", _open_stdin_diversion)
+    stream = CancellableStdin(_UnownedTextWrapper(buffer, encoding="utf-8", errors="replace"))
+    try:
+        async with stdio_server(stdin=stream) as streams:
+            yield streams
+    finally:
+        if restore is not None:
+            restore()
+
+
+class BoundedProtocolIDs(anyio.abc.ObjectReceiveStream):
+    """Close stdio before dispatch for unsupported IDs, never rewrite/truncate them."""
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    async def receive(self):
+        item = await self.stream.receive()
+        message = getattr(item, "message", None)
+        request_id = getattr(message, "id", None)
+        if request_id is not None:
+            try:
+                encoded = json.dumps(request_id, ensure_ascii=False, allow_nan=False).encode("utf-8")
+            except (ValueError, UnicodeError) as error:
+                raise ProtocolIDTooLarge("Protocol ID is not a supported finite UTF-8 JSON value") from error
+            if len(encoded) > MAX_PROTOCOL_ID_BYTES:
+                raise ProtocolIDTooLarge("Protocol ID exceeds 1024 serialized UTF-8 bytes")
+        return item
+
+    async def aclose(self):
+        await self.stream.aclose()
+
+
+def stdio_response_bytes(payload, request_id):
+    """Use the installed SDK writer's exact JSON-RPC serialization, including LF."""
+    envelope = JSONRPCResponse(jsonrpc="2.0", id=request_id, result=payload)
+    return (envelope.model_dump_json(by_alias=True, exclude_unset=True) + "\n").encode("utf-8")
 
 
 
@@ -34,7 +98,7 @@ class Empty(StrictModel):
 
 
 class ProjectArguments(StrictModel):
-    project: Project
+    project: InputProject
 
 
 class SubmitArguments(StrictModel):
@@ -90,7 +154,8 @@ OPERATIONS = [
     Operation("rcwa_example", "Read the canonical project. Its optical constants are synthetic.",
               Empty, Project, "GET", "/api/example"),
     Operation("rcwa_validate", "Check project admissibility without solving. Inspect valid and diagnostics; "
-              "validation does not certify numerical success or convergence.",
+              "validation does not certify numerical success or convergence. Explicit 1.2 supports 2D; "
+              "harmonics require integer tokens (3, not 3.0), stricter than JSON Schema integer semantics.",
               ProjectArguments, ValidationResponse, "POST", "/api/validate", "project"),
     Operation("rcwa_preview_changes", "Preview a caller-specified bounded geometry change to period, CD or thickness. "
               "Returns a reviewable rcwa-change-proposal/1.0 JSON envelope, deterministic diff and preflight diagnostics. "
@@ -105,7 +170,8 @@ OPERATIONS = [
               "Import the returned JSON into the workbench for explicit review and apply; maximum file size 8 MB.",
               StackChangePreviewRequest, StackChangeProposal, "POST", "/api/stack-change-preview"),
     Operation("rcwa_submit", "Start one bounded forward calculation or synthetic CD-recovery fit. "
-              "Synthetic fit requires exactly one rectangle; it is not measured-data inversion or design optimization. "
+              "Schema 1.2 permits forward only, with one 2D job within two total slots. "
+              "Synthetic fit is legacy-only and requires exactly one rectangle; it is not measured-data inversion or design optimization. "
               "Non-idempotent: never blindly repeat a submission with an uncertain outcome. "
               "Use rcwa_get_job to poll; check kind and status before using result.",
               SubmitArguments, JobResponse, "POST", "/api/jobs", "request", read_only=False, idempotent=False),
@@ -135,20 +201,60 @@ def result(payload, *, error=False):
 
 
 def invalid_arguments(exc):
-    diagnostics = []
-    for item in exc.errors()[:50]:
-        structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
-        if structured:
-            diagnostics.extend(d.model_dump() for d in structured)
-        else:
-            diagnostics.append({"code": "invalid_arguments", "severity": "error",
-                                "location": list(item["loc"]), "message": item["msg"]})
+    def diagnostics():
+        for item in exc.errors():
+            structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
+            if structured:
+                yield from (diagnostic.model_dump() for diagnostic in structured)
+            else:
+                yield {"code": "invalid_arguments", "severity": "error",
+                       "location": list(item["loc"]), "message": item["msg"]}
     message = "Tool arguments do not match the advertised schema"
     return {"detail": message, "error": {"code": "invalid_arguments", "message": message,
-                                         "diagnostics": diagnostics}}
+                                         "diagnostics": _bounded_diagnostics(diagnostics())}}
 
 
 def create_server(api: LocalAPI):
+    async def bounded_tool_output(ctx, call_next):
+        # Server middleware receives the per-version serialized result, including
+        # the SDK's modern serverInfo stamp, after call_next returns.
+        payload = await call_next(ctx)
+        if ctx.method != "tools/call" or ctx.request_id is None:
+            return payload
+        if len(stdio_response_bytes(payload, ctx.request_id)) <= MAX_STDIO_RESPONSE_BYTES:
+            return payload
+        params = ctx.params or {}
+        operation = BY_NAME.get(params.get("name"))
+        mutation = operation is not None and not operation.read_only
+        arguments = params.get("arguments") or {}
+        message = "Full MCP response exceeds the 8 MB UTF-8 JSON-RPC limit; this tool cannot return it."
+        if mutation:
+            message += " The operation may have occurred; do not resubmit blindly."
+        if operation and operation.name == "rcwa_save_snapshot":
+            message += (
+                f" While the volatile job is retained, use HTTP POST {api.url}/api/snapshots with the same job_id "
+                "to retrieve the idempotently saved snapshot; do not start a new calculation."
+                f" If the volatile job expired, inspect HTTP GET {api.url}/api/projects "
+                "for its saved provenance.job_id, then GET the matching snapshot ID."
+            )
+        elif operation and operation.name in {"rcwa_get_snapshot", "rcwa_get_job"}:
+            field, collection = (
+                ("snapshot_id", "projects") if operation.name == "rcwa_get_snapshot" else ("job_id", "jobs")
+            )
+            # These identifiers already passed the operation's bounded parser.
+            message += f" Retrieve it with HTTP GET {api.url}/api/{collection}/{arguments[field]}."
+        else:
+            message += " Use the corresponding documented local HTTP route."
+        error = AdapterError("response_too_large", message, outcome_unknown=mutation)
+        small = serialize_server_result(
+            # The modern serializer requires the default resultType too.
+            "tools/call", ctx.protocol_version, result(error.payload, error=True).model_dump(by_alias=True)
+        )
+        # Preserve only the SDK envelope metadata, never any large domain data.
+        if "_meta" in payload:
+            small["_meta"] = payload["_meta"]
+        return small
+
     async def list_tools(ctx, params):
         return ListToolsResult(tools=[operation.tool() for operation in OPERATIONS])
 
@@ -179,6 +285,13 @@ def create_server(api: LocalAPI):
                     validate_stack_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:
                     raise ValueError("API returned the wrong job kind")
+                if operation.name in {"rcwa_submit", "rcwa_validate"}:
+                    submitted = values["request"]["project"] if operation.name == "rcwa_submit" else values["project"]
+                    _, normalized, expected_hash = normalized_project_and_hash(submitted)
+                    if payload["input_hash"] != expected_hash:
+                        raise ValueError("API returned the wrong input hash")
+                    if operation.name == "rcwa_validate" and payload["project"] != normalized:
+                        raise ValueError("API validation returned a different project")
                 if operation.name == "rcwa_get_snapshot" and payload["provenance"]["source"] == "server_computed":
                     StoredServerSnapshot.model_validate(payload, strict=True)
                 if operation.name == "rcwa_save_snapshot" and payload["provenance"]["source"] != "server_computed":
@@ -199,21 +312,31 @@ def create_server(api: LocalAPI):
         except (ValueError, TypeError, RecursionError):
             return result(AdapterError("invalid_arguments", "Arguments must be finite JSON").payload, error=True)
 
-    return Server(
+    server = Server(
         "RCWA Workbench", version="0.1.0", on_list_tools=list_tools, on_call_tool=call_tool,
         instructions="Local RCWA tools backed by one HTTP API. Read rcwa_capabilities first, validate before submit, "
         "and inspect diagnostics, status and warnings. Poll with backoff. Use explicit bounded experiment budgets. "
         "No global-optimum, convergence, calibration or manufacturing claims follow from a successful run. "
+        "Stdio protocol IDs are limited to 1024 serialized UTF-8 bytes; oversized IDs close the connection before invocation. "
+        "Responses are limited to an 8 MB JSON-RPC line including duplicated content; oversize responses provide an HTTP recovery route. "
         "Ask the user before computations or saves when the host's policy requires it.",
     )
+    server.middleware.append(bounded_tool_output)
+    return server
 
 
 async def run(options):
     api = LocalAPI(options.api_url, options.request_timeout)
     try:
         server = create_server(api)
-        async with stdio_server() as (read, write):
-            await server.run(read, write, server.create_initialization_options())
+        try:
+            async with cancellable_stdio_server() as (read, write):
+                await server.run(BoundedProtocolIDs(read), write, server.create_initialization_options())
+        except* ProtocolIDTooLarge:
+            # Let the exception cancel stdio's reader before catching it: a
+            # normal context exit would wait forever while stdin stays open.
+            # Do not echo an oversized ID. No handler/API invocation occurred.
+            pass
     finally:
         await api.aclose()
 

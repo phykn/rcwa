@@ -221,7 +221,7 @@ async def test_stdio_discovery_and_validation(real_api, mode, monkeypatch):
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
         assert len((await client.list_tools()).tools) == 10
         caps = await call(client, "rcwa_capabilities")
-        assert caps["project_schema_version"] == "1.1"
+        assert caps["project_schema_version"] == "1.2"
         example = await call(client, "rcwa_example")
         valid = await call(client, "rcwa_validate", {"project": example})
         assert valid["valid"] and valid["project"] == example

@@ -1,0 +1,159 @@
+{
+  "status": "All fresh integration numerical gates passed; no application/core edits; serialized one-heavy-process generation complete.",
+  "core_checkpoint": "d2c00e55a699e75b58cc20de69d0f148718dc0c2",
+  "core_unchanged": true,
+  "historical_archive_unchanged_sha256": "7ad2c7f0ca348d625573a606262345171a49603a608d2f9fbe22279c0a152d52",
+  "historical_source_and_reference_files_unchanged": 67,
+  "candidate_input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+  "sample_coverage": {
+    "accepted_basis_samples": 438,
+    "actual_module_exploratory_H3_samples": 401,
+    "all_component_arrays_lossless_roundtrip_samples": 839,
+    "default_wavelengths": 21,
+    "dense_local_wavelengths": 40,
+    "unique_default_and_dense_wavelengths": 60
+  },
+  "generation_ids": {
+    "meent": "89f065c3196b2e8068d57f832aa1751eaeacafbf528d93cf8c2bd892b8cfed81",
+    "S4": "a425a902a225dbd0fa8f4ea9823960b000dd0ef62701754a69a59a4c4002fd17"
+  },
+  "thresholds": {
+    "successive_refinement_absolute": 0.0005,
+    "independent_absolute": 0.002
+  },
+  "exact_ordinary_full21_H5_validation": {
+    "PublicForwardResult2D_passed": true,
+    "shared_validate_result_for_project_passed": true,
+    "exact_shared_hash_matched": true,
+    "metadata_stage": "bounded_forward",
+    "adapter_version": "1.2.0",
+    "validate_result_2d_passed": true,
+    "generation_id": "89f065c3196b2e8068d57f832aa1751eaeacafbf528d93cf8c2bd892b8cfed81",
+    "input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+    "seconds": 7.471050711996213,
+    "offline_reference_override": false,
+    "maximum_vs_single_wavelength_actual_samples": {
+      "absolute": 0.0,
+      "signed": 0.0,
+      "wavelength_nm": 450.0,
+      "polarization": "s",
+      "m": -5,
+      "n": -5,
+      "field": "R"
+    }
+  },
+  "comparison_binding_summary": {
+    "comparison_files": 34,
+    "comparison_rows": 468,
+    "signed_values_verified": 919632
+  },
+  "representative": {
+    "laurent-diagnostic-results.json.gz": {
+      "sha256": "a1e2a628366039c03ddf9a94dd621c0a51b68c93f3e64d0e4b9d6deaefb6d230",
+      "passed": true,
+      "worst_absolute_error": 2.682298827494378e-13
+    },
+    "multiple-open-channels-gate.json.gz": {
+      "sha256": "e5fb4d71fae9d404c499e66b094edb6dda2a0ec139399011123c42c37be2c81c",
+      "passed": true,
+      "input_hash": "1ca86b7c554ed634a80fa431a0d473332558f62f905fc154f14018b36ffd2752",
+      "seconds": 33.143600390001666,
+      "worst_comparisons": {
+        "production_shipped_to_first_refinement": 1.7338727328342074e-06,
+        "production_first_to_second_refinement": 8.322532678572969e-07,
+        "reference_shipped_to_first_refinement": 1.992727194033428e-06,
+        "reference_first_to_second_refinement": 1.450362187127574e-06,
+        "production_shipped_to_highest": 2.5661260006915043e-06,
+        "production_shipped_to_converged_reference": 9.822033558148924e-06,
+        "production_highest_to_converged_reference": 7.2559075574574194e-06
+      }
+    },
+    "lossy-mixed-eight-layer-gate.json.gz": {
+      "sha256": "0e3dc96d20d5b2a5f69f89c9bda9ecc7fe814a99487a6d661b988d67052736dd",
+      "passed": true,
+      "input_hash": "71136c47919cecace3c4fb07f6bfddde08932e9324422931cac99b97bf6314b2",
+      "seconds": 56.562804895002046,
+      "worst_comparisons": {
+        "production_shipped_to_first_refinement": 1.2097707840830196e-05,
+        "production_first_to_second_refinement": 4.728815220178539e-06,
+        "reference_shipped_to_first_refinement": 1.534644631018267e-05,
+        "reference_first_to_second_refinement": 7.159669482503794e-06,
+        "production_shipped_to_highest": 1.6826523061008736e-05,
+        "production_shipped_to_converged_reference": 6.677976011593145e-05,
+        "production_highest_to_converged_reference": 4.995323705492272e-05
+      }
+    }
+  },
+  "default_archive_inventory_files": 973,
+  "files": {
+    "true-2d-default-convergence-evidence.tar.gz": {
+      "sha256": "8aeebeef8a85ef203c902952a3b9e3906b3ff5b6ed235ab8fba71f4a1faa8a2d",
+      "bytes": 8322017
+    },
+    "laurent-diagnostic-results.json.gz": {
+      "sha256": "a1e2a628366039c03ddf9a94dd621c0a51b68c93f3e64d0e4b9d6deaefb6d230",
+      "bytes": 67044
+    },
+    "multiple-open-channels-gate.json.gz": {
+      "sha256": "e5fb4d71fae9d404c499e66b094edb6dda2a0ec139399011123c42c37be2c81c",
+      "bytes": 122851
+    },
+    "lossy-mixed-eight-layer-gate.json.gz": {
+      "sha256": "0e3dc96d20d5b2a5f69f89c9bda9ecc7fe814a99487a6d661b988d67052736dd",
+      "bytes": 264875
+    },
+    "representative-generation.json": {
+      "sha256": "001a2b049011de851402ffc99a39e440ea8d2be4d6eaf9a79088dd2b7dec2043",
+      "bytes": 4569
+    },
+    "representative-summary.json": {
+      "sha256": "7f1bbf06bd1305bc9e61a765580e87100b59a158ae5b9ed164a23d98b8f88390",
+      "bytes": 1571
+    },
+    "run_representative.py": {
+      "sha256": "8acd51985a8d4cca7c333b1723c11ce8eeec73c74139e9b85fd0a5e50e172d29",
+      "bytes": 6397
+    },
+    "run_pipeline.sh": {
+      "sha256": "cbd8aa17ce8fe028d5ccb27a86b3f5c0c5ed268d0c2202926306a0868fc01d09",
+      "bytes": 700
+    },
+    "reference-byte-reuse-verification.json": {
+      "sha256": "b89391adf3d67009689904003877acbf3bc235a992b458dad7d85728ebe3ab74",
+      "bytes": 1027
+    },
+    "historical-evidence-provenance.json": {
+      "sha256": "00c844e5ccd23e20768a7d82075149fbb9793e0d8b82e307ef522bb36911114f",
+      "bytes": 8052
+    },
+    "subwavelength/ACCEPTANCE.txt": {
+      "sha256": "29dc9c5ee7d7ca6c4159dedb40d8b797f69c0b07ba350a9b123d9fda0c7d1890",
+      "bytes": 8617
+    },
+    "subwavelength/acceptance.json": {
+      "sha256": "6136af0482103091243d8ffa84c45ecb51043fb2463b89bdd0092a60b632c41b",
+      "bytes": 30676
+    },
+    "subwavelength/package.json": {
+      "sha256": "ae2ef8f57558c24c9c3351a4b1dee5400f3e47ec7a51cb5cb9bb00c00e0d69cf",
+      "bytes": 598
+    },
+    "subwavelength/candidate-project.json": {
+      "sha256": "8dbe8260fa61ba3ec8f82ffefc5a5749ea75587b035d9f381edf66b695755294",
+      "bytes": 2963
+    },
+    "subwavelength/candidate-result-H5.json": {
+      "sha256": "243f6bdac17bf6256e12730e2bc055ec1383977fdc92a2b88fa0fd718565277b",
+      "bytes": 2238682
+    },
+    "subwavelength/candidate-exact-replay.json": {
+      "sha256": "8b866099e7a04da2bfdf7470d577057551cbbecd18d1ed33342f8b61a882400d",
+      "bytes": 672
+    },
+    "subwavelength/comparison-source-bindings.json": {
+      "sha256": "f12315d795b42031b5b441c29edc200ae36ff616cc529cea7a919c43fe0259b2",
+      "bytes": 572526
+    }
+  },
+  "limits": "Exact synthetic inputs and sampled wavelengths only. H3 is exploratory only. No guarantee for arbitrary edits, continuous spectra, or metrology accuracy; no UI/deployment acceptance."
+}

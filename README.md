@@ -15,6 +15,14 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 
 Built with React, TypeScript, FastAPI and pinned meent 0.13.2. The solver supports isotropic, centered 1D stacks under one common period, including passive absorbing films and substrates. Project schema 1.0 and historical saved results remain readable; multilayer editing uses schema 1.1. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
 
+The local backend also accepts explicit schema 1.2 for coupled 2D rectangular
+multilayers through the same HTTP/MCP job and snapshot routes. Its bounded profile
+allows separate x/y periods and Hx/Hy up to 5, eight layers and 31 wavelengths.
+The current editor, public example, fitting and change proposals remain 1D.
+See the [backend-only 1.2 contract](docs/agent-api.md#backend-only-explicit-schema-12)
+for scope, resource limits and oversized-export recovery. Successful edited inputs
+do not inherit the synthetic fixture's input-specific convergence evidence.
+
 ## Quickstart
 
 Requires Python 3.12+ and Node.js 22+.

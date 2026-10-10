@@ -1,0 +1,574 @@
+{
+  "released_remote_commit": "d89f066885abde585ba4d7660b6bc0a84187a225",
+  "verified_local_commit": "2d21140989655f97dc3bacb6e3021879f1ba8da2",
+  "source_tree": "f87fa6d2d8b524283fe990a7325cf95c91facc45",
+  "cases": [
+    {
+      "name": "1.0-unicode",
+      "project": {
+        "schema_version": "1.0",
+        "name": "합성 光学 🧪 é",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "위층",
+            "geometry": "rectangle_1d",
+            "thickness_nm": 160.0,
+            "cd_nm": 180.0,
+            "material": {
+              "name": "유전체",
+              "kind": "constant",
+              "n": 2.1,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "직접 정의・é・é"
+            },
+            "background": {
+              "name": "공기",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 15.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "cbf6e191ad8f607d30ec850f7563e4918cd9f451659ef88aa4ad0f05a4117633"
+    },
+    {
+      "name": "1.0-signed-zero",
+      "project": {
+        "schema_version": "1.0",
+        "name": "One-layer grating",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Patterned layer",
+            "geometry": "rectangle_1d",
+            "thickness_nm": -0.0,
+            "cd_nm": -0.0,
+            "material": {
+              "name": "Synthetic dielectric",
+              "kind": "constant",
+              "n": 2.1,
+              "k": -0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": -0.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "6953e79a8383976a2627abd8213b6885f8479511b2228bff884e9735dec650d5"
+    },
+    {
+      "name": "1.0-unicode-signed-zero",
+      "project": {
+        "schema_version": "1.0",
+        "name": "합성 光学 🧪 é",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "위층",
+            "geometry": "rectangle_1d",
+            "thickness_nm": -0.0,
+            "cd_nm": -0.0,
+            "material": {
+              "name": "유전체",
+              "kind": "constant",
+              "n": 2.1,
+              "k": -0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "직접 정의・é・é"
+            },
+            "background": {
+              "name": "공기",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": -0.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "22058e7a2d8d32bc96c4bec440ef97c601df8c412a76d171c8a3b3028cd43d57"
+    },
+    {
+      "name": "1.1-unicode",
+      "project": {
+        "schema_version": "1.1",
+        "name": "합성 光学 🧪 é",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "위층",
+            "geometry": "rectangle_1d",
+            "thickness_nm": 160.0,
+            "cd_nm": 180.0,
+            "material": {
+              "name": "유전체",
+              "kind": "constant",
+              "n": 2.1,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "직접 정의・é・é"
+            },
+            "background": {
+              "name": "공기",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Homogeneous layer",
+            "geometry": "homogeneous",
+            "thickness_nm": 0.0,
+            "material": {
+              "name": "Synthetic material",
+              "kind": "constant",
+              "n": 1.3,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 15.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "7df75e16bb4b2c970543924ce9b045e6e15aaa5cff0ca3216e23e14508f3001b"
+    },
+    {
+      "name": "1.1-signed-zero",
+      "project": {
+        "schema_version": "1.1",
+        "name": "One-layer grating",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Patterned layer",
+            "geometry": "rectangle_1d",
+            "thickness_nm": -0.0,
+            "cd_nm": -0.0,
+            "material": {
+              "name": "Synthetic dielectric",
+              "kind": "constant",
+              "n": 2.1,
+              "k": -0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Homogeneous layer",
+            "geometry": "homogeneous",
+            "thickness_nm": 0.0,
+            "material": {
+              "name": "Synthetic material",
+              "kind": "constant",
+              "n": 1.3,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": -0.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "84237e6fc92ca1635c0770c66df6ebeb29385938ff9f565a62d63a4b121a1de9"
+    },
+    {
+      "name": "1.1-unicode-signed-zero",
+      "project": {
+        "schema_version": "1.1",
+        "name": "합성 光学 🧪 é",
+        "period_nm": 400.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "위층",
+            "geometry": "rectangle_1d",
+            "thickness_nm": -0.0,
+            "cd_nm": -0.0,
+            "material": {
+              "name": "유전체",
+              "kind": "constant",
+              "n": 2.1,
+              "k": -0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "직접 정의・é・é"
+            },
+            "background": {
+              "name": "공기",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Homogeneous layer",
+            "geometry": "homogeneous",
+            "thickness_nm": 0.0,
+            "material": {
+              "name": "Synthetic material",
+              "kind": "constant",
+              "n": 1.3,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": -0.0,
+          "polarization": "both"
+        },
+        "solver": {
+          "harmonics": 7
+        }
+      },
+      "hash": "6978187e98387b4ca6f130002a68db28fdbb02f83a56de35c4cc2726751255aa"
+    }
+  ]
+}

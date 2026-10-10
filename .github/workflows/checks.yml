@@ -54,10 +54,12 @@ jobs:
       - run: python -m pytest backend/tests/test_mcp_adapter.py -q
       - name: Check real SDK stdio client and local HTTP validation
         run: python -m pytest backend/tests/test_mcp_protocol.py -q -k "stdio_discovery_and_validation or stdio_closes_on_eof or api_down"
+      - name: Check explicit 2D contracts and bounded stdio recovery
+        run: python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py -q
 
   independent-reference:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -84,6 +86,21 @@ jobs:
         run: |
           mkdir -p artifacts
           python scripts/reference_check.py --s4-source /tmp/rcwa-s4-upstream --output artifacts/independent-reference.json
+      - name: Check independent 2D ports and channels (Laurent diagnostic only)
+        run: python scripts/true_2d_reference.py --s4-source /tmp/rcwa-s4-upstream --output artifacts/true-2d-laurent.json.gz
+      - name: Check genuine 2D production convergence with multiple open channels
+        run: >-
+          python scripts/true_2d_gate.py
+          --project backend/tests/fixtures/true-2d/representative/multiple-open-channels.json
+          --s4-source /tmp/rcwa-s4-upstream
+          --output artifacts/true-2d-multiple-open-channels.json.gz
+      - name: Check genuine 2D production convergence with eight lossy layers
+        run: >-
+          python scripts/true_2d_gate.py
+          --project backend/tests/fixtures/true-2d/representative/lossy-mixed-eight-layer.json
+          --s4-source /tmp/rcwa-s4-upstream
+          --first-refinement 7,6 --second-refinement 9,8
+          --output artifacts/true-2d-lossy-eight-layer.json.gz
       - name: Retain independent numerical evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,8 +108,10 @@ jobs:
           name: independent-reference
           path: |
             artifacts/independent-reference.json
+            artifacts/true-2d-*.json.gz
             /tmp/rcwa-s4-upstream/build/rcwa_reference/build.log
             /tmp/rcwa-s4-upstream/build/rcwa_reference/link.log
+            /tmp/rcwa-s4-upstream/build/rcwa_reference_2d/link.log
           retention-days: 7
           if-no-files-found: warn
 
