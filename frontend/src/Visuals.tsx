@@ -119,27 +119,25 @@ export function Geometry({
           />
         )}
         {selectedDimension === "width" && (
-          <line
+          <rect
             className="dimension-highlight"
             data-testid="width-highlight"
-            x1={168 + (pitch - ridgeWidth) / 2}
-            x2={168 + (pitch + ridgeWidth) / 2}
-            y1={top}
-            y2={top}
-            stroke="#3266b5"
-            strokeWidth="7"
+            x={168 + (pitch - ridgeWidth) / 2}
+            y={top - 3}
+            width={Math.max(6, ridgeWidth)}
+            height="6"
+            fill="#3266b5"
           />
         )}
         {selectedDimension === "height" && (
-          <line
+          <rect
             className="dimension-highlight"
             data-testid="height-highlight"
-            x1={168 + (pitch + ridgeWidth) / 2}
-            x2={168 + (pitch + ridgeWidth) / 2}
-            y1={top}
-            y2={bottom}
-            stroke="#3266b5"
-            strokeWidth="7"
+            x={168 + (pitch + ridgeWidth) / 2 - 3}
+            y={top}
+            width="6"
+            height={Math.max(6, depth)}
+            fill="#3266b5"
           />
         )}
         <line x1="36" x2="564" y1={bottom} y2={bottom} stroke="#93aaaa" />
