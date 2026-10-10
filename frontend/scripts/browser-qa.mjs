@@ -336,16 +336,34 @@ try {
     mobile = null;
   }
   let cancelled = false;
+  let cancellationKind = "forward";
+  let cancellationHash;
   await page.route("**/api/jobs**", async (route) => {
-    if (route.request().method() === "POST") cancelled = false;
+    if (route.request().method() === "POST") {
+      cancelled = false;
+      const request = route.request().postDataJSON();
+      cancellationKind = request.kind;
+      const validation = await page.request.post(
+        "http://127.0.0.1:8000/api/validate",
+        { data: request.project },
+      );
+      assert.ok(validation.ok());
+      const validated = await validation.json();
+      assert.equal(validated.valid, true);
+      cancellationHash = validated.input_hash;
+    }
     if (route.request().method() === "DELETE") cancelled = true;
     await route.fulfill({
       json: {
         id: "qa-cancel",
-        kind: "forward",
-        status: cancelled ? "cancelled" : "queued",
+        kind: cancellationKind,
+        status: cancelled ? "cancelled" : "running",
+        input_hash: cancellationHash,
+        created_at: new Date().toISOString(),
+        completed_at: cancelled ? new Date().toISOString() : null,
         result: null,
         error: null,
+        error_code: null,
       },
     });
   });
