@@ -4,7 +4,7 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 
 ## Features
 
-- Rectangular grating editor with plane-wave s/p illumination
+- Direct 3D rectangular-grating editor with exact dimensions and plane-wave s/p illumination
 - Constant or tabulated optical constants, including absorbing substrates
 - Order-resolved, total and specular reflectance/transmittance
 - Synthetic CD fitting with bounded multistart optimization

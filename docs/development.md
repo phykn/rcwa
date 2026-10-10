@@ -87,3 +87,27 @@ table stores trusted local origin for new server-owned snapshots. There is no
 claim that SQLAlchemy `create_all()` migrates existing columns. Old rows and
 client-import saves remain unverified. Snapshot input/result JSON is append-only;
 saving the same completed forward job again returns its existing snapshot ID.
+
+## Direct structure editing
+
+Drag a dimension handle or tap Width, Height or Pitch for exact entry. The
+canonical Project feeds the viewport, forms, JSON files and solver. Ridge and
+substrate surfaces open their material editors; Materials also exposes groove
+and ambient properties. Constant and tabulated n/k inputs remain available.
+
+The viewport shows three repeats of an infinite one-dimensional model. Width,
+height and pitch share one scale; the substrate depth and groove length are
+schematic. A zero width or height removes ridge volume, and full-width ridges
+form a continuous layer. No cast or contact shadows are rendered. This view does
+not add finite-target effects, multiple layers or two-dimensional periodicity.
+
+Drag the scene to orbit, pinch or scroll to zoom, and use Reset view to return.
+With the scene focused, arrow keys orbit, +/− zoom and 0 resets the view. With a
+dimension handle focused, arrow keys edit by 1 nm, or 10 nm with Shift. Vertical
+touch swipes scroll the page. If WebGL creation fails or its context is lost,
+exact dimensions and all material/settings editors remain usable.
+
+The browser CI covers live forward/fitting calculations, snapshot provenance,
+360/390-pixel layouts, scene gestures, stale results, context loss and delayed
+responses. Rendered screenshots and JSON check reports are retained in the
+`browser-qa` artifact.

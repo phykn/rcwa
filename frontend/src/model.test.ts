@@ -158,3 +158,26 @@ describe("import hardening", () => {
     expect(validateProject(project).join(" ")).toContain("≤ 10");
   });
 });
+
+describe("tabulated placeholders", () => {
+  it("rejects malformed placeholders before material labels or API submission", () => {
+    const project = structuredClone(defaultProject);
+    project.layers[0].material = {
+      name: "table",
+      kind: "tabulated",
+      n: 2,
+      k: 0,
+      wavelengths_nm: [200, 2500],
+      n_values: [2, 2.2],
+      k_values: [0, 0],
+    };
+    expect(validateProject(project)).toEqual([]);
+    for (const n of ["bad", 999, null]) {
+      const malformed = JSON.parse(JSON.stringify(project));
+      malformed.layers[0].material.n = n;
+      expect(() => parseProjectFile(JSON.stringify(malformed))).toThrow(
+        "table placeholders",
+      );
+    }
+  });
+});

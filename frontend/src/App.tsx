@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent } from "react";
 import { api, apiDescription, ApiError } from "./api";
 import {
   defaultProject,
@@ -17,8 +17,18 @@ import type {
   Project,
   SavedProject,
 } from "./model";
-import { Geometry, SpectrumPlot } from "./Visuals";
-import type { Dimension } from "./Visuals";
+import { SpectrumPlot } from "./Visuals";
+import { ThreeStructure } from "./ThreeStructure";
+type Dimension = "width" | "height" | "pitch";
+type Sheet =
+  | Dimension
+  | "ridge"
+  | "groove"
+  | "ambient"
+  | "substrate"
+  | "materials"
+  | "light"
+  | "accuracy";
 import { SyntheticFit } from "./SyntheticFit";
 
 function Icon({
@@ -76,8 +86,6 @@ function Field({
   step = 1,
   help,
   id,
-  selected = false,
-  onFocus,
 }: {
   label: string;
   unit?: string;
@@ -88,48 +96,116 @@ function Field({
   step?: number;
   help?: string;
   id?: string;
-  selected?: boolean;
-  onFocus?: () => void;
 }) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  const number = Number(text);
+  const invalid =
+    text === "" ||
+    !Number.isFinite(number) ||
+    (min !== undefined && number < min) ||
+    (max !== undefined && number > max) ||
+    (step === 1 && !Number.isInteger(number));
   return (
-    <label className={`field ${selected ? "dimension-selected" : ""}`}>
+    <label className="field">
       <span>
         {label}
         {unit && <small>{unit}</small>}
       </span>
       <input
         id={id}
-        onFocus={onFocus}
         type="number"
-        value={value}
+        inputMode="decimal"
+        value={text}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
+        aria-invalid={invalid}
+        onChange={(e) => {
+          const next = e.target.value;
+          setText(next);
+          const v = Number(next);
+          if (
+            next !== "" &&
+            Number.isFinite(v) &&
+            (min === undefined || v >= min) &&
+            (max === undefined || v <= max) &&
+            (step !== 1 || Number.isInteger(v))
+          )
+            onChange(v);
+        }}
       />
-      {help && <small className="field-help">{help}</small>}
+      {invalid ? (
+        <small className="input-error">
+          Use {min ?? "a number"}–{max ?? "∞"}
+          {step === 1 ? " in whole steps" : ""}. Last valid value is kept.
+        </small>
+      ) : (
+        help && <small className="field-help">{help}</small>
+      )}
     </label>
   );
 }
-function Section({
-  title,
-  children,
-  open = true,
+function DimensionEditor({
+  dimension,
+  value,
+  max,
+  min,
+  onChange,
 }: {
-  title: string;
-  children: ReactNode;
-  open?: boolean;
+  dimension: Dimension;
+  value: number;
+  max: number;
+  min: number;
+  onChange: (value: number) => void;
 }) {
+  const help = {
+    width: "The width of each ridge, also called critical dimension (CD).",
+    height:
+      "The ridge height above the substrate. Zero height removes the patterned layer.",
+    pitch:
+      "The distance from one ridge to the next. Pitch cannot be smaller than the current width.",
+  };
   return (
-    <details className="control-section" data-section={title} open={open}>
-      <summary>
-        {title}
-        <span className="chevron" aria-hidden="true">
-          ⌄
-        </span>
-      </summary>
-      <div className="section-body">{children}</div>
-    </details>
+    <>
+      <p className="sheet-help">{help[dimension]}</p>
+      <Field
+        key={dimension}
+        label={
+          dimension === "width"
+            ? "Width (CD)"
+            : dimension === "height"
+              ? "Height"
+              : "Pitch"
+        }
+        id={`dimension-${dimension}`}
+        value={value}
+        min={min}
+        max={max}
+        step={0.1}
+        unit="nm"
+        onChange={onChange}
+      />
+      <input
+        aria-label={`${dimension} range`}
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      <div className="range-labels">
+        <span>{min} nm</span>
+        <span>{max} nm</span>
+      </div>
+      <p className="sheet-hint">
+        Changes appear immediately. Tap outside or close to return.
+      </p>
+      <p className="keyboard-note">
+        On the 3D handles, arrow keys edit by 1 nm. Hold Shift for 10 nm.
+      </p>
+    </>
   );
 }
 function MaterialEditor({
@@ -267,25 +343,29 @@ const errorText = (error: unknown) =>
   error instanceof Error ? error.message : "An unexpected error occurred.";
 
 export default function App() {
-  const [selectedDimension, setSelectedDimension] = useState<Dimension | null>(
-    null,
-  );
-  function selectDimension(dimension: Dimension) {
-    setSelectedDimension(dimension);
-    document.getElementById(`dimension-${dimension}`)?.focus();
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const inspector = useRef<HTMLDialogElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  const actionVersion = useRef(0);
+  const savedRequest = useRef(0);
+  const startingRef = useRef(false);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [loadingProject, setLoadingProject] = useState<string | null>(null);
+  function openSheet(next: Sheet) {
+    previousFocus.current = document.activeElement as HTMLElement;
+    setSheet(next);
   }
-  function showSettings(title: string) {
-    const settings =
-      document.querySelector<HTMLDetailsElement>(".more-settings");
-    if (settings) settings.open = true;
-    const section = document.querySelector<HTMLDetailsElement>(
-      `[data-section="${title}"]`,
-    );
-    if (section) {
-      section.open = true;
-      section.querySelector<HTMLElement>("summary")?.focus();
+  useEffect(() => {
+    if (sheet) {
+      inspector.current?.showModal();
+      inspector.current
+        ?.querySelector<HTMLInputElement>("input:not([type=file])")
+        ?.focus();
+    } else if (inspector.current?.open) {
+      inspector.current.close();
+      previousFocus.current?.focus();
     }
-  }
+  }, [sheet]);
   const [project, setProject] = useState<Project>(
     structuredClone(defaultProject),
   );
@@ -328,7 +408,9 @@ export default function App() {
     if (staticPreview) {
       readReference()
         .then((data) => {
-          if (!alive || inputsChanged.current) return;
+          if (!alive) return;
+          setConnection("offline");
+          if (inputsChanged.current) return;
           setProject(data.project);
           setResult(data.result || null);
           setResultProject(data.project);
@@ -381,7 +463,7 @@ export default function App() {
     const previous = document.activeElement as HTMLElement | null;
     function trap(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setShowSaved(false);
+        closeSaved();
         return;
       }
       if (event.key !== "Tab") return;
@@ -489,6 +571,7 @@ export default function App() {
   }, [job?.id, job?.status]);
 
   function update(next: Project) {
+    actionVersion.current += 1;
     inputsChanged.current = true;
     setProject(next);
     setNotice("");
@@ -501,12 +584,15 @@ export default function App() {
       ...project,
       illumination: {
         ...project.illumination,
-        wavelengths_nm: linspace(start, end, count),
+        wavelengths_nm: count === 1 ? [start] : linspace(start, end, count),
       },
     });
   }
   async function run() {
-    if (staticPreview || busy || errors.length) return;
+    if (staticPreview || busy || startingRef.current || errors.length) return;
+    startingRef.current = true;
+    actionVersion.current += 1;
+    inputsChanged.current = true;
     setStarting(true);
     setError("");
     setNotice("");
@@ -522,6 +608,7 @@ export default function App() {
       setError(errorText(e));
       setConnection(e instanceof ApiError ? "online" : "offline");
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   }
@@ -566,43 +653,65 @@ export default function App() {
       setSaving(false);
     }
   }
+  function closeSaved() {
+    savedRequest.current += 1;
+    setShowSaved(false);
+    setLoadingProject(null);
+  }
   async function openSaved() {
+    const request = ++savedRequest.current;
     setShowSaved(true);
+    setLoadingSaved(true);
+    setSaved([]);
     setError("");
     try {
-      setSaved(await api.list());
+      const list = await api.list();
+      if (request !== savedRequest.current) return;
+      setSaved(list);
       setConnection("online");
     } catch (e) {
-      setError(errorText(e));
+      if (request === savedRequest.current) setError(errorText(e));
+    } finally {
+      if (request === savedRequest.current) setLoadingSaved(false);
     }
   }
   async function load(id: string) {
+    const request = ++savedRequest.current;
+    const version = actionVersion.current;
+    setLoadingProject(id);
     try {
       const data = await api.load(id);
+      if (request !== savedRequest.current || version !== actionVersion.current)
+        return;
       const parsed = parseProjectFile(JSON.stringify(data));
       update(parsed.project);
-      // Trust only the API envelope here. The JSON import path below always
-      // uses "imported", regardless of provenance fields in the file.
+      // Only an API envelope can establish server-owned provenance.
       setResultOrigin(
         data.provenance?.source === "server_computed" ? "server" : "imported",
       );
       setResult(parsed.result || null);
       setResultProject(parsed.result ? parsed.project : null);
       setPolarization(parsed.result?.spectra.s ? "s" : "p");
-      setShowSaved(false);
+      closeSaved();
       setNotice("Project loaded.");
       setError("");
     } catch (e) {
-      setError(errorText(e));
+      if (request === savedRequest.current && version === actionVersion.current)
+        setError(errorText(e));
+    } finally {
+      if (request === savedRequest.current) setLoadingProject(null);
     }
   }
   async function importProject(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
+    const version = ++actionVersion.current;
+    inputsChanged.current = true;
     try {
       if (file.size > 20 * 1024 * 1024)
         throw new Error("Project JSON must be smaller than 20 MB.");
       const data = parseProjectFile(await file.text());
+      if (version !== actionVersion.current) return;
       update(data.project);
       setResultOrigin("imported");
       setResult(data.result || null);
@@ -614,6 +723,7 @@ export default function App() {
       setError("");
       setJob(null);
     } catch (e) {
+      if (version !== actionVersion.current) return;
       setError(errorText(e));
     } finally {
       event.target.value = "";
@@ -628,8 +738,11 @@ export default function App() {
     return parseProjectFile(await response.text());
   }
   async function loadReference() {
+    const version = ++actionVersion.current;
+    inputsChanged.current = true;
     try {
       const data = await readReference();
+      if (version !== actionVersion.current) return;
       update(data.project);
       setResult(data.result || null);
       setResultProject(data.project);
@@ -638,6 +751,7 @@ export default function App() {
       setNotice("Stored reference results loaded. No new calculation was run.");
       setError("");
     } catch (e) {
+      if (version !== actionVersion.current) return;
       setError(errorText(e));
     }
   }
@@ -657,23 +771,63 @@ export default function App() {
       await loadReference();
       return;
     }
+    const version = ++actionVersion.current;
+    inputsChanged.current = true;
     try {
       const example = await api.example();
+      if (version !== actionVersion.current) return;
       update(example);
       setConnection("online");
       setNotice("Example inputs loaded.");
       setError("");
     } catch (e) {
+      if (version !== actionVersion.current) return;
       setError(errorText(e));
       setConnection("offline");
     }
   }
 
+  function changeDimension(dimension: Dimension, value: number) {
+    if (busy) return;
+    if (dimension === "pitch") update({ ...project, period_nm: value });
+    else
+      updateLayer(
+        dimension === "width" ? { cd_nm: value } : { thickness_nm: value },
+      );
+  }
+  const dimensionValues = {
+    width: layer.cd_nm,
+    height: layer.thickness_nm,
+    pitch: project.period_nm,
+  };
+  const titles: Record<Sheet, string> = {
+    width: "Ridge width",
+    height: "Ridge height",
+    pitch: "Pattern pitch",
+    ridge: "Ridge material",
+    groove: "Groove material",
+    ambient: "Ambient material",
+    substrate: "Substrate material",
+    materials: "Optical materials",
+    light: "Incident light",
+    accuracy: "Calculation settings",
+  };
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href="#main" aria-label="RCWA home">
-          RCWA
+        <a className="wordmark" href="#main" aria-label="RCWA home">
+          <svg
+            width="25"
+            height="25"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.65"
+            aria-hidden="true"
+          >
+            <path d="M4 17V7h4v10h4V7h4v10h4" />
+          </svg>
+          RCWA<span className="brand-caption">Optical design</span>
         </a>
         <div className="header-right">
           <details
@@ -749,8 +903,7 @@ export default function App() {
                 onChange={importProject}
               />
             </div>
-          </details>
-
+          </details>{" "}
           <span className={`connection ${connection}`} title={apiDescription}>
             <i />
             {staticPreview
@@ -763,267 +916,106 @@ export default function App() {
           </span>
         </div>
       </header>
-      <nav className="task-nav" aria-label="Workbench sections">
-        <a href="#build">Build</a>
-        <a href="#spectrum">Spectrum</a>
-        <a href="#fit">Fit demo</a>
-      </nav>
       <main id="main">
-        {connection === "offline" && (
-          <div className="connection-banner">
-            <span>
-              <b>{staticPreview ? "" : "The calculation server is offline."}</b>
-              {staticPreview
-                ? "Edits change the drawing only. New calculations run locally."
-                : "You can edit inputs and import or export JSON. Calculations require the Python API."}
-            </span>
-            <button
-              disabled={busy}
-              onClick={staticPreview ? loadReference : reconnect}
-            >
-              {staticPreview ? "Reset example" : "Reconnect"}
-            </button>
-          </div>
-        )}
-        <div className="workspace">
-          <aside className="controls panel" id="build">
-            <div className="control-heading">
-              <div>
-                <label htmlFor="project-name" className="project-label">
-                  Build a grating
-                </label>
-                <input
-                  id="project-name"
-                  aria-label="Project name"
-                  value={project.name}
-                  maxLength={100}
-                  disabled={busy}
-                  onChange={(e) => update({ ...project, name: e.target.value })}
-                />
-              </div>
-            </div>
-            <section
-              className="geometry-panel"
-              aria-label="Grating cross section"
-            >
-              <p className="builder-hint">
-                A repeating ridge pattern. Select a dimension to edit.
-              </p>
-              <Geometry
-                project={project}
-                selectedDimension={selectedDimension}
-                onSelectDimension={selectDimension}
+        <div className="page-heading">
+          <div>
+            <p className="eyebrow">YOUR STRUCTURE</p>
+            <h1>
+              <input
+                aria-label="Project name"
+                id="project-name"
+                value={project.name}
+                maxLength={100}
+                disabled={busy}
+                onChange={(e) => update({ ...project, name: e.target.value })}
               />
-              <div className="geometry-footer">
-                <span>
-                  <i className="ridge-dot" />
-                  {layer.material.name} <small>ridge</small>
-                </span>
-                <span>
-                  <i className="groove-dot" />
-                  {layer.background.name} <small>groove</small>
-                </span>
-                <span className="periodic-tag">
-                  Cross section · not to scale
-                </span>
-              </div>
-            </section>
-            <fieldset disabled={busy}>
-              <div className="geometry-inputs">
-                <Field
-                  label="Pitch"
-                  id="dimension-pitch"
-                  selected={selectedDimension === "pitch"}
-                  onFocus={() => setSelectedDimension("pitch")}
-                  unit="nm"
-                  value={project.period_nm}
-                  min={20}
-                  max={5000}
-                  onChange={(period_nm) => update({ ...project, period_nm })}
-                />
-                <Field
-                  label="Width (CD)"
-                  id="dimension-width"
-                  selected={selectedDimension === "width"}
-                  onFocus={() => setSelectedDimension("width")}
-                  unit="nm"
-                  value={layer.cd_nm}
-                  min={0}
-                  max={project.period_nm}
-                  onChange={(cd_nm) => updateLayer({ cd_nm })}
-                />
-                <Field
-                  label="Height"
-                  id="dimension-height"
-                  selected={selectedDimension === "height"}
-                  onFocus={() => setSelectedDimension("height")}
-                  unit="nm"
-                  value={layer.thickness_nm}
-                  min={0}
-                  max={2000}
-                  onChange={(thickness_nm) => updateLayer({ thickness_nm })}
-                />
-              </div>
-              <div className="setting-summaries">
-                <button
-                  type="button"
-                  onClick={() => showSettings("Materials")}
-                  aria-label="Edit materials"
-                >
-                  <strong>Materials</strong>
+            </h1>
+            <p className="subtitle">Shape the structure. Explore the light.</p>
+          </div>
+          <div className="scope">
+            <span>1D</span>Single layer
+          </div>
+        </div>
+        <div className="workspace">
+          <section
+            className="design"
+            id="build"
+            aria-label="Interactive grating editor"
+          >
+            <div className="canvas-head">
+              <span>Shape your structure</span>
+              <span className="canvas-scale">1D grating</span>
+            </div>
+            <ThreeStructure
+              project={project}
+              disabled={busy}
+              onChange={changeDimension}
+              onOpen={openSheet}
+            />
+            <div className="gesture-note">
+              <span>Drag the dots. Tap values or materials.</span>
+              <button
+                className="reset"
+                aria-label="Reset example"
+                disabled={busy}
+                onClick={staticPreview ? loadReference : resetExample}
+              >
+                ↶
+              </button>
+            </div>
+            <fieldset disabled={busy} className="setup-rows">
+              <button
+                className="setting-row"
+                onClick={() => openSheet("light")}
+                aria-label="Edit light"
+              >
+                <span className="setting-icon">☼</span>
+                <span className="setting-name">Incident light</span>
+                <span className="setting-value">
+                  {waves.length === 1
+                    ? waves[0]
+                    : `${waves[0]}–${waves.at(-1)}`}{" "}
+                  nm
                   <span>
-                    {layer.material.name} / {project.substrate.name}
-                  </span>
-                  <span aria-hidden="true">›</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => showSettings("Light")}
-                  aria-label="Edit light"
-                >
-                  <strong>Light</strong>
-                  <span>
-                    {waves[0]}–{waves.at(-1)} nm ·{" "}
                     {project.illumination.angle_deg}° ·{" "}
                     {project.illumination.polarization === "both"
-                      ? "s & p, separate"
+                      ? "s & p"
                       : project.illumination.polarization}
                   </span>
-                  <span aria-hidden="true">›</span>
-                </button>
-              </div>
-              <details className="more-settings">
-                <summary>
-                  More settings{" "}
-                  <span className="chevron" aria-hidden="true">
-                    ⌄
+                </span>
+                <Icon name="arrow" />
+              </button>
+              <button
+                className="setting-row"
+                onClick={() => openSheet("materials")}
+                aria-label="Edit materials"
+              >
+                <span className="setting-icon">◈</span>
+                <span className="setting-name">Materials</span>
+                <span className="setting-value">
+                  Ridge · groove<span>Ambient · substrate</span>
+                </span>
+                <Icon name="arrow" />
+              </button>
+              <button
+                className="setting-row"
+                onClick={() => openSheet("accuracy")}
+                aria-label="Edit calculation settings"
+              >
+                <span className="setting-icon">≋</span>
+                <span className="setting-name">Calculation</span>
+                <span className="setting-value">
+                  Order N = {project.solver.harmonics}
+                  <span>
+                    {2 * project.solver.harmonics + 1} retained orders
                   </span>
-                </summary>
-                <Section title="Light" open={false}>
-                  <div className="field-grid">
-                    <Field
-                      label="λ start"
-                      unit="nm"
-                      value={waves[0]}
-                      min={200}
-                      max={2500}
-                      onChange={(v) =>
-                        updateWavelengths(v, waves.at(-1)!, waves.length)
-                      }
-                    />
-                    <Field
-                      label="λ end"
-                      unit="nm"
-                      value={waves.at(-1)!}
-                      min={200}
-                      max={2500}
-                      onChange={(v) =>
-                        updateWavelengths(waves[0], v, waves.length)
-                      }
-                    />
-                  </div>
-                  <div className="field-grid">
-                    <Field
-                      label="Wavelength samples"
-                      value={waves.length}
-                      min={2}
-                      max={81}
-                      onChange={(v) =>
-                        updateWavelengths(waves[0], waves.at(-1)!, v)
-                      }
-                    />
-                    <Field
-                      label="Incidence angle · θ"
-                      unit="°"
-                      value={project.illumination.angle_deg}
-                      min={0}
-                      max={75}
-                      step={1}
-                      onChange={(angle_deg) =>
-                        update({
-                          ...project,
-                          illumination: { ...project.illumination, angle_deg },
-                        })
-                      }
-                    />
-                  </div>
-                  <label className="field">
-                    <span>Polarization</span>
-                    <select
-                      value={project.illumination.polarization}
-                      onChange={(e) =>
-                        update({
-                          ...project,
-                          illumination: {
-                            ...project.illumination,
-                            polarization: e.target
-                              .value as Project["illumination"]["polarization"],
-                          },
-                        })
-                      }
-                    >
-                      <option value="both">Separate s and p curves</option>
-                      <option value="s">s / TE · E ∥ grooves</option>
-                      <option value="p">p / TM · H ∥ grooves</option>
-                    </select>
-                  </label>
-                  <p className="control-note">
-                    Polarization describes the electric-field direction: s is
-                    along the grooves; p lies in the cross section. θ is
-                    measured from the surface normal. The incidence plane is
-                    x–z; grooves run along y.
-                  </p>
-                </Section>
-                <Section title="Materials" open={false}>
-                  <p className="control-note">
-                    n controls refraction; k controls absorption (0 = no
-                    absorption). Defaults describe synthetic materials, not
-                    measured optical constants.
-                  </p>
-                  <MaterialEditor
-                    label="Ridge"
-                    material={layer.material}
-                    onChange={(material) => updateLayer({ material })}
-                  />
-                  <MaterialEditor
-                    label="Groove"
-                    material={layer.background}
-                    onChange={(background) => updateLayer({ background })}
-                  />
-                  <MaterialEditor
-                    label="Ambient"
-                    material={project.ambient}
-                    lossless
-                    onChange={(ambient) => update({ ...project, ambient })}
-                  />
-                  <MaterialEditor
-                    label="Substrate"
-                    material={project.substrate}
-                    onChange={(substrate) => update({ ...project, substrate })}
-                  />
-                  <p className="control-note">
-                    Tables use linear interpolation without extrapolation. The
-                    incident ambient must have k = 0.
-                  </p>
-                </Section>
-                <Section title="Solver" open={false}>
-                  <Field
-                    label="Harmonic order N"
-                    value={project.solver.harmonics}
-                    min={1}
-                    max={20}
-                    onChange={(harmonics) =>
-                      update({ ...project, solver: { harmonics } })
-                    }
-                    help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
-                  />
-                  <p className="control-note">
-                    Increase N and compare results to assess convergence. A
-                    higher order alone does not guarantee accuracy.
-                  </p>
-                </Section>
-              </details>
+                </span>
+                <Icon name="arrow" />
+              </button>
             </fieldset>
+            <p className="model-footnote">
+              One rectangular 1D layer. Default optical constants are synthetic.
+            </p>
             <div className="run-area">
               {errors.length > 0 && (
                 <ul className="validation-list" role="alert">
@@ -1094,7 +1086,29 @@ export default function App() {
                 </div>
               ) : null}
             </div>
-          </aside>
+
+            {connection === "offline" && (
+              <div className="connection-banner">
+                <span>
+                  {staticPreview
+                    ? "This preview edits inputs locally. New calculations require the local Python solver."
+                    : "The local solver is offline. You can still edit, import and export inputs."}
+                </span>
+                {!staticPreview && (
+                  <button onClick={reconnect} disabled={busy}>
+                    Reconnect
+                  </button>
+                )}
+                <a
+                  href="https://github.com/phykn/rcwa#quickstart"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Local setup ↗
+                </a>
+              </div>
+            )}
+          </section>
           <div className="results-column">
             {error && (
               <div className="message error" role="alert">
@@ -1119,10 +1133,17 @@ export default function App() {
                 </button>
               </div>
             )}
-            <section className="panel spectrum-panel" id="spectrum">
+            <section
+              className={`result panel spectrum-panel ${stale ? "stale" : ""}`}
+              id="spectrum"
+            >
               <div className="panel-heading">
                 <div>
-                  <h2>Spectrum</h2>
+                  <span className="eyebrow">
+                    {resultOrigin === "reference"
+                      ? "REFERENCE RESULT"
+                      : "YOUR RESULT"}
+                  </span>
                 </div>
                 <span
                   className={`result-badge ${stale ? "stale" : result ? "ready" : ""}`}
@@ -1147,16 +1168,28 @@ export default function App() {
                       : "No result yet"}
                 </span>
               </div>
+              <h2>
+                Light, reflected
+                <br className="desktop-break" /> and transmitted.
+              </h2>
+              <p className="result-intro">
+                {result
+                  ? "Inspect the spectrum and its original inputs."
+                  : "Calculate how your structure interacts with light."}
+              </p>
               {stale && (
                 <div className="stale-note">
                   {staticPreview
-                    ? "Inputs changed. This is still the reference spectrum; export your inputs to calculate locally."
+                    ? "Inputs changed. This stored spectrum has not recalculated; export your inputs to calculate locally."
                     : "Inputs changed. Run again to update this spectrum."}
                 </div>
               )}
               {resultOrigin === "reference" && result && (
                 <div className="reference-note">
-                  Stored meent calculation:
+                  Precomputed with meent.{" "}
+                  {staticPreview
+                    ? "Editing does not recalculate this spectrum. "
+                    : "No new calculation was run. "}
                   {resultProject && (
                     <span>
                       {" "}
@@ -1172,97 +1205,362 @@ export default function App() {
                 result={result}
                 polarization={polarization}
                 onPolarization={setPolarization}
+                staticPreview={staticPreview}
               />
             </section>
-            <SyntheticFit
-              project={project}
-              staticPreview={staticPreview}
-              locked={forwardBusy}
-              onBusyChange={setFitBusy}
-              onApply={(cd_nm) => updateLayer({ cd_nm })}
-            />
-            <details className="notes-panel">
-              <summary>
-                Results details & model assumptions{" "}
-                <span className="chevron" aria-hidden="true">
-                  ⌄
-                </span>
-              </summary>
-              {selectedSpectrum && (
-                <div className="metrics-row">
-                  <div className="metric panel">
-                    <span>Mean reflectance</span>
-                    <strong>
-                      {(100 * mean(selectedSpectrum.R)).toFixed(2)}
-                      <small>%</small>
-                    </strong>
-                    <p>Sum over retained reflected orders</p>
-                  </div>
-                  <div className="metric panel">
-                    <span>Mean transmittance</span>
-                    <strong>
-                      {(100 * mean(selectedSpectrum.T)).toFixed(2)}
-                      <small>%</small>
-                    </strong>
-                    <p>Sum over retained transmitted orders</p>
-                  </div>
-                  <div className="metric panel">
-                    <span>Mean 1 − R − T</span>
-                    <strong>
-                      {mean(selectedSpectrum.A_balance).toExponential(2)}
-                    </strong>
-                    <p>Energy balance, not a convergence proof</p>
-                  </div>
-                </div>
-              )}
-              <div className="spectrum-note">
-                <b>Total ≠ specular.</b> R and T sum power contributions over
-                all retained diffraction orders. R₀ and T₀ contain only the
-                zeroth order.
-              </div>
-              <div className="notes-grid">
-                <p>
-                  <b>Plane-wave baseline</b>An infinite periodic grating with
-                  one layer and semi-infinite ambient/substrate. Finite beam,
-                  numerical aperture, and finite-target effects are omitted.
-                </p>
-                <p>
-                  <b>Power normalization</b>R/T are normalized to incident
-                  power. For an absorbing substrate, T is entrance-plane power
-                  flux, not backside transmission. Higher retained orders may
-                  carry flux. 1−R−T is an energy balance.
-                </p>
-                <p>
-                  <b>Numerical confidence</b>Check wavelength sampling and
-                  Fourier order separately. Energy conservation alone does not
-                  establish spectral convergence or experimental accuracy.
-                </p>
-              </div>
-              {result && result.warnings.length > 0 && (
-                <div className="numerical-warnings">
-                  <b>Solver warnings</b>
-                  <ul>
-                    {result.warnings.map((w, i) => (
-                      <li key={i}>{String(w)}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {result?.metadata && (
-                <details className="metadata">
-                  <summary>Calculation metadata</summary>
-                  <pre>{JSON.stringify(result.metadata, null, 2)}</pre>
-                </details>
-              )}
-            </details>
           </div>
         </div>
+        <div className="supplemental">
+          {" "}
+          <SyntheticFit
+            project={project}
+            staticPreview={staticPreview}
+            locked={forwardBusy}
+            onBusyChange={(next) => {
+              if (next) {
+                actionVersion.current += 1;
+                inputsChanged.current = true;
+              }
+              setFitBusy(next);
+            }}
+            onApply={(cd_nm) => updateLayer({ cd_nm })}
+          />
+          <details className="notes-panel">
+            <summary>
+              Results details & model assumptions{" "}
+              <span className="chevron" aria-hidden="true">
+                ⌄
+              </span>
+            </summary>
+            {resultProject && (
+              <p className="result-inputs">
+                Original inputs: pitch {resultProject.period_nm} nm · width{" "}
+                {resultProject.layers[0].cd_nm} nm · height{" "}
+                {resultProject.layers[0].thickness_nm} nm ·{" "}
+                {resultProject.illumination.angle_deg}° · N ={" "}
+                {resultProject.solver.harmonics}.{" "}
+                {resultProject.illumination.wavelengths_nm.length} wavelength
+                samples,{" "}
+                {resultProject.illumination.polarization === "both"
+                  ? "s and p"
+                  : resultProject.illumination.polarization}{" "}
+                polarization.
+              </p>
+            )}
+            {selectedSpectrum && (
+              <div className="metrics-row">
+                <div className="metric panel">
+                  <span>Mean reflectance</span>
+                  <strong>
+                    {(100 * mean(selectedSpectrum.R)).toFixed(2)}
+                    <small>%</small>
+                  </strong>
+                  <p>Sum over retained reflected orders</p>
+                </div>
+                <div className="metric panel">
+                  <span>Mean transmittance</span>
+                  <strong>
+                    {(100 * mean(selectedSpectrum.T)).toFixed(2)}
+                    <small>%</small>
+                  </strong>
+                  <p>Sum over retained transmitted orders</p>
+                </div>
+                <div className="metric panel">
+                  <span>Mean 1 − R − T</span>
+                  <strong>
+                    {mean(selectedSpectrum.A_balance).toExponential(2)}
+                  </strong>
+                  <p>Energy balance, not a convergence proof</p>
+                </div>
+              </div>
+            )}
+            <div className="spectrum-note">
+              <b>Total ≠ specular.</b> R and T sum power contributions over all
+              retained diffraction orders. R₀ and T₀ contain only the zeroth
+              order.
+            </div>
+            <div className="notes-grid">
+              <p>
+                <b>Plane-wave baseline</b>An infinite periodic grating with one
+                layer and semi-infinite ambient/substrate. Finite beam,
+                numerical aperture, and finite-target effects are omitted.
+              </p>
+              <p>
+                <b>Power normalization</b>R/T are normalized to incident power.
+                For an absorbing substrate, T is entrance-plane power flux, not
+                backside transmission. Higher retained orders may carry flux.
+                1−R−T is an energy balance.
+              </p>
+              <p>
+                <b>Numerical confidence</b>Check wavelength sampling and Fourier
+                order separately. Energy conservation alone does not establish
+                spectral convergence or experimental accuracy.
+              </p>
+            </div>
+            {result && result.warnings.length > 0 && (
+              <div className="numerical-warnings">
+                <b>Solver warnings</b>
+                <ul>
+                  {result.warnings.map((w, i) => (
+                    <li key={i}>{String(w)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result?.metadata && (
+              <details className="metadata">
+                <summary>Calculation metadata</summary>
+                <pre>{JSON.stringify(result.metadata, null, 2)}</pre>
+              </details>
+            )}
+          </details>
+        </div>
+        <footer className="page-footer">
+          <span>RCWA</span>
+          <p>
+            {staticPreview
+              ? "Stored example · calculate with the local solver"
+              : "Local optical design workbench"}
+          </p>
+        </footer>
       </main>
+      <dialog
+        ref={inspector}
+        className="inspector"
+        aria-labelledby="inspector-title"
+        onCancel={(e) => {
+          e.preventDefault();
+          setSheet(null);
+        }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setSheet(null);
+        }}
+      >
+        <div className="sheet-body">
+          <div className="sheet-grabber" />
+          <div className="sheet-heading">
+            <div>
+              <p className="eyebrow">EDIT STRUCTURE</p>
+              <h2 id="inspector-title">{sheet ? titles[sheet] : "Settings"}</h2>
+            </div>
+            <button
+              className="icon-button"
+              aria-label="Close settings"
+              onClick={() => setSheet(null)}
+            >
+              ×
+            </button>
+          </div>
+          <fieldset disabled={busy}>
+            {sheet && ["width", "height", "pitch"].includes(sheet) && (
+              <DimensionEditor
+                dimension={sheet as Dimension}
+                value={dimensionValues[sheet as Dimension]}
+                min={sheet === "pitch" ? Math.max(20, layer.cd_nm) : 0}
+                max={
+                  sheet === "pitch"
+                    ? 5000
+                    : sheet === "height"
+                      ? 2000
+                      : project.period_nm
+                }
+                onChange={(value) => changeDimension(sheet as Dimension, value)}
+              />
+            )}
+            {sheet &&
+              ["ridge", "groove", "ambient", "substrate", "materials"].includes(
+                sheet,
+              ) && (
+                <>
+                  <p className="sheet-help">
+                    n controls refraction; k controls absorption. Constant
+                    values and imported tables both drive the same solver.
+                  </p>
+                  <div
+                    className="material-tabs"
+                    role="group"
+                    aria-label="Choose material"
+                  >
+                    {(["ridge", "groove", "ambient", "substrate"] as const).map(
+                      (key) => (
+                        <button
+                          key={key}
+                          aria-pressed={sheet === key}
+                          onClick={() => setSheet(key)}
+                        >
+                          {key[0].toUpperCase() + key.slice(1)}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                  {(sheet === "ridge" || sheet === "materials") && (
+                    <MaterialEditor
+                      label="Ridge"
+                      material={layer.material}
+                      onChange={(material) => updateLayer({ material })}
+                    />
+                  )}
+                  {(sheet === "groove" || sheet === "materials") && (
+                    <MaterialEditor
+                      label="Groove"
+                      material={layer.background}
+                      onChange={(background) => updateLayer({ background })}
+                    />
+                  )}
+                  {(sheet === "ambient" || sheet === "materials") && (
+                    <MaterialEditor
+                      label="Ambient"
+                      material={project.ambient}
+                      lossless
+                      onChange={(ambient) => update({ ...project, ambient })}
+                    />
+                  )}
+                  {(sheet === "substrate" || sheet === "materials") && (
+                    <MaterialEditor
+                      label="Substrate"
+                      material={project.substrate}
+                      onChange={(substrate) =>
+                        update({ ...project, substrate })
+                      }
+                    />
+                  )}
+                  <p className="sheet-hint">
+                    Tables use linear interpolation without extrapolation. The
+                    ambient must have k = 0. Default constants are synthetic,
+                    not measured data.
+                  </p>
+                </>
+              )}
+            {sheet === "light" && (
+              <>
+                <p className="sheet-help">
+                  Light arrives from the ambient toward the grating. The angle
+                  is measured from the surface normal.
+                </p>
+                <div className="field-grid">
+                  <Field
+                    label="λ start"
+                    unit="nm"
+                    value={waves[0]}
+                    min={200}
+                    max={2500}
+                    onChange={(v) =>
+                      updateWavelengths(v, waves.at(-1)!, waves.length)
+                    }
+                  />
+                  <Field
+                    label="λ end"
+                    unit="nm"
+                    value={waves.at(-1)!}
+                    min={200}
+                    max={2500}
+                    onChange={(v) =>
+                      updateWavelengths(waves[0], v, waves.length)
+                    }
+                  />
+                  <Field
+                    label="Wavelength samples"
+                    value={waves.length}
+                    min={1}
+                    max={81}
+                    onChange={(v) =>
+                      v === 1
+                        ? update({
+                            ...project,
+                            illumination: {
+                              ...project.illumination,
+                              wavelengths_nm: [waves[0]],
+                            },
+                          })
+                        : updateWavelengths(waves[0], waves.at(-1)!, v)
+                    }
+                  />
+                  <Field
+                    label="Incidence angle · θ"
+                    unit="°"
+                    value={project.illumination.angle_deg}
+                    min={0}
+                    max={75}
+                    step={0.1}
+                    onChange={(angle_deg) =>
+                      update({
+                        ...project,
+                        illumination: { ...project.illumination, angle_deg },
+                      })
+                    }
+                  />
+                </div>
+                <label className="field">
+                  <span>Polarization</span>
+                  <select
+                    value={project.illumination.polarization}
+                    onChange={(e) =>
+                      update({
+                        ...project,
+                        illumination: {
+                          ...project.illumination,
+                          polarization: e.target
+                            .value as Project["illumination"]["polarization"],
+                        },
+                      })
+                    }
+                  >
+                    <option value="both">Separate s and p curves</option>
+                    <option value="s">s / TE · E ∥ grooves</option>
+                    <option value="p">p / TM · H ∥ grooves</option>
+                  </select>
+                </label>
+                <p className="sheet-hint">
+                  The incidence plane is x–z; grooves run along y. Use Import
+                  JSON for an exact, nonuniform wavelength list.
+                </p>
+              </>
+            )}
+            {sheet === "accuracy" && (
+              <>
+                <p className="sheet-help">
+                  Increase Fourier order N and compare results to assess
+                  convergence. A higher order alone does not guarantee accuracy.
+                </p>
+                <Field
+                  label="Harmonic order N"
+                  value={project.solver.harmonics}
+                  min={1}
+                  max={20}
+                  onChange={(harmonics) =>
+                    update({ ...project, solver: { harmonics } })
+                  }
+                  help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
+                />
+                <div className="fixed-setting">
+                  <span>Geometry</span>
+                  <strong>1D rectangular grating</strong>
+                </div>
+                <div className="fixed-setting">
+                  <span>Layers</span>
+                  <strong>One</strong>
+                </div>
+                <p className="sheet-hint">
+                  The 3D view illustrates a 1D model. It does not add a finite
+                  target, multiple layers or 2D periodicity.
+                </p>
+              </>
+            )}
+          </fieldset>
+          {errors.length > 0 && (
+            <ul className="validation-list" role="alert">
+              {errors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </dialog>
       {showSaved && (
         <div
           className="dialog-overlay"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowSaved(false);
+            if (e.target === e.currentTarget) closeSaved();
           }}
         >
           <section
@@ -1271,7 +1569,7 @@ export default function App() {
             aria-modal="true"
             aria-labelledby="saved-title"
             onKeyDown={(e) => {
-              if (e.key === "Escape") setShowSaved(false);
+              if (e.key === "Escape") closeSaved();
             }}
           >
             <div className="panel-heading">
@@ -1282,7 +1580,7 @@ export default function App() {
               <button
                 className="icon-button"
                 autoFocus
-                onClick={() => setShowSaved(false)}
+                onClick={closeSaved}
                 aria-label="Close saved projects"
               >
                 ×
@@ -1292,15 +1590,28 @@ export default function App() {
               Projects saved on the Python server. Use Import JSON to open a
               local JSON file.
             </p>
-            {saved.length ? (
+            {error && (
+              <p className="inline-error" role="alert">
+                {error}
+              </p>
+            )}
+            {loadingSaved ? (
+              <p className="saved-empty" role="status">
+                Loading saved projects…
+              </p>
+            ) : saved.length ? (
               saved.map((item) => (
                 <button
                   className="saved-item"
                   key={item.id}
+                  disabled={loadingProject !== null}
                   onClick={() => load(item.id)}
                 >
                   <span>
-                    <b>{item.name}</b>
+                    <b>
+                      {item.name}
+                      {loadingProject === item.id ? " · Loading…" : ""}
+                    </b>
                     <small>
                       {new Date(
                         item.updated_at || item.created_at,
@@ -1317,10 +1628,7 @@ export default function App() {
             ) : (
               <p className="saved-empty">No saved projects yet.</p>
             )}
-            <button
-              className="dialog-close"
-              onClick={() => setShowSaved(false)}
-            >
+            <button className="dialog-close" onClick={closeSaved}>
               Close
             </button>
           </section>

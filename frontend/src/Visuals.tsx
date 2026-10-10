@@ -1,272 +1,22 @@
-import { useEffect, useId, useRef, useState } from "react";
-import type { ForwardResult, Project, Spectrum } from "./model";
+import { useEffect, useRef, useState } from "react";
+import type { ForwardResult, Spectrum } from "./model";
 
-export type Dimension = "pitch" | "width" | "height";
-export function Geometry({
-  project,
-  selectedDimension,
-  onSelectDimension,
-}: {
-  project: Project;
-  selectedDimension: Dimension | null;
-  onSelectDimension: (dimension: Dimension) => void;
-}) {
-  const id = useId().replace(/:/g, "");
-  const layer = project.layers[0];
-  const fill = Math.max(0, Math.min(1, layer.cd_nm / project.period_nm));
-  const pitch = 132,
-    ridgeWidth = pitch * fill;
-  const depth =
-    layer.thickness_nm === 0
-      ? 0
-      : Math.max(
-          15,
-          Math.min(92, (layer.thickness_nm / project.period_nm) * pitch),
-        );
-  const bottom = 204,
-    top = bottom - depth;
-  const angle = (project.illumination.angle_deg * Math.PI) / 180;
-  const rayX = 267 - Math.sin(angle) * 96,
-    rayY = top - Math.cos(angle) * 96;
-  return (
-    <>
-      <svg
-        className="geometry-svg"
-        viewBox="0 0 610 265"
-        role="img"
-        aria-label={`One-dimensional grating, period ${project.period_nm} nanometers, CD ${layer.cd_nm} nanometers, thickness ${layer.thickness_nm} nanometers. Schematic not to scale.`}
-      >
-        <defs>
-          <pattern
-            id={`${id}-hatch`}
-            width="9"
-            height="9"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(35)"
-          >
-            <line
-              x1="0"
-              y1="0"
-              x2="0"
-              y2="9"
-              stroke="#6d878b"
-              strokeWidth="1"
-              opacity=".22"
-            />
-          </pattern>
-          <marker
-            id={`${id}-arrow`}
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#cf6838" />
-          </marker>
-          <marker
-            id={`${id}-dim`}
-            viewBox="0 0 10 10"
-            refX="5"
-            refY="5"
-            markerWidth="4"
-            markerHeight="4"
-            orient="auto-start-reverse"
-          >
-            <path
-              d="M 10 0 L 0 5 L 10 10"
-              fill="none"
-              stroke="#687a7e"
-              strokeWidth="1.5"
-            />
-          </marker>
-        </defs>
-        <rect x="36" y={top} width="528" height={depth} fill="#edf3f1" />
-        <rect x="36" y={bottom} width="528" height="35" fill="#d4dfe0" />
-        <rect
-          x="36"
-          y={bottom}
-          width="528"
-          height="35"
-          fill={`url(#${id}-hatch)`}
-        />
-        {[0, 1, 2, 3].map((i) => (
-          <rect
-            key={i}
-            x={36 + i * pitch + (pitch - ridgeWidth) / 2}
-            y={top}
-            width={ridgeWidth}
-            height={depth}
-            rx="1"
-            fill="#476c72"
-            stroke="#31545c"
-            strokeWidth="1"
-          />
-        ))}
-        {selectedDimension === "pitch" && (
-          <rect
-            className="dimension-highlight"
-            data-testid="pitch-highlight"
-            x="168"
-            y={top - 6}
-            width={pitch}
-            height={depth + 12}
-            fill="none"
-            stroke="#3266b5"
-            strokeWidth="4"
-            strokeDasharray="7 4"
-          />
-        )}
-        {selectedDimension === "width" && (
-          <rect
-            className="dimension-highlight"
-            data-testid="width-highlight"
-            x={168 + (pitch - ridgeWidth) / 2}
-            y={top - 3}
-            width={Math.max(6, ridgeWidth)}
-            height="6"
-            fill="#3266b5"
-          />
-        )}
-        {selectedDimension === "height" && (
-          <rect
-            className="dimension-highlight"
-            data-testid="height-highlight"
-            x={168 + (pitch + ridgeWidth) / 2 - 3}
-            y={top}
-            width="6"
-            height={Math.max(6, depth)}
-            fill="#3266b5"
-          />
-        )}
-        <line x1="36" x2="564" y1={bottom} y2={bottom} stroke="#93aaaa" />
-        <line
-          x1="267"
-          x2="267"
-          y1={top - 95}
-          y2={top}
-          stroke="#c2caca"
-          strokeDasharray="4 4"
-        />
-        <line
-          x1={rayX}
-          y1={rayY}
-          x2="267"
-          y2={top - 4}
-          stroke="#cf6838"
-          strokeWidth="2.5"
-          markerEnd={`url(#${id}-arrow)`}
-        />
-        <text
-          x={rayX - 10}
-          y={Math.max(18, rayY - 12)}
-          textAnchor="end"
-          className="svg-accent"
-        >
-          θ = {project.illumination.angle_deg}°
-        </text>
-        <text x="550" y="32" textAnchor="end" className="svg-label">
-          {project.ambient.name || "Ambient"} · ambient
-        </text>
-        <text x="550" y="228" textAnchor="end" className="svg-label">
-          {project.substrate.name || "Substrate"} · substrate
-        </text>
-        <line
-          x1="168"
-          x2="300"
-          y1="251"
-          y2="251"
-          stroke="#687a7e"
-          markerStart={`url(#${id}-dim)`}
-          markerEnd={`url(#${id}-dim)`}
-        />
-        <text x="234" y="244" textAnchor="middle" className="svg-small">
-          Λ {project.period_nm} nm
-        </text>
-        {ridgeWidth > 0 && (
-          <>
-            <line
-              x1={168 + (pitch - ridgeWidth) / 2}
-              x2={168 + (pitch + ridgeWidth) / 2}
-              y1={top - 12}
-              y2={top - 12}
-              stroke="#687a7e"
-              markerStart={`url(#${id}-dim)`}
-              markerEnd={`url(#${id}-dim)`}
-            />
-            <text
-              x="234"
-              y={top - 20}
-              textAnchor="middle"
-              className="svg-small"
-            >
-              CD {layer.cd_nm} nm
-            </text>
-          </>
-        )}
-        {depth > 0 && (
-          <>
-            <line
-              x1="584"
-              x2="584"
-              y1={top}
-              y2={bottom}
-              stroke="#687a7e"
-              markerStart={`url(#${id}-dim)`}
-              markerEnd={`url(#${id}-dim)`}
-            />
-            <text
-              x="591"
-              y={top + depth / 2 + 4}
-              className="svg-small"
-              transform={`rotate(90,591,${top + depth / 2 + 4})`}
-            >
-              h {layer.thickness_nm} nm
-            </text>
-          </>
-        )}
-        <text x="41" y="31" className="svg-axis">
-          z ↓
-        </text>
-        <text x="43" y="47" className="svg-axis">
-          x →
-        </text>
-      </svg>
-      <div
-        className="dimension-controls"
-        aria-label="Select a dimension to edit"
-      >
-        {(["pitch", "width", "height"] as const).map((dimension) => (
-          <button
-            type="button"
-            key={dimension}
-            aria-label={`Edit ${dimension}`}
-            aria-pressed={selectedDimension === dimension}
-            onClick={() => onSelectDimension(dimension)}
-          >
-            {dimension[0].toUpperCase() + dimension.slice(1)}
-            <span aria-hidden="true">↗</span>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
 const series = [
-  { key: "R", label: "Reflectance", color: "#ca653d", dash: "" },
-  { key: "T", label: "Transmittance", color: "#267e80", dash: "" },
-  { key: "R_specular", label: "R₀ specular", color: "#b48953", dash: "6 4" },
-  { key: "T_specular", label: "T₀ specular", color: "#839690", dash: "6 4" },
+  { key: "R", label: "Reflectance", color: "#b1903f", dash: "" },
+  { key: "T", label: "Transmittance", color: "#3b6a57", dash: "" },
+  { key: "R_specular", label: "R₀ specular", color: "#91733d", dash: "6 4" },
+  { key: "T_specular", label: "T₀ specular", color: "#81977c", dash: "6 4" },
 ] as const;
 export function SpectrumPlot({
   result,
   polarization,
   onPolarization,
+  staticPreview = false,
 }: {
   result: ForwardResult | null;
   polarization: "s" | "p";
   onPolarization: (value: "s" | "p") => void;
+  staticPreview?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [view, setView] = useState<"all" | "total" | "specular">("total");
@@ -317,6 +67,7 @@ export function SpectrumPlot({
             <button
               key={p}
               className={polarization === p ? "selected" : ""}
+              aria-pressed={polarization === p}
               disabled={!result?.spectra[p]}
               onClick={() => {
                 onPolarization(p);
@@ -345,7 +96,11 @@ export function SpectrumPlot({
       {!spectrum ? (
         <div className="empty-spectrum">
           <h3>No spectrum yet</h3>
-          <p>Select Run simulation to calculate these inputs.</p>
+          <p>
+            {staticPreview
+              ? "Import a saved result or reset the example. New calculations require the local solver."
+              : "Select Run simulation to calculate these inputs."}
+          </p>
         </div>
       ) : (
         <>
@@ -475,7 +230,7 @@ export function SpectrumPlot({
           </div>
           <div className="sample-readout">
             <label htmlFor="wavelength-sample">
-              λ <strong>{waves[selected]} nm</strong>
+              Wavelength <strong>{waves[selected]} nm</strong>
             </label>
             <input
               id="wavelength-sample"
@@ -490,7 +245,7 @@ export function SpectrumPlot({
               {active.map((s) => (
                 <span key={s.key}>
                   <b style={{ color: s.color }}>{s.label}</b>{" "}
-                  {spectrum[s.key][selected].toFixed(4)}
+                  {(100 * spectrum[s.key][selected]).toFixed(1)}%
                 </span>
               ))}
             </div>

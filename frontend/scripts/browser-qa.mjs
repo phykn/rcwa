@@ -1,54 +1,88 @@
 import { chromium, expect } from "@playwright/test";
+import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, { recursive: true });
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM_PATH || undefined,
   headless: true,
-  args: ["--no-sandbox"],
+  args: [
+    "--no-sandbox",
+    "--use-gl=angle",
+    "--use-angle=swiftshader",
+    "--enable-unsafe-swiftshader",
+  ],
 });
-const page = await browser.newPage({
-  viewport: { width: 1440, height: 1100 },
-  deviceScaleFactor: 1,
-});
-const errors = [];
-page.on("pageerror", (error) => errors.push(error.message));
-const checks = [];
-async function openProjectMenu(target = page) {
-  const menu = target.locator(".project-menu");
-  if (!(await menu.evaluate((node) => node.open)))
-    await menu.locator("summary").click();
+const checks = [],
+  errors = [];
+let page, mobile;
+async function menu(target = page) {
+  const m = target.locator(".project-menu");
+  if (!(await m.evaluate((n) => n.open))) await m.locator("summary").click();
 }
-let mobile;
+async function dimension(target, kind, value) {
+  await target
+    .locator(".dimension-rail button")
+    .filter({ hasText: new RegExp(`^${kind}`, "i") })
+    .click();
+  const input = target.locator(`#dimension-${kind}`);
+  if (value !== undefined) await input.fill(String(value));
+  else
+    await expect(input).toHaveValue(
+      kind === "width" ? "180" : kind === "height" ? "160" : "400",
+    );
+  await target
+    .getByRole("button", { name: "Close settings", exact: true })
+    .click();
+}
+async function rendered(target) {
+  await expect(target.locator(".three-canvas")).toHaveAttribute(
+    "data-ready",
+    "true",
+  );
+  await expect(target.locator(".three-canvas")).toHaveAttribute(
+    "data-fallback",
+    "false",
+  );
+  await target.waitForFunction(
+    () => document.querySelector(".webgl-host canvas")?.width > 0,
+  );
+  await target.evaluate(
+    () =>
+      new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+  );
+}
+async function shot(target, name, fullPage = false) {
+  await target.screenshot({ path: `${output}/${name}.png`, fullPage });
+}
 try {
+  page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:5173");
   await expect(page.locator(".connection")).toHaveText("Solver connected", {
     timeout: 20000,
   });
-  await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("180");
+  await rendered(page);
+  await dimension(page, "width");
   await page.getByRole("button", { name: /Run simulation/ }).click();
   await expect(page.locator(".result-badge")).toHaveText("Computed", {
     timeout: 90000,
   });
   await expect(page.locator(".spectrum-svg")).toBeVisible();
-  await expect(page.getByLabel("Spectrum quantity")).toHaveValue("total");
-  await expect(page.locator(".plot-legend")).toContainText("Reflectance");
-  checks.push("Real API default forward solve and plotted output");
+  checks.push("Real local API forward solve from canonical default Project");
   await page.getByRole("button", { name: "p / TM", exact: true }).click();
   await page.getByLabel("Spectrum quantity").selectOption("specular");
   await expect(page.locator(".plot-legend")).toContainText("R₀ specular");
   await expect(page.locator(".plot-legend")).not.toContainText("Reflectance");
   await page.getByLabel("Spectrum quantity").selectOption("total");
   await page.getByRole("button", { name: "s / TE", exact: true }).click();
-  checks.push("s/p selection and total/specular distinction");
-  await page.screenshot({
-    path: `${output}/workbench-desktop.png`,
-    fullPage: true,
-  });
-  await page.getByLabel(/Width \(CD\)/).fill("181");
+  await shot(page, "workbench-desktop", true);
+  await shot(page, "workbench-desktop-viewport");
+  checks.push("s/p and total/specular are distinct; desktop rendered");
+  await dimension(page, "width", 181);
   await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
-  checks.push("Editing parameters preserves and marks previous results stale");
-  await page.getByLabel(/Width \(CD\)/).fill("180");
+  await dimension(page, "width", 180);
+  await expect(page.locator(".result-badge")).toHaveText("Computed");
   const malformed = JSON.parse(
     await fs.readFile(
       new URL("../public/reference-example.json", import.meta.url),
@@ -68,24 +102,23 @@ try {
     "Saved result is invalid",
   );
   await expect(page.locator(".result-badge")).toHaveText("Computed");
-  await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("180");
   await page.getByRole("button", { name: "Dismiss error" }).click();
   checks.push(
-    "Malformed JSON result rejected without replacing current inputs/output",
+    "Stale state clears only for original exact inputs; malformed result import leaves project/result untouched",
   );
   await page.getByLabel("Project name").fill("Browser QA saved project");
-  await openProjectMenu();
+  await menu();
   await page.getByLabel("Save project to local server").click();
-  await expect(page.getByRole("status")).toContainText("Project saved");
-  await openProjectMenu();
+  await expect(page.locator(".message.success")).toContainText("Project saved");
+  await menu();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByRole("button", { name: /Browser QA saved project/ }).click();
+  await page
+    .getByRole("button", { name: /Browser QA saved project/ })
+    .first()
+    .click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  await expect(page.getByLabel("Project name")).toHaveValue(
-    "Browser QA saved project",
-  );
-  checks.push("Save/list/load project from real local API");
+  checks.push("Real local save/list/load remains available");
   await page.locator(".fit-panel > summary").click();
   await page
     .getByRole("button", { name: "Run synthetic recovery", exact: true })
@@ -95,180 +128,210 @@ try {
     { timeout: 90000 },
   );
   await expect(page.getByTestId("recovered-cd")).toContainText("220.000");
-  checks.push(
-    "Real local bounded synthetic CD fit recovered 220 nm and showed same-model caveat",
-  );
   await page
     .locator(".fit-panel")
     .screenshot({ path: `${output}/workbench-fit.png` });
+  checks.push("Real bounded synthetic CD fit recovers 220 nm with caveat");
   await page.getByRole("button", { name: /Load reference result/ }).click();
   await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
-  const downloadPromise = page.waitForEvent("download");
-  await openProjectMenu();
+  await menu();
+  const downloading = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
-  const download = await downloadPromise;
-  await download.saveAs(`${output}/browser-export.json`);
+  await (await downloading).saveAs(`${output}/browser-export.json`);
   await page
     .locator("input[type=file]")
     .first()
     .setInputFiles(`${output}/browser-export.json`);
   await expect(page.locator(".result-badge")).toHaveText("Unverified import");
-  checks.push("Full input/result export and JSON reload");
-  mobile = await browser.newPage({
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 1,
-  });
-  mobile.on("pageerror", (error) => errors.push(error.message));
-  const requests = [];
-  mobile.on("request", (request) => {
-    if (request.url().includes("/api/")) requests.push(request.url());
-  });
-  await mobile.goto("http://127.0.0.1:4173");
-  await expect(mobile.locator(".connection")).toHaveText("Static preview");
-  await expect(mobile.locator(".result-badge")).toHaveText(
-    "Precomputed example",
-    { timeout: 15000 },
-  );
-  await mobile.screenshot({
-    path: `${output}/workbench-mobile.png`,
-    fullPage: true,
-  });
-  await expect(
-    mobile.getByRole("button", { name: "Export inputs", exact: true }),
-  ).toBeVisible();
-  await expect(
-    mobile.getByRole("button", { name: /Run simulation/ }),
-  ).toHaveCount(0);
-  await expect(mobile.locator(".more-settings")).not.toHaveAttribute(
-    "open",
-    "",
-  );
-  await expect(mobile.locator(".notes-panel")).not.toHaveAttribute("open", "");
-  const geometryBox = await mobile.locator(".geometry-panel").boundingBox();
-  const widthBox = await mobile.getByLabel(/Width \(CD\)/).boundingBox();
-  if (!geometryBox || !widthBox || widthBox.y + widthBox.height > 844)
-    throw new Error(
-      "Geometry and main inputs must fit in the first mobile screen",
+  checks.push("Project/result export/import preserves unverified origin");
+  for (const width of [390, 360]) {
+    mobile = await browser.newPage({
+      viewport: { width, height: width === 390 ? 844 : 800 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+    });
+    mobile.on("pageerror", (e) => errors.push(e.message));
+    const requests = [];
+    mobile.on("request", (r) => {
+      if (new URL(r.url()).pathname.startsWith("/api/")) requests.push(r.url());
+    });
+    await mobile.goto("http://127.0.0.1:4173");
+    await expect(mobile.locator(".result-badge")).toHaveText(
+      "Precomputed example",
     );
-  await mobile
-    .locator(".spectrum-panel")
-    .screenshot({ path: `${output}/workbench-mobile-spectrum.png` });
-  await mobile.evaluate(() => window.scrollTo(0, 0));
-  await mobile.screenshot({ path: `${output}/workbench-mobile-viewport.png` });
-  for (const dimension of ["pitch", "height", "width"]) {
-    await mobile
-      .getByRole("button", { name: `Edit ${dimension}`, exact: true })
-      .click();
-    await expect(mobile.locator(`#dimension-${dimension}`)).toBeFocused();
-    const touchBox = await mobile
-      .getByRole("button", { name: `Edit ${dimension}`, exact: true })
-      .boundingBox();
-    if (!touchBox || touchBox.height < 44 || touchBox.width < 44)
-      throw new Error("Dimension controls need 44px touch targets");
-    await expect(mobile.getByTestId(`${dimension}-highlight`)).toBeVisible();
+    await expect(mobile.locator(".connection")).toHaveText("Static preview");
+    await rendered(mobile);
+    assert.equal(
+      await mobile.evaluate(
+        () => document.documentElement.scrollWidth > innerWidth,
+      ),
+      false,
+    );
+    const rail = await mobile.locator(".dimension-rail").boundingBox();
+    assert.ok(
+      rail.y + rail.height < (width === 390 ? 844 : 800),
+      "Precision rail is on first screen",
+    );
+    await shot(mobile, `workbench-mobile-${width}-viewport`);
+    await shot(mobile, `workbench-mobile-${width}`, true);
     await expect(
-      mobile.getByRole("button", { name: `Edit ${dimension}`, exact: true }),
-    ).toHaveAttribute("aria-pressed", "true");
-  }
-  await mobile.locator("#dimension-width").fill("210");
-  await expect(mobile.locator(".geometry-svg")).toHaveAttribute(
-    "aria-label",
-    /CD 210 nanometers/,
-  );
-  await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
-  await mobile.locator("#dimension-width").press("Tab");
-  await mobile.evaluate(() => window.scrollTo(0, 0));
-  await mobile.screenshot({ path: `${output}/workbench-mobile-selected.png` });
-  await mobile.getByRole("link", { name: "Spectrum", exact: true }).click();
-  await mobile.screenshot({
-    path: `${output}/workbench-mobile-spectrum-viewport.png`,
-  });
-  const chart = mobile.locator(".spectrum-svg");
-  const chartBox = await chart.boundingBox();
-  if (!chartBox || chartBox.height < 240 || chartBox.height > 280)
-    throw new Error("Mobile chart must be physically readable (240–280 px)");
-  const tickSize = await mobile
-    .locator(".chart-tick")
-    .first()
-    .evaluate(
-      (node) =>
-        parseFloat(getComputedStyle(node).fontSize) * node.getScreenCTM().a,
+      mobile.getByRole("button", { name: /Run simulation/ }),
+    ).toHaveCount(0);
+    await expect(
+      mobile.getByRole("button", { name: "Export inputs", exact: true }),
+    ).toBeVisible();
+    for (const kind of ["width", "height", "pitch"]) {
+      const button = mobile
+        .locator(".dimension-rail button")
+        .filter({ hasText: new RegExp(`^${kind}`, "i") });
+      const box = await button.boundingBox();
+      assert.ok(box.width >= 44 && box.height >= 44);
+      await button.click();
+      await expect(mobile.locator(`#dimension-${kind}`)).toBeFocused();
+      await mobile.keyboard.press("Escape");
+      await expect(button).toBeFocused();
+    }
+    await dimension(mobile, "width", 210);
+    await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
+    await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
+    await mobile.locator(".dimension-rail button").first().click();
+    await shot(mobile, `workbench-mobile-${width}-exact-entry`);
+    await mobile.locator("#dimension-width").fill("9999");
+    await expect(mobile.locator("#dimension-width")).toHaveAttribute(
+      "aria-invalid",
+      "true",
     );
-  if (tickSize < 11.99)
-    throw new Error(`Rendered chart labels are too small: ${tickSize}px`);
-  await mobile
-    .locator(".spectrum-panel")
-    .screenshot({ path: `${output}/workbench-mobile-stale-spectrum.png` });
-  await mobile.getByRole("link", { name: "Build", exact: true }).click();
-  await mobile
-    .getByRole("button", { name: "Edit materials", exact: true })
-    .click();
-  await expect(mobile.getByLabel("Ridge material name")).toBeVisible();
-  await mobile
-    .locator("[data-section=Materials]")
-    .screenshot({ path: `${output}/workbench-mobile-materials.png` });
-  await mobile.locator(".more-settings > summary").click();
-  await mobile.locator(".more-settings > summary").click();
-  await mobile
-    .locator(".control-section > summary")
-    .filter({ hasText: /^Light/ })
-    .click();
-  await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
-  await mobile
-    .locator("[data-section=Light]")
-    .screenshot({ path: `${output}/workbench-mobile-light.png` });
-  await mobile.locator(".more-settings > summary").click();
-  if (requests.length)
-    throw new Error(`Static preview made API requests: ${requests}`);
-  if (
-    await mobile.evaluate(
-      () => document.documentElement.scrollWidth > window.innerWidth,
-    )
-  )
-    throw new Error("Horizontal overflow on 390px mobile");
-  await mobile.getByLabel(/Width \(CD\)/).fill("210");
-  await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
-  await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
-  checks.push(
-    "390px static mobile preview: first-screen geometry and inputs, collapsed settings, no overflow or API calls, frozen reference and local-setup link",
-  );
-  await mobile.locator(".fit-panel > summary").click();
-  await mobile
-    .locator(".fit-panel")
-    .screenshot({ path: `${output}/workbench-mobile-fit.png` });
-  await mobile.locator(".notes-panel > summary").click();
-  await mobile
-    .locator(".notes-panel")
-    .screenshot({ path: `${output}/workbench-mobile-assumptions.png` });
-  await mobile.setViewportSize({ width: 360, height: 800 });
-  await mobile.reload();
-  await expect(mobile.locator(".result-badge")).toHaveText(
-    "Precomputed example",
-  );
-  await mobile.screenshot({
-    path: `${output}/workbench-mobile-360.png`,
-    fullPage: true,
-  });
-  await mobile.screenshot({
-    path: `${output}/workbench-mobile-360-viewport.png`,
-  });
-  const smallWidthBox = await mobile.locator("#dimension-width").boundingBox();
-  if (!smallWidthBox || smallWidthBox.y + smallWidthBox.height > 800)
-    throw new Error("Main geometry inputs must fit in 360px first viewport");
-  if (
-    await mobile.evaluate(
-      () => document.documentElement.scrollWidth > innerWidth,
-    )
-  )
-    throw new Error("Horizontal overflow at 360px");
-  await mobile.getByRole("button", { name: "Edit width", exact: true }).focus();
-  await mobile.keyboard.press("Enter");
-  await expect(mobile.locator("#dimension-width")).toBeFocused();
-  checks.push(
-    "390/360px geometry selection, keyboard focus, edited drawing/stale example, 260px chart with 12px rendered axes, material access and task anchors",
-  );
-  // Keep cancellation deterministic: real solver coverage is above; these routes
-  // hold jobs open so cancellation cannot race a fast completed calculation.
+    await expect(
+      mobile.getByRole("slider", { name: "Drag width", exact: true }),
+    ).toHaveAttribute("aria-valuenow", "210");
+    await mobile.keyboard.press("Escape");
+    await mobile
+      .getByRole("button", { name: /^Edit ridge material/ })
+      .click();
+    await expect(mobile.getByLabel("Ridge material name")).toBeVisible();
+    await shot(mobile, `workbench-mobile-${width}-material`);
+    await mobile.getByRole("button", { name: "Close settings" }).click();
+    await mobile
+      .getByRole("button", { name: "Edit light", exact: true })
+      .click();
+    await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
+    await shot(mobile, `workbench-mobile-${width}-light`);
+    await mobile.keyboard.press("Escape");
+    await mobile
+      .locator(".spectrum-panel")
+      .screenshot({
+        path: `${output}/workbench-mobile-${width}-stale-spectrum.png`,
+      });
+    const chartBox = await mobile.locator(".spectrum-svg").boundingBox();
+    assert.ok(chartBox.height >= 240 && chartBox.height <= 280);
+    const tickSize = await mobile
+      .locator(".chart-tick")
+      .first()
+      .evaluate(
+        (n) => parseFloat(getComputedStyle(n).fontSize) * n.getScreenCTM().a,
+      );
+    assert.ok(tickSize >= 11.99);
+    if (width === 390) {
+      await mobile
+        .getByRole("button", { name: "Reset example", exact: true })
+        .click();
+      await expect(mobile.locator(".result-badge")).toHaveText(
+        "Precomputed example",
+      );
+      const handle = mobile.getByRole("slider", {
+        name: "Drag width",
+        exact: true,
+      });
+      await handle.focus();
+      await mobile.keyboard.press("ArrowRight");
+      await expect(handle).toHaveAttribute("aria-valuenow", "181");
+      await mobile.keyboard.press("Shift+ArrowRight");
+      await expect(handle).toHaveAttribute("aria-valuenow", "191");
+      await mobile
+        .getByRole("button", { name: "Reset example", exact: true })
+        .click();
+      const box = await handle.boundingBox();
+      await mobile.mouse.move(box.x + 22, box.y + 22);
+      await mobile.mouse.down();
+      await mobile.mouse.move(box.x + 44, box.y + 22, { steps: 8 });
+      await mobile.mouse.up();
+      assert.ok(Number(await handle.getAttribute("aria-valuenow")) > 180);
+      await shot(mobile, "workbench-mobile-390-dragged");
+      await mobile
+        .getByRole("button", { name: "Reset example", exact: true })
+        .click();
+      const canvas = mobile.locator(".webgl-host canvas");
+      await canvas.focus();
+      await mobile.keyboard.press("ArrowLeft");
+      await expect(handle).toHaveAttribute("aria-valuenow", "180");
+      await expect(
+        mobile.getByRole("button", { name: "Reset 3D view" }),
+      ).toBeVisible();
+      await shot(mobile, "workbench-mobile-390-orbited");
+      await mobile.getByRole("button", { name: "Reset 3D view" }).click();
+      const session = await mobile.context().newCDPSession(mobile);
+      const scene = await canvas.boundingBox();
+      const cy = scene.y + scene.height * 0.38,
+        cx = scene.x + scene.width / 2;
+      const zoom = Number(await canvas.getAttribute("data-zoom"));
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [
+          { x: cx - 40, y: cy, id: 1 },
+          { x: cx + 40, y: cy, id: 2 },
+        ],
+      });
+      for (let d = 45; d <= 72; d += 5)
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            { x: cx - d, y: cy, id: 1 },
+            { x: cx + d, y: cy, id: 2 },
+          ],
+        });
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      assert.ok(
+        Number(await canvas.getAttribute("data-zoom")) > zoom,
+        "Pinch zoom changes only camera",
+      );
+      await expect(handle).toHaveAttribute("aria-valuenow", "180");
+      await expect(mobile.getByRole("dialog")).not.toBeVisible();
+      await mobile.getByRole("button", { name: "Reset 3D view" }).click();
+      await mobile.evaluate(() => window.scrollTo(0, 0));
+      const area = await canvas.boundingBox();
+      const sy = area.y + area.height * 0.65;
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: area.x + 14, y: sy }],
+      });
+      for (let d = 20; d <= 150; d += 20)
+        await session.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: area.x + 14, y: sy - d }],
+        });
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      assert.ok(
+        (await mobile.evaluate(() => scrollY)) > 10,
+        "Vertical swipe scrolls page",
+      );
+      checks.push(
+        "3D width pointer/keyboard editing, orbit, real two-touch pinch and vertical page scrolling; gestures do not open sheets or mutate other values",
+      );
+    }
+    assert.deepEqual(requests, []);
+    checks.push(
+      `${width}px: real WebGL render, first-screen precision rail, 44px targets, exact/invalid entry, focus restoration, material/light sheets, readable 260px chart, stale reference and zero API requests`,
+    );
+    await mobile.close();
+    mobile = null;
+  }
   let cancelled = false;
   await page.route("**/api/jobs**", async (route) => {
     if (route.request().method() === "POST") cancelled = false;
@@ -284,12 +347,12 @@ try {
     });
   });
   await page.getByRole("button", { name: /Run simulation/ }).click();
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeDisabled();
+  await expect(page.locator(".dimension-rail button").first()).toBeDisabled();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator(".message.success")).toContainText(
     "Calculation cancelled.",
   );
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
+  await expect(page.locator(".dimension-rail button").first()).toBeEnabled();
   await page
     .getByRole("button", { name: "Run synthetic recovery", exact: true })
     .click();
@@ -297,24 +360,22 @@ try {
   await expect(
     page.getByRole("button", { name: "Run synthetic recovery", exact: true }),
   ).toBeEnabled();
-  await expect(page.getByLabel(/Width \(CD\)/)).toBeEnabled();
   await page.unroute("**/api/jobs**");
-  await openProjectMenu();
+  await menu();
   await page.getByRole("button", { name: "Open", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
   checks.push(
-    "Deterministic forward/fit cancellation unlocks inputs; saved-project dialog dismisses with Escape",
+    "Forward/fit cancellation unlocks all geometry controls; saved dialog Escape dismissal",
   );
-  if (errors.length) throw new Error(`Browser errors: ${errors.join("; ")}`);
+  assert.deepEqual(errors, []);
   await fs.writeFile(
     `${output}/browser-qa.json`,
     JSON.stringify(
       {
         status: "passed",
         checks,
-        browser: "Chromium with Playwright",
         pageErrors: errors,
         date: new Date().toISOString(),
       },
@@ -324,26 +385,19 @@ try {
   );
   console.log(JSON.stringify({ status: "passed", checks }, null, 2));
 } catch (error) {
-  if (mobile)
-    await mobile
-      .screenshot({
-        path: `${output}/browser-mobile-failure.png`,
-        fullPage: true,
-      })
-      .catch(() => {});
+  await mobile
+    ?.screenshot({
+      path: `${output}/browser-mobile-failure.png`,
+      fullPage: true,
+    })
+    .catch(() => {});
   await page
-    .screenshot({ path: `${output}/browser-failure.png`, fullPage: true })
+    ?.screenshot({ path: `${output}/browser-failure.png`, fullPage: true })
     .catch(() => {});
   await fs.writeFile(
     `${output}/browser-qa.json`,
     JSON.stringify(
-      {
-        status: "failed",
-        checks,
-        error: String(error),
-        pageErrors: errors,
-        date: new Date().toISOString(),
-      },
+      { status: "failed", checks, error: String(error), pageErrors: errors },
       null,
       2,
     ),

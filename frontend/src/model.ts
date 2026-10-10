@@ -189,6 +189,17 @@ export function validateProject(project: unknown): string[] {
       (typeof m.source !== "string" || m.source.length > 500)
     )
       errors.push(`${label}: invalid source text.`);
+    if (
+      !finite(m.n) ||
+      m.n <= 0 ||
+      m.n > 10 ||
+      !finite(m.k) ||
+      m.k < 0 ||
+      m.k > 10
+    )
+      errors.push(
+        `${label}: use numeric 0 < n ≤ 10 and 0 ≤ k ≤ 10, including table placeholders.`,
+      );
     if (m.kind === "constant") {
       if ([m.wavelengths_nm, m.n_values, m.k_values].some((v) => v != null))
         errors.push(`${label}: constant materials cannot contain tables.`);

@@ -31,6 +31,14 @@ async function request(path, body, method = body ? "POST" : "GET") {
   return data;
 }
 
+async function widthField(target, value, check = false) {
+  await target.locator(".dimension-rail button").first().click();
+  if (check)
+    await expect(target.locator("#dimension-width")).toHaveValue(value);
+  else await target.locator("#dimension-width").fill(value);
+  await target.getByRole("button", { name: "Close settings" }).click();
+}
+
 async function openSaved() {
   const menu = page.locator(".project-menu");
   if (!(await menu.evaluate((node) => node.open)))
@@ -81,7 +89,12 @@ try {
   browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
     headless: true,
-    args: ["--no-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--use-gl=angle",
+      "--use-angle=swiftshader",
+      "--enable-unsafe-swiftshader",
+    ],
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -93,7 +106,7 @@ try {
   await item.click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.getByLabel("Project name")).toHaveValue(project.name);
-  await expect(page.getByLabel(/Width \(CD\)/)).toHaveValue("196");
+  await widthField(page, "196", true);
   await expect(page.locator(".result-badge")).toHaveText("Server-computed");
   await expect(page.locator(".result-badge")).toHaveAttribute(
     "title",
@@ -108,7 +121,7 @@ try {
     "Saved-list UI loads the agent snapshot and labels its local server origin without certification",
   );
 
-  await page.getByLabel(/Width \(CD\)/).fill("197");
+  await widthField(page, "197");
   await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
   const edited = await exportFile("snapshot-edited-export.json");
   assert.equal(edited.data.project.layers[0].cd_nm, 197);
@@ -117,7 +130,7 @@ try {
   assert.equal(edited.data.provenance, undefined);
   await page.locator("input[type=file]").first().setInputFiles(edited.path);
   await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
-  await page.getByLabel(/Width \(CD\)/).fill("196");
+  await widthField(page, "196");
   await expect(page.locator(".result-badge")).toHaveText("Unverified import");
   assert.deepEqual(
     await request(`/projects/${encodeURIComponent(saved.id)}`),
@@ -188,7 +201,7 @@ try {
   await expect(preview.locator(".result-badge")).toHaveText(
     "Precomputed example",
   );
-  await preview.getByLabel(/Width \(CD\)/).fill("197");
+  await widthField(preview, "197");
   await expect(preview.locator(".result-badge")).toHaveText("Inputs changed");
   await preview
     .locator("input[type=file]")
