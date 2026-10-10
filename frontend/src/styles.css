@@ -2600,6 +2600,12 @@ input[type="range"]:focus-visible {
   .topbar {
     margin: 0 20px;
   }
+  .result {
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
   .page-heading {
     margin-bottom: 12px;
   }
@@ -2616,5 +2622,14 @@ input[type="range"]:focus-visible {
   .scene-selection {
     left: 12px;
     right: 12px;
+  }
+}
+
+.dimension-done {
+  margin-top: 20px;
+}
+@media (min-width: 1000px) {
+  .three-canvas {
+    max-height: 380px;
   }
 }

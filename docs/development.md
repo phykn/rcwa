@@ -90,13 +90,17 @@ saving the same completed forward job again returns its existing snapshot ID.
 
 ## Direct structure editing
 
-Drag a dimension handle or tap Width, Height or Pitch for exact entry. The
-canonical Project feeds the viewport, forms, JSON files and solver. Ridge/film
-and substrate surfaces or captions open their material editors; the inspector
-tabs also expose groove and ambient properties. Constant and tabulated n/k
-inputs remain available.
+Choose a visible layer chip or tap a layer in the 3D view, then tap Width,
+Thickness or Shared pitch for exact entry. Layer settings opens the selected
+layer’s name, type, dimensions and materials. The material tabs also expose
+groove, ambient and substrate properties; constant and tabulated n/k inputs
+remain available. Optional drag handles live under View guide. Calculation
+settings are under the closed Advanced settings section. The canonical Project
+still feeds the viewport, forms, JSON files and solver.
 
-The viewport shows three repeats of an infinite one-dimensional stack. Width,
+Colors identify layer positions and do not simulate optical appearance. Ridge
+regions use the layer color, non-air gaps use neutral gray and the substrate is
+a separate base. The viewport shows three repeats of an infinite one-dimensional stack. Width,
 layer thicknesses and pitch share one scale; the substrate depth and invariant
 groove length are schematic. Layer order runs from ambient to substrate. A zero
 width or thickness removes ridge volume, and full-width ridges form a continuous
@@ -168,10 +172,13 @@ screenshots/assertions alongside the existing browser CI artifacts.
 
 ## Multilayer stacks and compatibility
 
-Open the compact Layers row to select a layer or reveal Add layer's patterned
-and uniform choices. Selection closes the picker and focuses the structure's
-existing dimension/material controls. Edit selected layer opens its inspector;
-the closed Layer actions section contains move, duplicate and remove controls.
+Select a layer using the always-visible horizontal layer chips; their colors
+match the layer numbers in the schematic 3D view, independently of optical
+material and selection. A checkmark, border, outline and selected-layer caption
+identify selection without relying on color. The selected chip is automatically
+revealed when the strip scrolls. Add layer offers named patterned and uniform
+choices. Layer settings opens its inspector; the closed Layer actions section
+contains move, duplicate and remove controls.
 The list is bounded to one through eight finite layers. Ambient and substrate
 stay outside that list and are reached through the material inspector tabs.
 Uniform films have no CD or groove material. Every patterned CD must remain
@@ -206,3 +213,14 @@ Changes are first published on a test branch. Full CI, independent numerical
 reference checks and inspection of the exact candidate's rendered screenshots
 must pass before that commit reaches main. The Pages workflow follows successful
 main checks and remains a static, precomputed-only preview.
+
+### First-use verification
+
+The first-use browser script checks the static path at 360×800, 390×844 and
+1440×1000: select the initial layer, change its width, add/select another layer,
+change thickness without changing the other layer, and identify the original
+example spectrum. It checks page overflow, visible mobile result actions,
+closed advanced controls and absence of API calls. Both viewport-only and
+full-page screenshots are retained for independent visual review. The broader
+browser suites continue to exercise real calculation, history, precise material
+round trips, optional drag handles, mobile gestures and failed WebGL contexts.

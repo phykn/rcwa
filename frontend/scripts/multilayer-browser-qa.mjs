@@ -1,3 +1,4 @@
+import { enableDragHandles, openMaterial } from "./browser-editor-controls.mjs";
 // Run against the real local API, live Vite app and a separately built static app.
 // No successful numerical responses are mocked. Screenshots are mandatory and
 // captured in fresh browser processes before state/gesture stress cases.
@@ -98,6 +99,7 @@ async function launch(viewport, url = appUrl) {
   await expect(page.locator(".connection")).toHaveText(
     url === staticUrl ? "Static preview" : "Solver connected",
   );
+  await enableDragHandles(page);
   return calls;
 }
 async function menu() {
@@ -146,8 +148,6 @@ async function load(snapshot) {
 }
 async function openPicker() {
   const picker = page.getByTestId("layer-stack");
-  if (!(await picker.evaluate((node) => node.open)))
-    await page.getByTestId("layer-picker-toggle").click();
   return picker;
 }
 async function openAddChoices() {
@@ -160,13 +160,13 @@ async function openAddChoices() {
 async function addLayer(label) {
   await openAddChoices();
   await page.getByRole("button", { name: label, exact: true }).click();
-  await expect(page.getByTestId("layer-stack")).not.toHaveAttribute("open");
-  await expect(page.getByTestId("layer-picker-toggle")).toBeFocused();
+  await expect(page.locator(".stack-add")).not.toHaveAttribute("open");
+  await expect(page.locator('summary[aria-label="Add layer"]')).toBeFocused();
 }
 async function openLayerActions() {
   await openPicker();
   await page
-    .getByRole("button", { name: "Edit selected layer", exact: true })
+    .getByRole("button", { name: "Layer settings", exact: true })
     .click();
   const inspector = page.locator(".inspector");
   await expect(inspector).toBeVisible();
@@ -188,8 +188,12 @@ async function select(index, name) {
       exact: true,
     })
     .click();
-  await expect(page.getByTestId("layer-stack")).not.toHaveAttribute("open");
-  await expect(page.getByTestId("layer-picker-toggle")).toBeFocused();
+  await expect(
+    page.getByRole("button", {
+      name: `Select layer ${index + 1}: ${name}`,
+      exact: true,
+    }),
+  ).toBeFocused();
 }
 async function history(direction) {
   await menu();
@@ -298,9 +302,7 @@ async function separatedHandles(label) {
       node.getBoundingClientRect(),
     );
     return [
-      ...scene.querySelectorAll(
-        ".scene-material, .scene-substrate, .scene-guide > summary, .reset-view",
-      ),
+      ...scene.querySelectorAll(".scene-guide > summary, .reset-view"),
     ].map((node) => {
       const box = node.getBoundingClientRect();
       return {
@@ -427,9 +429,12 @@ try {
     );
     await expect(
       page.getByTestId("layer-stack").locator(".stack-rows"),
-    ).not.toBeVisible();
-    await expect(page.locator(".setup-rows > button")).toHaveCount(2);
-    await expect(page.locator(".scene-material")).toContainText("Layer 3");
+    ).toBeVisible();
+    await expect(page.locator(".setup-rows > button")).toHaveCount(1);
+    await expect(page.locator(".advanced-settings")).not.toHaveAttribute(
+      "open",
+    );
+    await expect(page.locator(".scene-selection")).toContainText("Layer 3");
     await separatedHandles(`three-layer-${width}`);
     await page.evaluate(() => window.scrollTo(0, 0));
     await noOverflow();
@@ -462,10 +467,10 @@ try {
     await capture(`add-${width}`);
     await page.keyboard.press("Escape");
     await expect(page.locator(".stack-add")).not.toHaveAttribute("open");
-    await expect(page.getByTestId("layer-stack")).toHaveAttribute("open");
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("layer-stack")).not.toHaveAttribute("open");
-    await expect(page.getByTestId("layer-picker-toggle")).toBeFocused();
+    await expect(page.locator('summary[aria-label="Add layer"]')).toBeFocused();
+    await expect(
+      page.getByTestId("layer-stack").locator(".stack-rows"),
+    ).toBeVisible();
     const eight = structuredClone(saved.project);
     eight.layers = Array.from({ length: 8 }, (_, i) => ({
       ...structuredClone(saved.project.layers[i % 3]),
@@ -482,7 +487,7 @@ try {
     await noOverflow();
     await capture(`picker-eight-${width}`);
     await select(6, eight.layers[6].name);
-    await page.locator(".scene-material").click();
+    await openMaterial(page);
     const longNameInspector = page.locator(".inspector");
     await expect(longNameInspector).toContainText(eight.layers[6].name);
     await expect(longNameInspector.locator("h2")).toContainText("Layer 7");
@@ -547,7 +552,7 @@ try {
     browser = undefined;
   }
   checks.push(
-    "Desktop, 360px and 390px show all three physical layers, selected lower-layer handles, uniform film inspector and same-scale stack proposal cross-sections; closed first screen, contextual actions/add choices, open eight-layer picker and 100-character unbroken inspector name; zero-depth and tall-thin stacks retain disjoint44px pointer targets with48px center spacing even after orbit/zoom; all thirty-three required screenshots captured",
+    "Desktop, 360px and 390px show all three physical layers, selected lower-layer handles, uniform film inspector and same-scale stack proposal cross-sections; visible first-screen layer chips, contextual actions/add choices, scrollable eight-layer choices and 100-character unbroken inspector name; zero-depth and tall-thin stacks retain disjoint44px pointer targets with48px center spacing even after orbit/zoom; all thirty-three required screenshots captured",
   );
   const calls = await launch({ width: 1440, height: 1100 });
   await load(saved);

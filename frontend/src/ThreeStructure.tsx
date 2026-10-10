@@ -169,7 +169,7 @@ export function ThreeStructure({
     const canvas = renderer.domElement;
     canvas.setAttribute(
       "aria-label",
-      "Interactive 3D layer stack. Drag to orbit, pinch or scroll to zoom. Keyboard arrows orbit, plus and minus zoom, and 0 resets. Click a layer to select and edit its material. Dimension controls follow the selected layer.",
+      "Interactive 3D layer stack. Drag to orbit, pinch or scroll to zoom. Keyboard arrows orbit, plus and minus zoom, and 0 resets. Click a layer to select it. Dimension controls follow the selected layer; Layer settings opens its materials.",
     );
     canvas.setAttribute("role", "img");
     canvas.tabIndex = 0;
@@ -969,7 +969,7 @@ export function ThreeStructure({
                   key={dimension}
                   className={`drag-target ${dimension}-handle ${active === dimension || focused === dimension ? "active" : ""}`}
                   role="slider"
-                  aria-label={`Drag ${dimension}`}
+                  aria-label={`Drag ${dimension === "height" ? "thickness" : dimension === "pitch" ? "shared pitch" : dimension}`}
                   aria-valuemin={dimensionRange(dimension, values)[0]}
                   aria-valuemax={dimensionRange(dimension, values)[1]}
                   aria-valuenow={values[dimension]}

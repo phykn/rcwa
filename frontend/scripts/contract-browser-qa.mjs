@@ -1,3 +1,8 @@
+import {
+  enableDragHandles,
+  openMaterial,
+  dimensionLabel,
+} from "./browser-editor-controls.mjs";
 // Deterministic interaction/contract checks. Real numerical computation is
 // exercised separately by browser-qa.mjs and snapshot-browser-qa.mjs.
 import assert from "node:assert/strict";
@@ -66,7 +71,7 @@ async function verifyFonts(target, evidence) {
     await document.fonts.ready;
     return {
       results,
-      title: getComputedStyle(document.querySelector("h1 input")).fontFamily,
+      title: getComputedStyle(document.querySelector("h1")).fontFamily,
       body: getComputedStyle(document.body).fontFamily,
       numbers: getComputedStyle(
         document.querySelector(".dimension-rail strong"),
@@ -132,7 +137,7 @@ async function exportProject() {
 async function editDimension(dimension, value) {
   await page
     .locator(".dimension-rail")
-    .getByRole("button", { name: new RegExp(dimension) })
+    .getByRole("button", { name: new RegExp(dimensionLabel(dimension), "i") })
     .click();
   await expect(page.locator(`#dimension-${dimension}`)).toBeVisible();
   await page.locator(`#dimension-${dimension}`).fill(String(value));
@@ -206,7 +211,7 @@ try {
   await editDimension("width", 205.5);
   tableProject.layers[0].cd_nm = 205.5;
   assert.deepEqual((await exportProject()).project, tableProject);
-  await page.locator(".scene-material").click();
+  await openMaterial(page);
   await expect(page.getByLabel("Ridge material name")).toHaveValue(
     "Synthetic imported table",
   );
@@ -374,7 +379,10 @@ try {
   let posts = 0;
   let polls = 0;
   let submitted;
-  const validation = await page.request.post("http://127.0.0.1:8000/api/validate", { data: beforeRun.project });
+  const validation = await page.request.post(
+    "http://127.0.0.1:8000/api/validate",
+    { data: beforeRun.project },
+  );
   assert.ok(validation.ok());
   const validated = await validation.json();
   const submitGate = deferred();
@@ -448,8 +456,9 @@ try {
   await canvas.focus();
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("+");
+  await enableDragHandles(page);
   const pitchHandle = page.getByRole("slider", {
-    name: "Drag pitch",
+    name: "Drag shared pitch",
     exact: true,
   });
   await pitchHandle.scrollIntoViewIfNeeded();
@@ -475,7 +484,7 @@ try {
     page.getByRole("slider", { name: "Drag width", exact: true }),
   ).toHaveAttribute("aria-valuenow", "202.25");
   await expect(
-    page.getByRole("slider", { name: "Drag height", exact: true }),
+    page.getByRole("slider", { name: "Drag thickness", exact: true }),
   ).toHaveAttribute("aria-valuenow", "160");
   await page
     .getByRole("button", { name: "Reset 3D view", exact: true })
@@ -584,25 +593,13 @@ try {
   };
   const assertCaptionBounds = async () => {
     const scene = await captionPage.locator(".three-canvas").boundingBox();
-    const ridge = await captionPage.locator(".scene-material").boundingBox();
-    const substrate = await captionPage
-      .locator(".scene-substrate")
-      .boundingBox();
-    for (const caption of [ridge, substrate]) {
-      assert.ok(
-        caption.x >= scene.x &&
-          caption.y >= scene.y &&
-          caption.x + caption.width <= scene.x + scene.width + 1 &&
-          caption.y + caption.height <= scene.y + scene.height + 1,
-        "Material captions must fit inside the 360px viewport",
-      );
-    }
+    const caption = await captionPage.locator(".scene-selection").boundingBox();
     assert.ok(
-      ridge.x + ridge.width <= substrate.x ||
-        substrate.x + substrate.width <= ridge.x ||
-        ridge.y + ridge.height <= substrate.y ||
-        substrate.y + substrate.height <= ridge.y,
-      "Ridge and substrate captions must not overlap at 360px",
+      caption.x >= scene.x &&
+        caption.y >= scene.y &&
+        caption.x + caption.width <= scene.x + scene.width + 1 &&
+        caption.y + caption.height <= scene.y + scene.height + 1,
+      "Selected-layer caption stays within the 360px scene",
     );
   };
   await setCaptionProject(precise);
@@ -610,7 +607,7 @@ try {
   await captionPage.screenshot({
     path: `${output}/contract-caption-constants-360.png`,
   });
-  await captionPage.locator(".scene-material").click();
+  await openMaterial(captionPage);
   await expect(captionPage.getByLabel("Ridge n", { exact: true })).toHaveValue(
     "9.123456789",
   );
@@ -618,7 +615,7 @@ try {
     "0.123456789",
   );
   await captionPage.keyboard.press("Escape");
-  await captionPage.locator(".scene-substrate").click();
+  await openMaterial(captionPage, "Substrate");
   await expect(
     captionPage.getByLabel("Substrate n", { exact: true }),
   ).toHaveValue("9.876543219");
@@ -642,17 +639,16 @@ try {
     k_values: [0.123456789, 0.987654321],
   };
   await setCaptionProject(precise);
-  await expect(captionPage.locator(".scene-material")).toContainText(
-    "Tabulated",
+  await openMaterial(captionPage);
+  await expect(captionPage.locator(".table-summary")).toContainText(
+    "2 samples",
   );
-  await expect(captionPage.locator(".scene-substrate")).toContainText(
-    "Tabulated",
-  );
+  await captionPage.keyboard.press("Escape");
   await assertCaptionBounds();
   await captionPage.screenshot({
     path: `${output}/contract-caption-tables-360.png`,
   });
-  await captionPage.locator(".scene-substrate").click();
+  await openMaterial(captionPage, "Substrate");
   await expect(captionPage.locator(".table-summary")).toContainText(
     "2 samples",
   );
@@ -673,7 +669,7 @@ try {
     precise,
   );
   checks.push(
-    "360px material captions fit without overlap; precise constant values remain in inspectors and both n/k tables survive export unchanged",
+    "360px selected-layer caption fits; precise material constants remain in contextual inspectors and both n/k tables survive export unchanged",
   );
   const fractional = structuredClone(reference.project);
   fractional.name = "Precision rail fixture";
@@ -687,9 +683,9 @@ try {
     pitch: 510.123456789,
   };
   for (const [dimension, value] of Object.entries(fractionalValues)) {
-    const button = captionPage
-      .locator(".dimension-rail")
-      .getByRole("button", { name: new RegExp(dimension) });
+    const button = captionPage.locator(".dimension-rail").getByRole("button", {
+      name: new RegExp(dimensionLabel(dimension), "i"),
+    });
     const buttonBox = await button.boundingBox();
     const displayBox = await button.locator("strong").boundingBox();
     assert.ok(
@@ -716,7 +712,7 @@ try {
   for (const [dimension, value] of Object.entries(fractionalValues)) {
     await captionPage
       .locator(".dimension-rail")
-      .getByRole("button", { name: new RegExp(dimension) })
+      .getByRole("button", { name: new RegExp(dimensionLabel(dimension), "i") })
       .click();
     await expect(captionPage.locator(`#dimension-${dimension}`)).toHaveValue(
       String(value),

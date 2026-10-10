@@ -61,27 +61,41 @@ for (const width of [360, 390, 1440]) {
       await page.locator(".advanced-settings").evaluate((n) => n.open),
       false,
     );
-    assert.ok(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth + 1,
-      ),
-    );
-    const primary = await page.locator(".preview-result-button").boundingBox();
-    if (
-      width < 650 &&
-      !(primary && primary.y + primary.height <= (width === 360 ? 800 : 844))
-    )
+    const overflow = await page.evaluate(() => ({
+      width: innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      elements: [...document.querySelectorAll("body *")]
+        .map((node) => ({
+          tag: node.tagName,
+          className: typeof node.className === "string" ? node.className : "",
+          rect: node.getBoundingClientRect().toJSON(),
+        }))
+        .filter(
+          (item) =>
+            item.rect.width > 0 &&
+            (item.rect.right > innerWidth + 1 || item.rect.left < -1),
+        )
+        .slice(0, 20),
+    }));
+    if (overflow.scrollWidth > overflow.width + 1)
       report.issues.push(
-        `Primary result action is below the ${width}px mobile viewport: ${JSON.stringify(primary)}`,
+        `${width}px horizontal overflow: ${JSON.stringify(overflow)}`,
+      );
+    const primary = await page.locator(".preview-result-button").boundingBox();
+    if (!(
+      primary &&
+      primary.y + primary.height <=
+        (width === 360 ? 800 : width === 390 ? 844 : 1000)
+    ))
+      report.issues.push(
+        `Primary result action is below the ${width}px viewport: ${JSON.stringify(primary)}`,
       );
     await shot("initial");
     // First change the existing layer, without having to discover Add.
     await page.locator(".dimension-rail button").first().click();
     await shot("width-editor");
     await page.locator("#dimension-width").fill("200");
-    await page
-      .getByRole("button", { name: "Close settings", exact: true })
-      .click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(page.locator(".dimension-rail button").first()).toContainText(
       "200",
     );
@@ -95,6 +109,11 @@ for (const width of [360, 390, 1440]) {
     await expect(page.locator(".scene-selection")).toContainText(
       "Selected: Layer 2",
     );
+    const otherLayerDimensions = await page
+      .locator(".dimension-rail button")
+      .evaluateAll((nodes) =>
+        nodes.slice(0, 2).map((node) => node.getAttribute("aria-label")),
+      );
     await shot("two-layers");
     await page.getByRole("button", { name: /Select layer 1:/ }).click();
     await expect(page.locator(".scene-selection")).toContainText(
@@ -109,13 +128,25 @@ for (const width of [360, 390, 1440]) {
       .click();
     await shot("thickness-editor");
     await page.locator("#dimension-height").fill("150");
-    await page
-      .getByRole("button", { name: "Close settings", exact: true })
-      .click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
     await expect(
       page.locator(".dimension-rail button").filter({ hasText: "Thickness" }),
     ).toContainText("150");
     await shot("edited-layer");
+    await page.getByRole("button", { name: /Select layer 2:/ }).click();
+    assert.deepEqual(
+      await page
+        .locator(".dimension-rail button")
+        .evaluateAll((nodes) =>
+          nodes.slice(0, 2).map((node) => node.getAttribute("aria-label")),
+        ),
+      otherLayerDimensions,
+      "Editing Layer 1 leaves Layer 2 width and thickness unchanged",
+    );
+    await page.getByRole("button", { name: /Select layer 1:/ }).click();
+    await expect(
+      page.locator(".dimension-rail button").filter({ hasText: "Thickness" }),
+    ).toContainText("150");
     await page
       .getByRole("button", { name: "Layer settings", exact: true })
       .click();

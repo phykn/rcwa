@@ -1,3 +1,8 @@
+import {
+  enableDragHandles,
+  openMaterial,
+  dimensionLabel,
+} from "./browser-editor-controls.mjs";
 /* global document, getComputedStyle, innerWidth, requestAnimationFrame, scrollY, window */
 import { chromium, expect } from "@playwright/test";
 import assert from "node:assert/strict";
@@ -24,7 +29,7 @@ async function menu(target = page) {
 async function dimension(target, kind, value) {
   await target
     .locator(".dimension-rail button")
-    .filter({ hasText: new RegExp(`^${kind}`, "i") })
+    .filter({ hasText: new RegExp(`^${dimensionLabel(kind)}`, "i") })
     .click();
   const input = target.locator(`#dimension-${kind}`);
   if (value !== undefined) await input.fill(String(value));
@@ -57,7 +62,7 @@ async function shot(target, name, fullPage = false) {
   await target.screenshot({ path: `${output}/${name}.png`, fullPage });
 }
 try {
-  page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("http://127.0.0.1:5173");
   await expect(page.locator(".connection")).toHaveText("Solver connected", {
@@ -80,6 +85,11 @@ try {
   await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "workbench-desktop", true);
   await shot(page, "workbench-desktop-viewport");
+  const runControl = await page.locator(".run-button").boundingBox();
+  assert.ok(
+    runControl && runControl.y + runControl.height <= 1000,
+    "Run simulation stays on the desktop first screen",
+  );
   checks.push("s/p and total/specular are distinct; desktop rendered");
   await dimension(page, "width", 181);
   await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
@@ -181,12 +191,12 @@ try {
       mobile.getByRole("button", { name: /Run simulation/ }),
     ).toHaveCount(0);
     await expect(
-      mobile.getByRole("button", { name: "Export inputs", exact: true }),
+      mobile.getByRole("link", { name: "View example spectrum", exact: true }),
     ).toBeVisible();
     for (const kind of ["width", "height", "pitch"]) {
       const button = mobile
         .locator(".dimension-rail button")
-        .filter({ hasText: new RegExp(`^${kind}`, "i") });
+        .filter({ hasText: new RegExp(`^${dimensionLabel(kind)}`, "i") });
       const box = await button.boundingBox();
       assert.ok(box.width >= 44 && box.height >= 44);
       await button.click();
@@ -208,10 +218,10 @@ try {
       "true",
     );
     await expect(
-      mobile.getByRole("slider", { name: "Drag width", exact: true }),
-    ).toHaveAttribute("aria-valuenow", "210");
+      mobile.locator(".dimension-rail button").first(),
+    ).toHaveAttribute("aria-label", /currently 210 nanometers/);
     await mobile.keyboard.press("Escape");
-    await mobile.getByRole("button", { name: /^Edit ridge material/ }).click();
+    await openMaterial(mobile);
     await expect(mobile.getByLabel("Ridge material name")).toBeVisible();
     await shot(mobile, `workbench-mobile-${width}-material`);
     await mobile.getByRole("button", { name: "Close settings" }).click();
@@ -241,6 +251,7 @@ try {
       await expect(mobile.locator(".result-badge")).toHaveText(
         "Precomputed example",
       );
+      await enableDragHandles(mobile);
       const handle = mobile.getByRole("slider", {
         name: "Drag width",
         exact: true,
@@ -273,7 +284,7 @@ try {
       await mobile.mouse.up();
       assert.ok(Number(await handle.getAttribute("aria-valuenow")) > 180);
       await expect(
-        mobile.getByRole("slider", { name: "Drag height", exact: true }),
+        mobile.getByRole("slider", { name: "Drag thickness", exact: true }),
       ).toHaveAttribute("aria-valuenow", "160");
       await shot(mobile, "workbench-mobile-390-dragged");
       await menu(mobile);

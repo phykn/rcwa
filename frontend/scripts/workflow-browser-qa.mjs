@@ -1,3 +1,4 @@
+import { enableDragHandles } from "./browser-editor-controls.mjs";
 // Run after the other browser QA scripts with the real local API (:8000),
 // live Vite (:5173), and VITE_STATIC_PREVIEW=true preview (:4173) running.
 // CHROMIUM_PATH=/usr/bin/chromium node scripts/workflow-browser-qa.mjs
@@ -780,6 +781,7 @@ try {
     "data-fallback",
     "false",
   );
+  await enableDragHandles(page);
   const handle = page.getByRole("slider", { name: "Drag width", exact: true });
   await handle.scrollIntoViewIfNeeded();
   const box = await handle.boundingBox();

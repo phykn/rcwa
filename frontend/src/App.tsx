@@ -192,6 +192,7 @@ function DimensionEditor({
   onChange,
   onEditStart,
   onEditEnd,
+  onDone,
 }: {
   dimension: Dimension;
   value: number;
@@ -200,6 +201,7 @@ function DimensionEditor({
   onChange: (value: number) => void;
   onEditStart: () => void;
   onEditEnd: () => void;
+  onDone: () => void;
 }) {
   const activePointer = useRef<number | null>(null);
   const end = useRef(onEditEnd);
@@ -247,7 +249,7 @@ function DimensionEditor({
         onChange={onChange}
       />
       <input
-        aria-label={`${dimension} range`}
+        aria-label={`${dimension === "height" ? "thickness" : dimension === "pitch" ? "shared pitch" : dimension} range`}
         type="range"
         min={min}
         max={max}
@@ -266,6 +268,9 @@ function DimensionEditor({
         <span>{min} nm</span>
         <span>{max} nm</span>
       </div>
+      <button className="dialog-close dimension-done" onClick={onDone}>
+        Done
+      </button>
     </>
   );
 }
@@ -2018,7 +2023,7 @@ export default function App() {
                 )}
                 <button
                   className="text-button"
-                  onClick={() => setSheet("materials")}
+                  onClick={() => setSheet("ridge")}
                 >
                   Edit materials
                 </button>
@@ -2050,6 +2055,7 @@ export default function App() {
                 onChange={(value) => changeDimension(sheet as Dimension, value)}
                 onEditStart={beginEdit}
                 onEditEnd={endEdit}
+                onDone={() => setSheet(null)}
               />
             )}
             {sheet &&
