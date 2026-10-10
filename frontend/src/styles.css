@@ -3023,3 +3023,23 @@ h1 input:focus {
   opacity: 0.4;
   cursor: default;
 }
+/* Keep long imported constants inside each material caption. Exact values remain
+   in the accessible label and inspector; the project is never rounded. */
+.scene-material,
+.scene-substrate {
+  max-width: calc(50% - 24px);
+  min-width: 0;
+  white-space: nowrap;
+  gap: 5px;
+}
+.scene-material > i,
+.scene-material > span {
+  flex-shrink: 0;
+}
+.scene-material > small,
+.scene-substrate > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

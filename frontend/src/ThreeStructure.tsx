@@ -65,11 +65,13 @@ export function ThreeStructure({
   disabled = false,
   onChange,
   onOpen,
+  onFallbackChange,
 }: {
   project: Project;
   disabled?: boolean;
   onChange: (dimension: StructureDimension, value: number) => void;
   onOpen: (sheet: StructureSheet) => void;
+  onFallbackChange?: (failed: boolean) => void;
 }) {
   const values = structureValues(project);
   const host = useRef<HTMLDivElement>(null);
@@ -717,6 +719,10 @@ export function ThreeStructure({
     }
   }
 
+  useEffect(() => {
+    onFallbackChange?.(failed);
+  }, [failed, onFallbackChange]);
+
   const ridgeMode = structureGeometry(values).ridgeMode;
   const stateNote =
     values.height === 0
@@ -868,9 +874,9 @@ export function ThreeStructure({
         ))}
       </div>
       <p className="scene-model-note">
-        {stateNote} Width, height and pitch share one scale; substrate depth and
-        groove length are schematic. Colors identify regions, not optical
-        constants.
+        {ridgeMode === "patterned"
+          ? "Substrate depth and groove length are schematic."
+          : stateNote}
       </p>
     </div>
   );

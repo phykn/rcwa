@@ -76,6 +76,7 @@ try {
   await expect(page.locator(".plot-legend")).not.toContainText("Reflectance");
   await page.getByLabel("Spectrum quantity").selectOption("total");
   await page.getByRole("button", { name: "s / TE", exact: true }).click();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await shot(page, "workbench-desktop", true);
   await shot(page, "workbench-desktop-viewport");
   checks.push("s/p and total/specular are distinct; desktop rendered");
@@ -194,7 +195,10 @@ try {
     }
     await dimension(mobile, "width", 210);
     await expect(mobile.locator(".result-badge")).toHaveText("Inputs changed");
-    await expect(mobile.locator(".reference-note")).toContainText("CD 180 nm");
+    await expect(mobile.locator(".reference-note")).toHaveCount(0);
+    await expect(mobile.locator(".result-inputs")).toContainText(
+      "width 180 nm",
+    );
     await mobile.locator(".dimension-rail button").first().click();
     await shot(mobile, `workbench-mobile-${width}-exact-entry`);
     await mobile.locator("#dimension-width").fill("9999");
@@ -206,9 +210,7 @@ try {
       mobile.getByRole("slider", { name: "Drag width", exact: true }),
     ).toHaveAttribute("aria-valuenow", "210");
     await mobile.keyboard.press("Escape");
-    await mobile
-      .getByRole("button", { name: /^Edit ridge material/ })
-      .click();
+    await mobile.getByRole("button", { name: /^Edit ridge material/ }).click();
     await expect(mobile.getByLabel("Ridge material name")).toBeVisible();
     await shot(mobile, `workbench-mobile-${width}-material`);
     await mobile.getByRole("button", { name: "Close settings" }).click();
@@ -218,11 +220,9 @@ try {
     await expect(mobile.getByLabel("Wavelength samples")).toBeVisible();
     await shot(mobile, `workbench-mobile-${width}-light`);
     await mobile.keyboard.press("Escape");
-    await mobile
-      .locator(".spectrum-panel")
-      .screenshot({
-        path: `${output}/workbench-mobile-${width}-stale-spectrum.png`,
-      });
+    await mobile.locator(".spectrum-panel").screenshot({
+      path: `${output}/workbench-mobile-${width}-stale-spectrum.png`,
+    });
     const chartBox = await mobile.locator(".spectrum-svg").boundingBox();
     assert.ok(chartBox.height >= 240 && chartBox.height <= 280);
     const tickSize = await mobile

@@ -344,6 +344,7 @@ const errorText = (error: unknown) =>
 
 export default function App() {
   const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [sceneFallback, setSceneFallback] = useState(false);
   const inspector = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const actionVersion = useRef(0);
@@ -547,6 +548,7 @@ export default function App() {
       } catch (e) {
         if (stopped || activeJob.current !== id) return;
         if (e instanceof ApiError && e.status === 404) {
+          setConnection("online");
           activeJob.current = null;
           setJob((previous) =>
             previous ? { ...previous, status: "failed" } : previous,
@@ -951,9 +953,14 @@ export default function App() {
               disabled={busy}
               onChange={changeDimension}
               onOpen={openSheet}
+              onFallbackChange={setSceneFallback}
             />
             <div className="gesture-note">
-              <span>Drag the dots. Tap values or materials.</span>
+              <span>
+                {sceneFallback
+                  ? "Tap a value to edit."
+                  : "Drag the dots. Tap values or materials."}
+              </span>
               <button
                 className="reset"
                 aria-label="Reset example"
@@ -1184,21 +1191,12 @@ export default function App() {
                     : "Inputs changed. Run again to update this spectrum."}
                 </div>
               )}
-              {resultOrigin === "reference" && result && (
+              {resultOrigin === "reference" && result && !stale && (
                 <div className="reference-note">
                   Precomputed with meent.{" "}
                   {staticPreview
                     ? "Editing does not recalculate this spectrum. "
                     : "No new calculation was run. "}
-                  {resultProject && (
-                    <span>
-                      {" "}
-                      Λ {resultProject.period_nm} nm · CD{" "}
-                      {resultProject.layers[0].cd_nm} nm · h{" "}
-                      {resultProject.layers[0].thickness_nm} nm · θ{" "}
-                      {resultProject.illumination.angle_deg}°.
-                    </span>
-                  )}
                 </div>
               )}
               <SpectrumPlot
@@ -1232,6 +1230,18 @@ export default function App() {
                 ⌄
               </span>
             </summary>
+            <p className="control-note">
+              The 3D view shows three finite repeats of an infinite 1D pattern.
+              Width, height and pitch share one scale. Substrate depth and
+              groove length are schematic; colors identify regions, not optical
+              constants.
+            </p>
+            {result && resultOrigin === "reference" && (
+              <p className="control-note">
+                This result is the bundled precomputed meent example, not a new
+                calculation.
+              </p>
+            )}
             {resultProject && (
               <p className="result-inputs">
                 Original inputs: pitch {resultProject.period_nm} nm · width{" "}
@@ -1439,7 +1449,8 @@ export default function App() {
                 </p>
                 <div className="field-grid">
                   <Field
-                    label="λ start"
+                    label={waves.length === 1 ? "Wavelength" : "λ start"}
+                    step={0.1}
                     unit="nm"
                     value={waves[0]}
                     min={200}
@@ -1448,16 +1459,19 @@ export default function App() {
                       updateWavelengths(v, waves.at(-1)!, waves.length)
                     }
                   />
-                  <Field
-                    label="λ end"
-                    unit="nm"
-                    value={waves.at(-1)!}
-                    min={200}
-                    max={2500}
-                    onChange={(v) =>
-                      updateWavelengths(waves[0], v, waves.length)
-                    }
-                  />
+                  {waves.length > 1 && (
+                    <Field
+                      label="λ end"
+                      step={0.1}
+                      unit="nm"
+                      value={waves.at(-1)!}
+                      min={200}
+                      max={2500}
+                      onChange={(v) =>
+                        updateWavelengths(waves[0], v, waves.length)
+                      }
+                    />
+                  )}
                   <Field
                     label="Wavelength samples"
                     value={waves.length}
