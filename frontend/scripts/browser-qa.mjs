@@ -1,3 +1,4 @@
+/* global document, getComputedStyle, innerWidth, requestAnimationFrame, scrollY, window */
 import { chromium, expect } from "@playwright/test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -254,11 +255,26 @@ try {
         .getByRole("button", { name: "Reset example", exact: true })
         .click();
       const box = await handle.boundingBox();
+      assert.equal(
+        await mobile.evaluate(
+          ({ x, y }) =>
+            document
+              .elementFromPoint(x, y)
+              ?.closest('[role="slider"]')
+              ?.getAttribute("aria-label"),
+          { x: box.x + 22, y: box.y + 22 },
+        ),
+        "Drag width",
+        "Width target center must not be covered by another dimension handle",
+      );
       await mobile.mouse.move(box.x + 22, box.y + 22);
       await mobile.mouse.down();
       await mobile.mouse.move(box.x + 44, box.y + 22, { steps: 8 });
       await mobile.mouse.up();
       assert.ok(Number(await handle.getAttribute("aria-valuenow")) > 180);
+      await expect(
+        mobile.getByRole("slider", { name: "Drag height", exact: true }),
+      ).toHaveAttribute("aria-valuenow", "160");
       await shot(mobile, "workbench-mobile-390-dragged");
       await menu(mobile);
       await mobile

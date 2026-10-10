@@ -9,6 +9,7 @@ import {
   structureMaterialAppearance,
   visibleStructureDimensions,
   structureGeometry,
+  structureHandlePosition,
   StructurePickGesture,
   structureValues,
 } from "./structureGeometry";
@@ -51,21 +52,7 @@ const defaultAnchors: Anchors = {
 };
 
 function handlePoint(dimension: StructureDimension, geometry: SceneGeometry) {
-  if (dimension === "height")
-    return new THREE.Vector3(
-      geometry.layers[geometry.selectedLayer]?.geometry === "homogeneous"
-        ? geometry.span / 2 + 0.35
-        : geometry.width / 2 + 0.35,
-      geometry.top,
-      geometry.depth / 2 + 0.03,
-    );
-  if (dimension === "width")
-    return new THREE.Vector3(
-      geometry.width / 2,
-      geometry.bottom + geometry.height * 0.52,
-      geometry.depth / 2,
-    );
-  return new THREE.Vector3(geometry.pitch, 0, geometry.depth / 2 + 0.47);
+  return new THREE.Vector3(...structureHandlePosition(dimension, geometry));
 }
 
 export function ThreeStructure({

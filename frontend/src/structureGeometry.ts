@@ -200,6 +200,27 @@ export function structureGeometry(
   };
 }
 
+/** Selected-layer handles use distinct physical surfaces. The patterned
+ * thickness handle stays on the top/rear surface so its 44 px target cannot
+ * cover the width handle on the front face at the default mobile view.
+ */
+export function structureHandlePosition(
+  dimension: StructureDimension,
+  geometry: ReturnType<typeof structureGeometry>,
+): [number, number, number] {
+  if (dimension === "height")
+    return geometry.layers[geometry.selectedLayer]?.geometry === "homogeneous"
+      ? [geometry.span / 2 + 0.35, geometry.top, geometry.depth / 2 + 0.03]
+      : [0, geometry.top, -0.35];
+  if (dimension === "width")
+    return [
+      geometry.width / 2,
+      geometry.bottom + geometry.height * 0.52,
+      geometry.depth / 2,
+    ];
+  return [geometry.pitch, 0, geometry.depth / 2 + 0.47];
+}
+
 /** Color encodes optical material, never repeat position or selection. Air is
  * shown as a faint volume; every non-air material is opaque in this schematic.
  */
