@@ -1,0 +1,72 @@
+{
+  "python": "3.12.14",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "pins": {
+    "meent": "0.13.2",
+    "numpy": "2.5.3",
+    "scipy": "1.17.1",
+    "pydantic": "2.12.5",
+    "pytest": "9.0.2"
+  },
+  "blas_threads": 1,
+  "default_forward_seconds": [
+    0.02696927999977561,
+    0.02651497799979552,
+    0.026740971999970498
+  ],
+  "default_max_lossless_flux_error": 5.440092820663267e-15,
+  "max_analytic_power_error_216_spectra": 9.992007221626409e-16,
+  "harmonic_sequence": [
+    3,
+    7,
+    11,
+    15,
+    19
+  ],
+  "consecutive_max_R_changes": [
+    0.003000621898755086,
+    0.00033383898053344213,
+    7.14542495039161e-05,
+    2.586267655518837e-05
+  ],
+  "synthetic_fit": {
+    "status": "converged",
+    "target_cd_nm": 207.0,
+    "fit_cd_nm": 206.9999999999994,
+    "rmse": 1.9723463527002824e-15,
+    "nfev": 48,
+    "diagnostics": {
+      "observable": "Equally weighted specular R and T for each requested polarization and wavelength",
+      "starts": [
+        {
+          "initial_cd_nm": 124.0,
+          "fit_cd_nm": 206.9999999999994,
+          "rmse": 1.9723463527002824e-15,
+          "optimizer_success": true,
+          "message": "`gtol` termination condition is satisfied.",
+          "nfev": 8
+        },
+        {
+          "initial_cd_nm": 180.0,
+          "fit_cd_nm": 206.9999999999719,
+          "rmse": 6.959911966607546e-14,
+          "optimizer_success": true,
+          "message": "`gtol` termination condition is satisfied.",
+          "nfev": 6
+        },
+        {
+          "initial_cd_nm": 256.0,
+          "fit_cd_nm": 245.03671115793423,
+          "rmse": 0.08772383877995966,
+          "optimizer_success": true,
+          "message": "`xtol` termination condition is satisfied.",
+          "nfev": 11
+        }
+      ],
+      "refined_harmonics": 11,
+      "max_refinement_power_delta": 0.0003207694578810927,
+      "multi_start_cd_spread_nm": 2.751221472863108e-11,
+      "elapsed_seconds": 1.2765218180002194
+    }
+  }
+}
