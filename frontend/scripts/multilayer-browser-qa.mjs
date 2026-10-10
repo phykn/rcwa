@@ -293,7 +293,48 @@ async function separatedHandles(label) {
           47.5,
         `${label}: ${targets[i].name} and ${targets[j].name} require disjoint48px centers`,
       );
-  (evidence.handleLayouts ??= []).push({ label, targets });
+  const controls = await page.locator(".three-canvas").evaluate((scene) => {
+    const handles = [...scene.querySelectorAll(".drag-target")].map((node) =>
+      node.getBoundingClientRect(),
+    );
+    return [
+      ...scene.querySelectorAll(
+        ".scene-material, .scene-substrate, .scene-guide > summary, .reset-view",
+      ),
+    ].map((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        name: node.getAttribute("aria-label") || node.textContent.trim(),
+        unobstructed: handles.every(
+          (handle) =>
+            handle.right <= box.left ||
+            handle.left >= box.right ||
+            handle.bottom <= box.top ||
+            handle.top >= box.bottom,
+        ),
+        pointerChecks: [0.25, 0.5, 0.75].map((fraction) =>
+          node.contains(
+            document.elementFromPoint(
+              box.left + box.width * fraction,
+              box.top + box.height / 2,
+            ),
+          ),
+        ),
+      };
+    });
+  });
+  for (const control of controls) {
+    assert.equal(
+      control.unobstructed,
+      true,
+      `${label}: handles must not overlap ${control.name}`,
+    );
+    assert.ok(
+      control.pointerChecks.every(Boolean),
+      `${label}: ${control.name} must retain its own pointer area`,
+    );
+  }
+  (evidence.handleLayouts ??= []).push({ label, targets, controls });
 }
 async function capture(name) {
   const filename = `multilayer-${name}.png`,

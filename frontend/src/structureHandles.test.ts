@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { defaultProject } from "./model";
 import type { Project } from "./model";
-import { layoutStructureHandles } from "./structureHandleLayout";
+import {
+  layoutStructureHandles,
+  STRUCTURE_HANDLE_SAFE_AREA,
+} from "./structureHandleLayout";
 import type { HandlePoints } from "./structureHandleLayout";
 import {
   structureGeometry,
@@ -239,13 +242,18 @@ describe("physical dimension handle hit targets", () => {
           ["width", "height", "pitch"],
           width,
           height,
+          STRUCTURE_HANDLE_SAFE_AREA,
         )!;
         expect(positioned).not.toBeNull();
         for (const [index, point] of Object.values(positioned).entries()) {
           expect(point.x).toBeGreaterThanOrEqual(22);
           expect(point.x).toBeLessThanOrEqual(width - 22);
-          expect(point.y).toBeGreaterThanOrEqual(22);
-          expect(point.y).toBeLessThanOrEqual(height - 22);
+          expect(point.y).toBeGreaterThanOrEqual(
+            STRUCTURE_HANDLE_SAFE_AREA.top + 22,
+          );
+          expect(point.y).toBeLessThanOrEqual(
+            height - STRUCTURE_HANDLE_SAFE_AREA.bottom - 22,
+          );
           for (const other of Object.values(positioned).slice(index + 1))
             expect(
               Math.hypot(point.x - other.x, point.y - other.y),

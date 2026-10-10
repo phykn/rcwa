@@ -19,7 +19,10 @@ import type {
   StructureValues,
 } from "./structureGeometry";
 
-import { layoutStructureHandles } from "./structureHandleLayout";
+import {
+  layoutStructureHandles,
+  STRUCTURE_HANDLE_SAFE_AREA,
+} from "./structureHandleLayout";
 
 type Point = { x: number; y: number };
 type Anchors = Record<StructureDimension, Point>;
@@ -244,6 +247,7 @@ export function ThreeStructure({
         visibleStructureDimensions(current.current.values),
         viewportWidth,
         viewportHeight,
+        STRUCTURE_HANDLE_SAFE_AREA,
       );
       const anchors = positioned
         ? (Object.fromEntries(

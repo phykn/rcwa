@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   HANDLE_DIAMETER,
   HANDLE_SPACING,
+  STRUCTURE_HANDLE_SAFE_AREA,
   layoutStructureHandles,
 } from "./structureHandleLayout";
 import type { HandlePoints } from "./structureHandleLayout";
@@ -158,6 +159,126 @@ describe("collision-aware physical handle labels", () => {
         326,
         290,
       ),
+    ).toBeNull();
+  });
+});
+
+describe("scene control safe-area bands", () => {
+  const dimensions: StructureDimension[] = ["width", "height", "pitch"];
+  const safeArea = STRUCTURE_HANDLE_SAFE_AREA;
+  function verifySafe(points: HandlePoints, width = 326, height = 290) {
+    const before = structuredClone(points);
+    const targets = layoutStructureHandles(
+      points,
+      dimensions,
+      width,
+      height,
+      safeArea,
+    );
+    expect(targets).not.toBeNull();
+    for (const [index, dimension] of dimensions.entries()) {
+      const point = targets![dimension];
+      expect(point.x - 22).toBeGreaterThanOrEqual(0);
+      expect(point.x + 22).toBeLessThanOrEqual(width);
+      expect(point.y - 22).toBeGreaterThanOrEqual(safeArea.top);
+      expect(point.y + 22).toBeLessThanOrEqual(height - safeArea.bottom);
+      for (const other of dimensions.slice(index + 1))
+        expect(
+          Math.hypot(point.x - targets![other].x, point.y - targets![other].y),
+        ).toBeGreaterThanOrEqual(HANDLE_SPACING - 1e-6);
+    }
+    expect(points).toEqual(before);
+    return targets!;
+  }
+  it("preserves exact positions already clear of every control band", () => {
+    const points = {
+      width: { x: 80, y: 130 },
+      height: { x: 150, y: 100 },
+      pitch: { x: 240, y: 185 },
+    };
+    expect(verifySafe(points)).toEqual(points);
+  });
+  it("moves the observed footer-caption collision and protects the header too", () => {
+    const points = {
+      width: { x: 131, y: 92 },
+      height: { x: 175, y: 70 },
+      pitch: { x: 131, y: 254 },
+    };
+    const targets = verifySafe(points);
+    expect(targets.pitch.y).toBe(204);
+    expect(targets.height.y).toBeGreaterThanOrEqual(86);
+    expect(targets.width).toEqual(points.width);
+  });
+  it("keeps all visible targets clear through orbit/zoom and extreme projections", () => {
+    const original = {
+      width: { x: 140, y: 80 },
+      height: { x: 173, y: 65 },
+      pitch: { x: 165, y: 256 },
+    };
+    for (const [width, height] of [
+      [326, 290],
+      [340, 303],
+      [590, 436],
+    ])
+      for (const zoom of [0.65, 1, 1.65])
+        for (let angle = -1.05; angle <= 1.05; angle += 0.15) {
+          const points = Object.fromEntries(
+            Object.entries(original).map(([dimension, point]) => {
+              const x = (point.x - 163) * zoom,
+                y = (point.y - 145) * zoom;
+              return [
+                dimension,
+                {
+                  x: width / 2 + x * Math.cos(angle) - y * Math.sin(angle),
+                  y: height / 2 + x * Math.sin(angle) + y * Math.cos(angle),
+                },
+              ];
+            }),
+          ) as HandlePoints;
+          verifySafe(points, width, height);
+        }
+    for (const point of [
+      { x: 0, y: 0 },
+      { x: 326, y: 290 },
+      { x: 163, y: 145 },
+      { x: -10000, y: 10000 },
+    ])
+      verifySafe({
+        width: { ...point },
+        height: { ...point },
+        pitch: { ...point },
+      });
+  });
+  it("supports asymmetric explicit bounds and refuses impossible/invalid safe areas", () => {
+    const points = {
+      width: { x: 0, y: 0 },
+      height: { x: 326, y: 0 },
+      pitch: { x: 163, y: 290 },
+    };
+    const result = layoutStructureHandles(points, dimensions, 326, 290, {
+      left: 30,
+      right: 20,
+      top: 60,
+      bottom: 70,
+    })!;
+    expect(result).not.toBeNull();
+    for (const point of Object.values(result)) {
+      expect(point.x).toBeGreaterThanOrEqual(52);
+      expect(point.x).toBeLessThanOrEqual(284);
+      expect(point.y).toBeGreaterThanOrEqual(82);
+      expect(point.y).toBeLessThanOrEqual(198);
+    }
+    for (const safe of [
+      { top: -1 },
+      { bottom: Infinity },
+      { left: NaN },
+      { top: 150, bottom: 150 },
+    ])
+      expect(
+        layoutStructureHandles(points, dimensions, 326, 290, safe),
+      ).toBeNull();
+    expect(
+      layoutStructureHandles(points, dimensions, 326, 160, safeArea),
     ).toBeNull();
   });
 });

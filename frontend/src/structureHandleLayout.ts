@@ -7,13 +7,22 @@ export interface HandlePoint {
 export type HandlePoints = Record<StructureDimension, HandlePoint>;
 export const HANDLE_DIAMETER = 44;
 export const HANDLE_SPACING = 48;
+export interface HandleSafeArea {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+// Existing controls occupy at most 16px offset + 44px height; add 4px clearance.
+// Reserve bands even before Reset appears so orbit cannot change the safe area.
+export const STRUCTURE_HANDLE_SAFE_AREA = { top: 64, bottom: 64 } as const;
 const EPSILON = 1e-7;
 const distance = (a: HandlePoint, b: HandlePoint) =>
   Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Keep real projected anchors separate from their screen-space hit targets.
  * At most three targets are placed, in the supplied stable dimension order.
- * The nearest feasible point is on a circle/viewport boundary or intersection;
+ * The nearest feasible point is on a circle/safe-area boundary or intersection;
  * no iterative repulsion, geometry scaling or view-dependent drag units.
  * A scene too small to fit the targets returns null; exact entry stays usable.
  */
@@ -22,6 +31,7 @@ export function layoutStructureHandles(
   dimensions: readonly StructureDimension[],
   width: number,
   height: number,
+  safeArea: HandleSafeArea = {},
 ): HandlePoints | null {
   const inset = HANDLE_DIAMETER / 2;
   if (
@@ -31,10 +41,18 @@ export function layoutStructureHandles(
     height < HANDLE_DIAMETER
   )
     return null;
-  const left = inset,
-    right = width - inset,
-    top = inset,
-    bottom = height - inset;
+  const reserved = { top: 0, right: 0, bottom: 0, left: 0, ...safeArea };
+  if (
+    Object.values(reserved).some(
+      (value) => !Number.isFinite(value) || value < 0,
+    )
+  )
+    return null;
+  const left = reserved.left + inset,
+    right = width - reserved.right - inset,
+    top = reserved.top + inset,
+    bottom = height - reserved.bottom - inset;
+  if (right < left || bottom < top) return null;
   const positions: HandlePoints = { ...anchors };
   const placed: HandlePoint[] = [];
   for (const dimension of dimensions) {
