@@ -47,7 +47,9 @@ describe("wavelength accessibility", () => {
     );
     expect(html).toContain('aria-describedby="spectrum-sample-description"');
     expect(html).toContain('aria-live="polite" aria-atomic="true"');
-    expect(html).toContain("s polarization. Reflectance");
+    expect(html).toContain(
+      `${result.wavelengths_nm[0]} nanometers. s polarization. Reflectance`,
+    );
     expect(html).toContain("percent. Transmittance");
   });
   it("describes the chosen polarization", () => {
@@ -79,7 +81,9 @@ describe("wavelength accessibility", () => {
       `aria-valuetext="${result.wavelengths_nm[0]} nanometers"`,
     );
     expect(html).toContain('aria-describedby="comparison-sample-description"');
-    expect(html).toContain("Total reflectance, s polarization. Candidate A:");
+    expect(html).toContain(
+      `${result.wavelengths_nm[0]} nanometers. Total reflectance, s polarization. Candidate A:`,
+    );
     expect(html).toContain('aria-live="polite" aria-atomic="true"');
   });
 });

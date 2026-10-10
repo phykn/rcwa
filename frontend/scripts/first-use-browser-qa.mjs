@@ -284,32 +284,88 @@ for (const width of [360, 390, 1440]) {
       `${reference.result.wavelengths_nm[0]} nanometers`,
     );
     await spectrumSlider.press("ArrowRight");
-    const ax = await page.context().newCDPSession(page);
-    await expect(spectrumSlider).toHaveAttribute(
-      "aria-valuetext",
-      `${reference.result.wavelengths_nm[1]} nanometers`,
-    );
-    let sliderNode;
-    await expect
-      .poll(async () => {
-        const accessibility = await ax.send("Accessibility.getFullAXTree");
-        sliderNode = accessibility.nodes.find(
-          (node) =>
-            node.role?.value === "slider" &&
-            node.name?.value === "Inspect wavelength sample",
+    // CDP reports the native index as valuetext; inspect the actual accessible
+    // description, not superseded label-source metadata. AT speech is not tested.
+    async function assertSpectrumAX(polarization, quantity, sample) {
+      const ax = await page.context().newCDPSession(page);
+      const items =
+        quantity === "total"
+          ? [
+              ["R", "Reflectance"],
+              ["T", "Transmittance"],
+            ]
+          : [
+              ["R_specular", "R₀ specular"],
+              ["T_specular", "T₀ specular"],
+            ];
+      const expected = `${reference.result.wavelengths_nm[sample]} nanometers. ${polarization} polarization. ${items.map(([key, label]) => `${label} ${(reference.result.spectra[polarization][key][sample] * 100).toFixed(1)} percent`).join(". ")}.`;
+      let sliderNode;
+      try {
+        await expect(spectrumSlider).toHaveAttribute(
+          "aria-valuetext",
+          `${reference.result.wavelengths_nm[sample]} nanometers`,
         );
+        await expect
+          .poll(
+            async () => {
+              const accessibility = await ax.send(
+                "Accessibility.getFullAXTree",
+              );
+              sliderNode = accessibility.nodes.find(
+                (node) =>
+                  node.role?.value === "slider" &&
+                  node.name?.value === "Inspect wavelength sample",
+              );
+              return sliderNode?.description?.value;
+            },
+            { timeout: 3000 },
+          )
+          .toBe(expected);
+        assert.equal(
+          sliderNode.value.value,
+          sample,
+          "The native slider retains its exact sample index",
+        );
+        assert.equal(sliderNode.ignored, false);
+        const properties = Object.fromEntries(
+          sliderNode.properties.map((item) => [item.name, item.value.value]),
+        );
+        assert.equal(properties.valuemin, 0);
+        assert.equal(
+          properties.valuemax,
+          reference.result.wavelengths_nm.length - 1,
+        );
+        assert.equal(properties.describedby, "spectrum-sample-description");
+        await expect(
+          page.locator("#spectrum-sample-description"),
+        ).toHaveAttribute("aria-live", "polite");
+      } catch (error) {
+        report.issues.push(
+          `${width}px ${polarization}/${quantity}/${sample} AX: ${error}`,
+        );
+      } finally {
         await fs.writeFile(
-          `${output}/first-use-${width}-spectrum-ax.json`,
+          `${output}/first-use-${width}-${polarization}-${quantity}-${sample}-ax.json`,
           JSON.stringify(sliderNode ?? null, null, 2),
         );
-        return JSON.stringify(sliderNode);
-      })
-      .toContain(`${reference.result.wavelengths_nm[1]} nanometers`);
-    report.checks.push({
-      viewport: width,
-      wavelengthAccessibility: sliderNode,
-    });
-    await ax.detach();
+        report.checks.push({
+          viewport: width,
+          expectedAccessibleDescription: expected,
+          wavelengthAccessibility: sliderNode,
+        });
+        await ax.detach();
+      }
+    }
+    await assertSpectrumAX("s", "total", 1);
+    await spectrumSlider.press("End");
+    await assertSpectrumAX(
+      "s",
+      "total",
+      reference.result.wavelengths_nm.length - 1,
+    );
+    await spectrumSlider.press("Home");
+    await assertSpectrumAX("s", "total", 0);
+    await spectrumSlider.press("ArrowRight");
     await expect(spectrumSlider).toHaveAttribute(
       "aria-valuetext",
       `${reference.result.wavelengths_nm[1]} nanometers`,
@@ -324,10 +380,12 @@ for (const width of [360, 390, 1440]) {
     await expect(page.locator("#spectrum-sample-description")).toContainText(
       "specular",
     );
+    await assertSpectrumAX("s", "specular", 1);
     await page.getByRole("button", { name: "p / TM", exact: true }).click();
     await expect(page.locator("#spectrum-sample-description")).toContainText(
       "p polarization",
     );
+    await assertSpectrumAX("p", "specular", 0);
     await expect(spectrumSlider).toHaveAttribute(
       "aria-valuetext",
       `${reference.result.wavelengths_nm[0]} nanometers`,
@@ -372,6 +430,7 @@ for (const width of [360, 390, 1440]) {
   }
 }
 assert.equal(report.pageErrors.length, 0, JSON.stringify(report.pageErrors));
+report.status = report.issues.length ? "failed" : "passed";
 await fs.writeFile(
   `${output}/first-use-browser-qa.json`,
   JSON.stringify(report, null, 2),

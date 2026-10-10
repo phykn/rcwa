@@ -567,7 +567,7 @@ export function ComparisonPanel({
               aria-live="polite"
               aria-atomic="true"
             >
-              {`${quantities.find((item) => item.key === quantity)?.name}, ${polarization} polarization. ${candidates.map((candidate, i) => `${candidate.name}: ${(spectra[i]![quantity][sample] * 100).toFixed(3)} percent`).join(". ")}.`}
+              {`${waves[sample]} nanometers. ${quantities.find((item) => item.key === quantity)?.name}, ${polarization} polarization. ${candidates.map((candidate, i) => `${candidate.name}: ${(spectra[i]![quantity][sample] * 100).toFixed(3)} percent`).join(". ")}.`}
             </p>
             <div className="comparison-values">
               {candidates.map((candidate, i) => (

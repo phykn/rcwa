@@ -564,38 +564,60 @@ async function assertComparisonValues(
   await expect(
     dialog.locator("#comparison-sample-description"),
   ).toHaveAttribute("aria-live", "polite");
-  const ax = await dialog.page().context().newCDPSession(dialog.page());
-  let sliderNode;
-  await expect
-    .poll(async () => {
-      const tree = await ax.send("Accessibility.getFullAXTree");
-      sliderNode = tree.nodes.find(
-        (node) =>
-          node.role?.value === "slider" &&
-          node.name?.value === "Compare exact wavelength sample",
-      );
-      return JSON.stringify(sliderNode);
-    })
-    .toContain(`${candidates[0].result.wavelengths_nm[sample]} nanometers`);
-  (evidence.comparisonAccessibility ||= []).push({
-    quantity,
-    polarization,
-    sample,
-    node: sliderNode,
-  });
-  await ax.detach();
   const context = `${await presentationContext(dialog.page(), dialog, "comparison")}: ${quantity}, ${polarization}, sample ${sample}`;
-  await collectReadOnly(`${context}: exact wavelength label`, async () => {
-    await displayExpect(dialog.locator(".comparison-sample strong")).toHaveText(
-      `${candidates[0].result.wavelengths_nm[sample]} nm`,
-    );
-  });
   const names = {
     R: "Total reflectance",
     T: "Total transmittance",
     R_specular: "Specular reflectance",
     T_specular: "Specular transmittance",
   };
+  const expectedDescription = `${candidates[0].result.wavelengths_nm[sample]} nanometers. ${names[quantity]}, ${polarization} polarization. ${candidates.map((candidate) => `${candidate.name}: ${(candidate.result.spectra[polarization][quantity][sample] * 100).toFixed(3)} percent`).join(". ")}.`;
+  const ax = await dialog.page().context().newCDPSession(dialog.page());
+  let sliderNode;
+  // Collect this independent semantic failure so cancellation/focus tests still run.
+  await collectReadOnly(
+    `${context}: exact accessible description`,
+    async () => {
+      await expect
+        .poll(
+          async () => {
+            const tree = await ax.send("Accessibility.getFullAXTree");
+            sliderNode = tree.nodes.find(
+              (node) =>
+                node.role?.value === "slider" &&
+                node.name?.value === "Compare exact wavelength sample",
+            );
+            return sliderNode?.description?.value;
+          },
+          { timeout: 1000 },
+        )
+        .toBe(expectedDescription);
+      assert.equal(sliderNode.value.value, sample);
+      assert.equal(sliderNode.ignored, false);
+      const properties = Object.fromEntries(
+        sliderNode.properties.map((item) => [item.name, item.value.value]),
+      );
+      assert.equal(properties.valuemin, 0);
+      assert.equal(
+        properties.valuemax,
+        candidates[0].result.wavelengths_nm.length - 1,
+      );
+      assert.equal(properties.describedby, "comparison-sample-description");
+    },
+  );
+  (evidence.comparisonAccessibility ||= []).push({
+    quantity,
+    polarization,
+    sample,
+    expectedDescription,
+    node: sliderNode,
+  });
+  await ax.detach();
+  await collectReadOnly(`${context}: exact wavelength label`, async () => {
+    await displayExpect(dialog.locator(".comparison-sample strong")).toHaveText(
+      `${candidates[0].result.wavelengths_nm[sample]} nm`,
+    );
+  });
   await expect(dialog.locator("#comparison-sample-description")).toContainText(
     names[quantity],
   );

@@ -47,6 +47,8 @@ The browser CI job runs real local API jobs and the separately built static prev
 - `workflow-browser-qa.mjs`: history, comparison-review cancellation, exact accessible samples, proposal semantics and asynchronous ownership
 - `multilayer-browser-qa.mjs`: ordered stack rendering/editing, lower-layer selection, structural history, new proposals, dense-table byte limits and legacy compatibility
 
+Accessibility checks verify native sample indices, exact wavelength text, named live-region associations and independently reconstructed browser accessible descriptions. Chromium CDP serializes native range `valuetext` from the numeric control value; these checks do not treat it as the ARIA text override or claim spoken screen-reader testing.
+
 Successful physics responses are not mocked. Required screenshots must be captured and inspected; passing DOM assertions alone does not establish visual acceptance. The multilayer script uses fresh browser processes for its desktop/360/390 px evidence before stress cases.
 
 The isolated development container cannot launch Chromium because its socket operation is restricted. Browser execution and screenshots therefore run on the GitHub-hosted test-branch runner. This limitation does not count as a local browser pass. CI reports and screenshots are retained as workflow artifacts.
