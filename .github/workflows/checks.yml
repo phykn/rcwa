@@ -128,6 +128,14 @@ jobs:
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs)
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs)
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs)
+      - name: Collect local browser server logs
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          for log in /tmp/rcwa-api.log /tmp/rcwa-vite.log /tmp/rcwa-static.log; do
+            if [ -f "$log" ]; then cp "$log" artifacts/; fi
+          done
       - name: Retain screenshots and browser assertions
         if: always()
         uses: actions/upload-artifact@v4
@@ -140,5 +148,6 @@ jobs:
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json
             artifacts/agent-report.json
+            artifacts/rcwa-*.log
           retention-days: 1
           if-no-files-found: warn

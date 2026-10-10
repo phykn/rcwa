@@ -27,6 +27,7 @@ const evidence = {
   snapshots: [],
   screenshots: [],
   screenshotCaptures: [],
+  pages: [],
   negativeCases: [],
 };
 let browser;
@@ -92,19 +93,92 @@ function pathIs(requestOrResponse, path, method) {
 }
 function observe(target) {
   const calls = [];
-  target.on("pageerror", (error) => pageErrors.push(error.message));
+  const record = {
+    id: `page-${evidence.pages.length + 1}`,
+    viewport: target.viewportSize(),
+    events: [],
+    droppedEvents: 0,
+    closed: false,
+    crashed: false,
+  };
+  evidence.pages.push(record);
+  const requestIds = new WeakMap();
+  let requestNumber = 0;
+  function event(type, details = {}) {
+    if (record.events.length === 100) {
+      record.events.shift();
+      record.droppedEvents += 1;
+    }
+    record.events.push({
+      time: new Date().toISOString(),
+      type,
+      url: target.url(),
+      ...details,
+    });
+  }
+  function apiRequest(request) {
+    return new URL(request.url()).pathname.startsWith("/api/");
+  }
+  target.on("pageerror", (error) => {
+    pageErrors.push(error.message);
+    event("pageerror", { message: error.message.slice(0, 2000) });
+  });
   target.on("request", (request) => {
-    if (new URL(request.url()).pathname.startsWith("/api/"))
+    if (apiRequest(request)) {
+      const id = ++requestNumber;
+      requestIds.set(request, id);
       calls.push({
         method: request.method(),
         path: new URL(request.url()).pathname,
         body: request.postData(),
       });
+      event("api-request", {
+        id,
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+      });
+    }
   });
+  target.on("response", (response) => {
+    const request = response.request();
+    if (apiRequest(request))
+      event("api-response", {
+        id: requestIds.get(request),
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        status: response.status(),
+      });
+  });
+  target.on("requestfailed", (request) => {
+    if (apiRequest(request))
+      event("api-request-failed", {
+        id: requestIds.get(request),
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        error: request.failure()?.errorText,
+      });
+  });
+  target.on("console", (message) => {
+    if (["error", "warning"].includes(message.type()))
+      event(`console-${message.type()}`, {
+        message: message.text().slice(0, 2000),
+        location: message.location(),
+      });
+  });
+  target.on("crash", () => {
+    record.crashed = true;
+    event("crash");
+  });
+  target.on("close", () => {
+    record.closed = true;
+    event("close");
+  });
+  event("created");
   return calls;
 }
 async function newPage(url = appUrl, viewport = { width: 1440, height: 1100 }) {
   const target = await browser.newPage({ viewport });
+  page = target;
   const calls = observe(target);
   await target.goto(url);
   await expect(target.locator(".connection")).toHaveText(
@@ -186,11 +260,13 @@ async function screenshot(target, name) {
   // A previous timeout was immediately followed by a successful identical
   // catch capture. Retry only that transient error, with no page mutation or
   // extra frame wait: both attempts together stay below the former 30 seconds.
+  // Native dialogs are viewport surfaces. Mobile chart evidence is captured
+  // separately after scrolling the dialog, without offscreen page capture.
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       await target.screenshot({
         path: `${output}/${filename}`,
-        fullPage: true,
+        fullPage: false,
         timeout: 10000,
       });
       capture.attempts.push({ attempt, status: "passed" });
@@ -1320,6 +1396,7 @@ try {
 
   // Use real completed envelopes as adversarial response sources. A wrong
   // hash, kind, pol/grid, or polled ID must preserve the prior saved run.
+  await page.close();
   const rejection = await newPage();
   const rejectionPage = rejection.target;
   await importJson(rejectionPage, exactPair(savedA));
@@ -1731,7 +1808,7 @@ try {
   await page
     ?.screenshot({
       path: `${output}/workflow-browser-failure.png`,
-      fullPage: true,
+      fullPage: false,
     })
     .catch(() => {});
   const report = {
