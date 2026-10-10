@@ -436,6 +436,11 @@ export default function App() {
   const resultOrigin = displayedRun?.origin || "computed";
   const resultProject = displayedRun?.inputProject || null;
   const [review, setReview] = useState<ReviewState | null>(null);
+  const reviewRef = useRef<ReviewState | null>(null);
+  function presentReview(next: ReviewState | null) {
+    reviewRef.current = next;
+    setReview(next);
+  }
   const [comparison, setComparison] = useState<SavedProject[] | null>(null);
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
@@ -1052,7 +1057,7 @@ export default function App() {
           proposal.base_project,
           historyRef.current.present.project,
         );
-        setReview({
+        presentReview({
           title: "Review geometry changes",
           baseProject: historyRef.current.present.project,
           workspace: {
@@ -1205,7 +1210,7 @@ export default function App() {
   function reviewCandidate(candidate: SavedProject) {
     endEdit();
     setComparison(null);
-    setReview({
+    presentReview({
       title: "Review saved candidate",
       baseProject: historyRef.current.present.project,
       workspace: workspaceFromSnapshot(candidate, candidate.id),
@@ -1217,21 +1222,31 @@ export default function App() {
     });
   }
   function applyReview() {
-    if (!review || busy || startingRef.current || review.blockedReason) return;
+    const pending = reviewRef.current;
     if (
-      review.revision !== historyRef.current.revision ||
-      review.actionVersion !== actionVersion.current ||
-      !sameInputs(review.baseProject, historyRef.current.present.project)
+      !pending ||
+      pending !== review ||
+      busy ||
+      startingRef.current ||
+      pending.blockedReason
+    )
+      return;
+    if (
+      pending.revision !== historyRef.current.revision ||
+      pending.actionVersion !== actionVersion.current ||
+      !sameInputs(pending.baseProject, historyRef.current.present.project)
     ) {
-      setReview({
-        ...review,
+      presentReview({
+        ...pending,
         blockedReason:
           "The project changed while this preview was open. Close it and review a new proposal.",
       });
       return;
     }
-    install(review.workspace);
-    setReview(null);
+    // Consume this review before any state update can schedule another click.
+    // A repeated Apply or a queued action after Cancel is therefore a no-op.
+    presentReview(null);
+    install(pending.workspace);
     setError("");
     setNotice("Changes applied. Undo is available in the Project menu.");
   }
@@ -2061,7 +2076,9 @@ export default function App() {
               : "")
           }
           onApply={applyReview}
-          onClose={() => setReview(null)}
+          onClose={() => {
+            if (reviewRef.current === review) presentReview(null);
+          }}
         />
       )}
       {comparison && (
