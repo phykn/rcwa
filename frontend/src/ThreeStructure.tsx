@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { layerColor } from "./layerColors";
 import type { Material, Project } from "./model";
 import {
   dimensionRange,
-  materialSummary,
   structureMaterialAppearance,
   visibleStructureDimensions,
   structureGeometry,
@@ -67,6 +67,7 @@ export function ThreeStructure({
   onSelectLayer,
   onChange,
   onOpen,
+  onEditLayer,
   onFallbackChange,
   onEditStart,
   onEditEnd,
@@ -77,6 +78,7 @@ export function ThreeStructure({
   onSelectLayer?: (index: number) => void;
   onChange: (dimension: StructureDimension, value: number) => void;
   onOpen: (sheet: StructureSheet, layerIndex?: number) => void;
+  onEditLayer?: () => void;
   onFallbackChange?: (failed: boolean) => void;
   onEditStart?: () => void;
   onEditEnd?: () => void;
@@ -127,6 +129,7 @@ export function ThreeStructure({
   const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState(false);
   const [moved, setMoved] = useState(false);
+  const [showHandles, setShowHandles] = useState(false);
 
   function endKeyboardEdit() {
     if (keyboardEditing.current) {
@@ -346,7 +349,13 @@ export function ThreeStructure({
       group.add(mesh);
       const edges = new THREE.LineSegments(
         new THREE.EdgesGeometry(box),
-        materials.edge,
+        layerIndex === current.current.selectedIndex
+          ? new THREE.LineBasicMaterial({
+              color: 0x164e63,
+              opacity: 0.9,
+              transparent: true,
+            })
+          : materials.edge,
       );
       edges.position.copy(mesh.position);
       group.add(edges);
@@ -369,8 +378,15 @@ export function ThreeStructure({
       const { width, top, bottom, pitch, depth, span, substrateDepth } =
         geometry;
       const materialCache = new Map<string, THREE.MeshBasicMaterial>();
-      function opticalMaterial(material: Material) {
+      function opticalMaterial(
+        material: Material,
+        layerIndex?: number,
+        groove = false,
+      ) {
         const appearance = structureMaterialAppearance(material);
+        if (layerIndex !== undefined) {
+          appearance.color = groove ? "#dbe4eb" : layerColor(layerIndex);
+        }
         const key = `${appearance.color}:${appearance.opacity}`;
         let result = materialCache.get(key);
         if (!result) {
@@ -418,7 +434,7 @@ export function ThreeStructure({
             depth,
             region.x,
             slab.center,
-            opticalMaterial(material),
+            opticalMaterial(material, slab.index, region.kind === "groove"),
             region.kind,
             slab.index,
           );
@@ -531,7 +547,7 @@ export function ThreeStructure({
         const { kind, layerIndex } = hit.object.userData;
         if (typeof layerIndex === "number")
           current.current.onSelectLayer?.(layerIndex);
-        current.current.onOpen(kind, layerIndex);
+        else current.current.onOpen(kind, layerIndex);
       }
     };
     const onPointerCancel = (event: globalThis.PointerEvent) =>
@@ -882,6 +898,14 @@ export function ThreeStructure({
             View guide <span aria-hidden="true">ⓘ</span>
           </summary>
           <div tabIndex={0} role="region" aria-label="View guide details">
+            <label className="resize-toggle">
+              <input
+                type="checkbox"
+                checked={showHandles}
+                onChange={(event) => setShowHandles(event.target.checked)}
+              />{" "}
+              Show drag handles
+            </label>
             <p className="view-instructions">
               {failed
                 ? "Tap a dimension or material to edit."
@@ -897,9 +921,10 @@ export function ThreeStructure({
               Three repeats of the infinite 1D stack, ordered top to bottom.
               Width, layer thickness and pitch share one scale; substrate depth
               and groove length are schematic. Air grooves are visually empty;
-              other groove materials fill their volumes. Colors identify
-              materials and do not simulate lighting or absorption. Default
-              optical constants are synthetic.
+              other groove materials fill their volumes. Colors identify layer
+              numbers, not materials. A dark outline marks the selected layer;
+              colors do not simulate lighting or absorption. Default optical
+              constants are synthetic.
             </p>
           </div>
         </details>
@@ -913,7 +938,7 @@ export function ThreeStructure({
           </div>
         ) : (
           <>
-            {handleLayout.available && (
+            {showHandles && handleLayout.available && (
               <svg
                 className="handle-leaders"
                 viewBox="0 0 100 100"
@@ -937,7 +962,8 @@ export function ThreeStructure({
                 })}
               </svg>
             )}
-            {handleLayout.available &&
+            {showHandles &&
+              handleLayout.available &&
               dimensions.map((dimension) => (
                 <div
                   key={dimension}
@@ -993,33 +1019,10 @@ export function ThreeStructure({
                   </span>
                 </div>
               ))}
-            <button
-              className="scene-material"
-              disabled={disabled}
-              aria-label={`Edit ${uniform ? "layer" : "ridge"} material: ${layer.material.name}, ${materialSummary(layer.material)}`}
-              onClick={() => open("ridge")}
-            >
-              <i
-                style={{
-                  background: structureMaterialAppearance(layer.material).color,
-                }}
-              />
-              <span>
-                {uniform ? "Film" : "Ridge"}
-                {project.layers.length > 1
-                  ? ` · Layer ${selectedIndex + 1}`
-                  : ""}
-              </span>
-              <small>{materialSummary(layer.material)}</small>
-            </button>
-            <button
-              className="scene-substrate"
-              disabled={disabled}
-              aria-label={`Edit substrate material: ${project.substrate.name}, ${materialSummary(project.substrate)}`}
-              onClick={() => open("substrate")}
-            >
-              Substrate <span>{materialSummary(project.substrate)}</span>
-            </button>
+            <div className="scene-selection" aria-live="polite">
+              <i style={{ background: layerColor(selectedIndex) }} />
+              Selected: Layer {selectedIndex + 1} <span>Drag to rotate</span>
+            </div>
             {(active || focused) && !disabled && (
               <div className="handle-name" role="status">
                 {project.layers.length > 1 && (active || focused) === "height"
@@ -1040,6 +1043,12 @@ export function ThreeStructure({
           </>
         )}
       </div>
+      <div className="selected-layer-context">
+        <span>Edit Layer {selectedIndex + 1}</span>
+        <button disabled={disabled} onClick={onEditLayer}>
+          Layer settings <span aria-hidden="true">↗</span>
+        </button>
+      </div>
       <div
         className="dimension-rail"
         aria-label="Structure dimensions"
@@ -1055,21 +1064,22 @@ export function ThreeStructure({
               active === dimension || focused === dimension ? "selected" : ""
             }
             onClick={() => open(dimension)}
-            aria-label={`Set ${dimension === "pitch" ? "pattern pitch" : `${uniform ? "layer" : "ridge"} ${dimension}`}, currently ${values[dimension]} nanometers`}
+            aria-label={`Set ${dimension === "pitch" ? "shared pitch" : `layer ${dimension === "height" ? "thickness" : "width"}`}, currently ${values[dimension]} nanometers`}
           >
             <span>
               {dimension === "pitch"
-                ? "Pitch"
+                ? "Shared pitch"
                 : dimension === "width"
                   ? "Width"
-                  : project.layers.length > 1 || uniform
-                    ? "Thickness"
-                    : "Height"}
+                  : "Thickness"}
             </span>
             <strong>
               {values[dimension]}
               <small>nm</small>
             </strong>
+            <small className="dimension-edit-hint">
+              Edit <span aria-hidden="true">↗</span>
+            </small>
           </button>
         ))}
       </div>

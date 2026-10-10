@@ -22,27 +22,24 @@ function picker(value = project(), selected = 0, disabled = false) {
       selected,
       disabled,
       onSelect: () => {},
-      onEdit: () => {},
       onChange: () => {},
     }),
   );
 }
 
 describe("progressive layer controls", () => {
-  it("starts with a closed single Layers disclosure and one closed Add chooser", () => {
+  it("shows layer choices immediately and keeps only Add closed", () => {
     const html = picker();
-    expect(html.match(/<details\b/g)).toHaveLength(2);
+    expect(html.match(/<details\b/g)).toHaveLength(1);
     expect(html).not.toMatch(/<details[^>]*\bopen=/);
+    expect(html).toContain('aria-label="Choose a layer"');
     expect(html).toContain(
-      'data-testid="layer-picker-toggle" aria-label="Choose layer, selected 1: Layer 1, 1 layer"',
+      'aria-label="Select layer 1: Layer 1" aria-pressed="true"',
     );
     expect(html).toContain('aria-label="Add layer"');
-    expect(html).toContain("Edit selected layer");
-    expect(html).not.toContain("Edit ambient material");
-    expect(html).not.toContain("Edit substrate material");
+    expect(html).toContain("Repeating ridges and gaps");
+    expect(html).not.toContain("Edit selected layer");
     expect(html).not.toContain("Layer actions");
-    expect(html).not.toContain("Duplicate");
-    expect(html).not.toContain("Remove");
   });
   it("lists every bounded layer and attributes the current selection without persistent IDs", () => {
     const value = project(8),
@@ -66,13 +63,9 @@ describe("progressive layer controls", () => {
       material: structuredClone(defaultProject.substrate),
     };
     const html = picker(value, 1, true);
-    expect(html).toContain(
-      'aria-label="Choose layer, selected 2: Film, 2 layers" aria-disabled="true"',
-    );
     expect(html).toContain('<fieldset disabled=""');
     expect(html).toContain('aria-label="Select layer 2: Film"');
     expect(html).toContain("Uniform");
-    expect(html).toContain("40 nm");
   });
   it("keeps structural actions in a closed inspector disclosure with full text and bounds", () => {
     const single = renderToStaticMarkup(

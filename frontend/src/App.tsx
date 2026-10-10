@@ -192,10 +192,8 @@ function DimensionEditor({
   onChange,
   onEditStart,
   onEditEnd,
-  multilayer = false,
 }: {
   dimension: Dimension;
-  multilayer?: boolean;
   value: number;
   max: number;
   min: number;
@@ -237,10 +235,8 @@ function DimensionEditor({
           dimension === "width"
             ? "Width (CD)"
             : dimension === "height"
-              ? multilayer
-                ? "Thickness"
-                : "Height"
-              : "Pitch"
+              ? "Thickness"
+              : "Shared pitch"
         }
         id={`dimension-${dimension}`}
         value={value}
@@ -1517,7 +1513,9 @@ export default function App() {
       <main id="main">
         <div className="page-heading">
           <div>
-            <h1>
+            <h1>Build your structure</h1>
+            <label className="project-name-label">
+              Project
               <input
                 aria-label="Project name"
                 id="project-name"
@@ -1528,7 +1526,7 @@ export default function App() {
                 onBlur={endEdit}
                 onChange={(e) => update({ ...project, name: e.target.value })}
               />
-            </h1>
+            </label>
           </div>
         </div>
         <div className="workspace">
@@ -1537,6 +1535,13 @@ export default function App() {
             id="build"
             aria-label="Interactive grating editor"
           >
+            <LayerStack
+              project={project}
+              selected={selectedLayer}
+              disabled={busy}
+              onSelect={selectLayer}
+              onChange={changeStack}
+            />
             <ThreeStructure
               project={project}
               selectedLayer={selectedLayer}
@@ -1544,16 +1549,9 @@ export default function App() {
               disabled={busy}
               onChange={changeDimension}
               onOpen={openSheet}
+              onEditLayer={() => openSheet("layer")}
               onEditStart={beginEdit}
               onEditEnd={endEdit}
-            />
-            <LayerStack
-              project={project}
-              selected={selectedLayer}
-              disabled={busy}
-              onSelect={selectLayer}
-              onEdit={() => openSheet("layer")}
-              onChange={changeStack}
             />
             <fieldset disabled={busy} className="setup-rows">
               <button
@@ -1577,18 +1575,6 @@ export default function App() {
                 </span>
                 <Icon name="arrow" />
               </button>
-              <button
-                className="setting-row"
-                onClick={() => openSheet("accuracy")}
-                aria-label="Edit calculation settings"
-              >
-                <span className="setting-icon">≋</span>
-                <span className="setting-name">Calculation</span>
-                <span className="setting-value">
-                  N = {project.solver.harmonics}
-                </span>
-                <Icon name="arrow" />
-              </button>
             </fieldset>
             <div className="run-area">
               {errors.length > 0 && (
@@ -1599,15 +1585,14 @@ export default function App() {
                 </ul>
               )}
               {staticPreview ? (
-                <button
-                  className="export-inputs"
-                  disabled={!!errors.length}
-                  onClick={() =>
-                    downloadProject(project, result, resultProject)
-                  }
-                >
-                  Export inputs
-                </button>
+                <>
+                  <a className="preview-result-button" href="#spectrum">
+                    View example spectrum <span aria-hidden="true">↓</span>
+                  </a>
+                  <p className="static-edit-note">
+                    Preview only. Edits won't calculate a new spectrum.
+                  </p>
+                </>
               ) : (
                 <button
                   className="run-button"
@@ -1671,6 +1656,25 @@ export default function App() {
                 </a>
               </div>
             )}
+            <details className="advanced-settings">
+              <summary>
+                Advanced settings <span aria-hidden="true">⌄</span>
+              </summary>
+              <fieldset disabled={busy}>
+                <button
+                  className="setting-row"
+                  onClick={() => openSheet("accuracy")}
+                  aria-label="Edit calculation settings"
+                >
+                  <span className="setting-icon">≋</span>
+                  <span className="setting-name">Calculation</span>
+                  <span className="setting-value">
+                    N = {project.solver.harmonics}
+                  </span>
+                  <Icon name="arrow" />
+                </button>
+              </fieldset>
+            </details>
           </section>
           <div className="results-column">
             {error && (
@@ -2030,9 +2034,6 @@ export default function App() {
             {sheet && ["width", "height", "pitch"].includes(sheet) && (
               <DimensionEditor
                 dimension={sheet as Dimension}
-                multilayer={
-                  project.layers.length > 1 || layer.geometry === "homogeneous"
-                }
                 value={dimensionValues[sheet as Dimension]}
                 min={
                   sheet === "pitch"

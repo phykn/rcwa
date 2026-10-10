@@ -2320,3 +2320,301 @@ input[type="range"]:focus-visible {
     sans-serif;
   color: var(--text-secondary);
 }
+
+/* First-use editor: choose one layer, edit its size, then inspect a result. */
+.project-name-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.project-name-label input {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  max-width: 230px;
+}
+.layer-stack {
+  border: 0;
+  margin-bottom: 12px;
+}
+.layer-stack-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.layer-stack-heading h2 {
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+.stack-add {
+  position: relative;
+  z-index: 15;
+}
+.stack-add > summary {
+  gap: 4px;
+  color: var(--primary);
+  font-size: 12px;
+  padding: 8px 0 8px 8px;
+}
+.stack-add > div {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 232px;
+  display: grid;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  box-shadow: var(--shadow-md);
+}
+.stack-add button {
+  text-align: left;
+  display: grid;
+  padding: 10px;
+  color: var(--text);
+  gap: 2px;
+}
+.stack-add button span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 400;
+}
+.layer-picker-body {
+  padding: 0;
+}
+.stack-rows {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 6px;
+  max-height: none;
+  scrollbar-width: thin;
+}
+.stack-row {
+  width: auto;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 7px 10px;
+  background: white;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  max-width: 220px;
+}
+.stack-row.selected {
+  background: #f5f7ff;
+  border-color: var(--primary);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.stack-index {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: #101010;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.stack-check {
+  color: var(--primary);
+}
+.three-canvas {
+  aspect-ratio: 1.5;
+  background: #f3f6fa;
+  border-color: #e1e6ee;
+}
+.scene-guide {
+  top: 4px;
+  left: 14px;
+  font-size: 11px;
+}
+.scene-guide > summary {
+  gap: 5px;
+}
+.scene-selection {
+  position: absolute;
+  bottom: 12px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #334155;
+  pointer-events: none;
+}
+.scene-selection i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.scene-selection span {
+  color: #64748b;
+  margin-left: auto;
+}
+.resize-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  margin-bottom: 8px;
+}
+.resize-toggle input {
+  min-height: auto;
+}
+.selected-layer-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+.selected-layer-context > span {
+  font-size: 13px;
+  font-weight: 600;
+}
+.selected-layer-context button {
+  padding: 6px 0 6px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+}
+.dimension-rail {
+  gap: 8px;
+  padding: 0 0 14px;
+}
+.dimension-rail button {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  text-align: left;
+  padding: 10px;
+  min-height: 88px;
+}
+.dimension-rail button:last-child {
+  border-right: 1px solid var(--border);
+}
+.dimension-rail button > span {
+  font-size: 11px;
+  margin-bottom: 7px;
+  color: var(--label);
+}
+.dimension-rail strong {
+  font-size: 23px;
+  border: 0;
+  letter-spacing: -0.05em;
+  padding: 0;
+}
+.dimension-rail strong > small {
+  font-size: 10px;
+  margin-left: 3px;
+}
+.dimension-edit-hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font:
+    10px "Inter",
+    sans-serif;
+  color: var(--primary);
+  margin-top: 7px;
+}
+.object-editor {
+  border: 0;
+}
+.setting-row {
+  min-height: 52px;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+}
+.setting-name {
+  font-size: 13px;
+}
+.setting-icon {
+  font-size: 22px;
+}
+.setting-value {
+  font-size: 12px;
+}
+.setting-value > span {
+  display: inline;
+  margin-left: 8px;
+  font-size: 11px;
+}
+.run-area {
+  margin-top: 16px;
+}
+.preview-result-button {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--primary);
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.preview-result-button:hover {
+  background: var(--primary-hover);
+  color: white;
+}
+.static-edit-note {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  text-align: center;
+  font-size: 11px;
+}
+.advanced-settings {
+  margin-top: 12px;
+}
+.advanced-settings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.advanced-settings > summary::-webkit-details-marker {
+  display: none;
+}
+@media (max-width: 650px) {
+  main {
+    padding: 20px 20px 24px;
+  }
+  .topbar {
+    margin: 0 20px;
+  }
+  .page-heading {
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 25px;
+  }
+  .three-canvas {
+    aspect-ratio: 1.36;
+  }
+  .setting-value > span {
+    display: block;
+    margin: 0;
+  }
+  .scene-selection {
+    left: 12px;
+    right: 12px;
+  }
+}

@@ -167,6 +167,7 @@ jobs:
           # Each suite starts independent browser sessions. Collect every suite's
           # evidence even if one fails, while preserving an aggregate failure.
           status=0
+          (cd frontend && timeout 180s node scripts/first-use-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
@@ -189,6 +190,7 @@ jobs:
           name: browser-qa
           path: |
             artifacts/*.png
+            artifacts/first-use-browser-qa.json
             artifacts/browser-qa.json
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json

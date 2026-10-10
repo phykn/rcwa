@@ -318,11 +318,13 @@ describe("selected-layer scene controls", () => {
 
   it("renders only film thickness and global pitch controls for a homogeneous selection", () => {
     const markup = render(stack(rectangle(160, 180), film(90)), 1);
-    expect(markup.match(/role="slider"/g)).toHaveLength(2);
+    expect(markup.match(/aria-label="Set /g)).toHaveLength(2);
     expect(markup).not.toContain('aria-label="Drag width"');
-    expect(markup).toContain('aria-label="Drag height"');
-    expect(markup).toContain('aria-valuenow="90"');
-    expect(markup).toContain('aria-label="Edit layer material:');
+    expect(markup).not.toContain('role="slider"');
+    expect(markup).toContain(
+      'aria-label="Set layer thickness, currently 90 nanometers"',
+    );
+    expect(markup).toContain("Layer settings");
     expect(markup).toContain("<span>Thickness</span>");
     expect(markup).not.toContain('class="scene-model-note"');
   });
@@ -332,22 +334,24 @@ describe("selected-layer scene controls", () => {
       stack(rectangle(160, 340), film(90), rectangle(50, 100)),
       2,
     );
-    expect(markup.match(/role="slider"/g)).toHaveLength(3);
+    expect(markup.match(/aria-label="Set /g)).toHaveLength(3);
     expect(markup).toContain(
-      'aria-label="Set ridge width, currently 100 nanometers"',
+      'aria-label="Set layer width, currently 100 nanometers"',
     );
     expect(markup).toContain(
-      'aria-label="Set ridge height, currently 50 nanometers"',
+      'aria-label="Set layer thickness, currently 50 nanometers"',
     );
-    expect(markup).toContain('aria-valuemin="340"');
-    expect(markup).toContain("Ridge · Layer 3");
+    expect(markup).toContain("Shared pitch");
+    expect(markup).toContain("Selected: Layer 3");
     expect(markup).toContain("<span>Thickness</span>");
   });
 
   it("keeps a stale selection usable after removing the previous last layer", () => {
     const markup = render(stack(rectangle(160, 180), film(90)), 7);
-    expect(markup.match(/role="slider"/g)).toHaveLength(2);
-    expect(markup).toContain('aria-valuenow="90"');
+    expect(markup.match(/aria-label="Set /g)).toHaveLength(2);
+    expect(markup).toContain(
+      'aria-label="Set layer thickness, currently 90 nanometers"',
+    );
   });
 });
 

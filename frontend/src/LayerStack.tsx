@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { layerColor } from "./layerColors";
 import type { KeyboardEvent } from "react";
 import type { Project, StackOperation } from "./model";
 
@@ -19,60 +20,82 @@ export function LayerStack({
   selected,
   disabled,
   onSelect,
-  onEdit,
   onChange,
 }: {
   project: Project;
   selected: number;
   disabled: boolean;
   onSelect: (index: number) => void;
-  onEdit: () => void;
   onChange: (operation: StackOperation) => void;
 }) {
-  const picker = useRef<HTMLDetailsElement>(null);
   const add = useRef<HTMLDetailsElement>(null);
-  function close() {
-    collapse(add.current, false);
-    collapse(picker.current);
-  }
+  const rows = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (disabled) {
-      collapse(add.current, false);
-      collapse(picker.current, false);
-    }
+    const container = rows.current;
+    const chip = container?.querySelector<HTMLElement>(
+      `[data-layer-index="${selected}"]`,
+    );
+    if (!container || !chip) return;
+    const left = chip.offsetLeft - container.offsetLeft;
+    if (left < container.scrollLeft) container.scrollLeft = left;
+    else if (
+      left + chip.offsetWidth >
+      container.scrollLeft + container.clientWidth
+    )
+      container.scrollLeft = left + chip.offsetWidth - container.clientWidth;
+  }, [selected, project.layers.length]);
+  useEffect(() => {
+    if (disabled) collapse(add.current, false);
   }, [disabled]);
   return (
-    <details
+    <section
       className="layer-stack"
       data-testid="layer-stack"
-      ref={picker}
-      onKeyDown={escapeDisclosure}
-      onToggle={(event) => {
-        if (!event.currentTarget.open) collapse(add.current, false);
-      }}
+      aria-label="Choose a layer"
     >
-      <summary
-        className="layer-picker-toggle"
-        data-testid="layer-picker-toggle"
-        aria-label={`Choose layer, selected ${selected + 1}: ${project.layers[selected].name}, ${project.layers.length} ${project.layers.length === 1 ? "layer" : "layers"}`}
-        aria-disabled={disabled}
-        onClick={(event) => {
-          if (disabled) event.preventDefault();
-        }}
-      >
-        <span>
-          Layers <small>· {project.layers.length}</small>
-        </span>
-        <span className="selected-layer-label">
-          {selected + 1} · {project.layers[selected].name}
-        </span>
-        <span className="chevron" aria-hidden="true">
-          ⌄
-        </span>
-      </summary>
+      <div className="layer-stack-heading">
+        <h2>Choose a layer</h2>
+        <details className="stack-add" ref={add} onKeyDown={escapeDisclosure}>
+          <summary
+            aria-label="Add layer"
+            aria-disabled={disabled || project.layers.length >= 8}
+            onClick={(event) => {
+              if (disabled || project.layers.length >= 8)
+                event.preventDefault();
+            }}
+          >
+            <span aria-hidden="true">+</span> Add layer
+          </summary>
+          <div>
+            <button
+              disabled={disabled || project.layers.length >= 8}
+              aria-label="Add patterned layer"
+              onClick={() => {
+                onChange({ type: "add", geometry: "rectangle_1d" });
+                collapse(add.current);
+              }}
+            >
+              <strong>Patterned layer</strong>
+              <span>Repeating ridges and gaps</span>
+            </button>
+            <button
+              disabled={disabled || project.layers.length >= 8}
+              aria-label="Add uniform layer"
+              onClick={() => {
+                onChange({ type: "add", geometry: "homogeneous" });
+                collapse(add.current);
+              }}
+            >
+              <strong>Uniform film</strong>
+              <span>A continuous flat layer</span>
+            </button>
+          </div>
+        </details>
+      </div>
       <fieldset disabled={disabled} className="layer-picker-body">
         <div
           className="stack-rows"
+          ref={rows}
           role="group"
           aria-label="Finite layers, top to bottom"
         >
@@ -83,68 +106,25 @@ export function LayerStack({
               data-layer-index={index}
               aria-label={`Select layer ${index + 1}: ${layer.name}`}
               aria-pressed={index === selected}
-              onClick={() => {
-                onSelect(index);
-                close();
-              }}
+              onClick={() => onSelect(index)}
             >
-              <span className="stack-index">{index + 1}</span>
-              <span className="stack-name">{layer.name}</span>
-              <span className="stack-kind">
-                {layer.geometry === "rectangle_1d" ? "Patterned" : "Uniform"}
+              <span
+                className="stack-index"
+                style={{ background: layerColor(index) }}
+              >
+                {index + 1}
               </span>
-              <span className="stack-thickness">{layer.thickness_nm} nm</span>
+              <span className="stack-name">{layer.name}</span>
+              {index === selected && (
+                <span className="stack-check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
             </button>
           ))}
         </div>
-        <button
-          className="stack-edit"
-          onClick={() => {
-            close();
-            onEdit();
-          }}
-        >
-          Edit selected layer
-        </button>
-        <details className="stack-add" ref={add} onKeyDown={escapeDisclosure}>
-          <summary
-            aria-label="Add layer"
-            aria-disabled={disabled || project.layers.length >= 8}
-            onClick={(event) => {
-              if (disabled || project.layers.length >= 8)
-                event.preventDefault();
-            }}
-          >
-            Add layer{" "}
-            <span className="chevron" aria-hidden="true">
-              ⌄
-            </span>
-          </summary>
-          <div>
-            <button
-              disabled={disabled || project.layers.length >= 8}
-              aria-label="Add patterned layer"
-              onClick={() => {
-                onChange({ type: "add", geometry: "rectangle_1d" });
-                close();
-              }}
-            >
-              Patterned
-            </button>
-            <button
-              disabled={disabled || project.layers.length >= 8}
-              aria-label="Add uniform layer"
-              onClick={() => {
-                onChange({ type: "add", geometry: "homogeneous" });
-                close();
-              }}
-            >
-              Uniform
-            </button>
-          </div>
-        </details>
       </fieldset>
-    </details>
+    </section>
   );
 }
 
