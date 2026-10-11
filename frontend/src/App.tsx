@@ -2231,7 +2231,7 @@ export default function App() {
       </main>
       <dialog
         ref={inspector}
-        className={`inspector ${is2D && (sheet === "width" || sheet === "pitch") ? "structure2d-dialog" : ""}`}
+        className={`inspector${is2D ? " structure2d-inspector" : ""}${is2D && (sheet === "width" || sheet === "pitch") ? " structure2d-dialog" : ""}`}
         aria-labelledby="inspector-title"
         onCancel={(e) => {
           e.preventDefault();

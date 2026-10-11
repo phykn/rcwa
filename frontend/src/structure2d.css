@@ -284,7 +284,9 @@
   border-radius: 12px;
   overflow-y: auto;
 }
-.inspector.structure2d-dialog::backdrop {
+/* Keep the native scrim, but avoid backdrop blur over the live 2D WebGL view
+   for every inspector, including materials, layer settings, and thickness. */
+.inspector.structure2d-inspector::backdrop {
   backdrop-filter: none;
 }
 .structure2d-sheet.sheet-body {

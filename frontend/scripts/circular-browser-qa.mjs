@@ -51,8 +51,26 @@ const diameter = (page, layer = 1) =>
   page.getByRole("button", {
     name: new RegExp(`^Edit Layer ${layer} diameter:`),
   });
-const shot = (page, name) =>
-  capture(page, report, output, name, { prefix: "circular" });
+async function assertInspectorBackdrop(page) {
+  const inspector = page.locator("dialog.inspector[open]");
+  await expect(inspector).toHaveClass(/structure2d-inspector/);
+  await expect
+    .poll(() =>
+      inspector.evaluate((node) => {
+        const style = getComputedStyle(node, "::backdrop");
+        return {
+          filter: style.backdropFilter,
+          background: style.backgroundColor,
+        };
+      }),
+    )
+    .toEqual({ filter: "none", background: "rgba(24, 24, 27, 0.35)" });
+}
+async function shot(page, name) {
+  if (await page.locator("dialog.inspector[open]").count())
+    await assertInspectorBackdrop(page);
+  await capture(page, report, output, name, { prefix: "circular" });
+}
 async function exported(page, name) {
   const pending = page.waitForEvent("download");
   await menuAction(page, "Export");
@@ -230,18 +248,32 @@ try {
     await page
       .getByRole("button", { name: "Edit materials", exact: true })
       .click();
-    await expect(
-      page.getByRole("button", { name: "Hole material", exact: true }),
-    ).toBeVisible();
+    const holeTab = page.getByRole("button", {
+      name: "Hole material",
+      exact: true,
+    });
+    const hostTab = page.getByRole("button", {
+      name: "Host material",
+      exact: true,
+    });
+    await expect(holeTab).toHaveAttribute("aria-pressed", "true");
+    await expect(hostTab).toHaveAttribute("aria-pressed", "false");
     await expect(
       page.getByRole("textbox", { name: "Hole material name", exact: true }),
     ).toHaveValue(original.layers[0].material.name);
-    await page
-      .getByRole("button", { name: "Host material", exact: true })
-      .click();
+    await hostTab.click();
+    await expect(hostTab).toHaveAttribute("aria-pressed", "true");
+    await expect(holeTab).toHaveAttribute("aria-pressed", "false");
     await expect(
       page.getByRole("textbox", { name: "Host material name", exact: true }),
     ).toHaveValue(original.layers[0].background.name);
+    // Native selection state changes before the inherited 160ms button color
+    // transition ends. Capture only the matching settled visual state.
+    await expect(hostTab).toHaveCSS("background-color", "rgb(238, 242, 255)");
+    await expect(hostTab).toHaveCSS("color", "rgb(79, 70, 229)");
+    await expect(holeTab).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(holeTab).toHaveCSS("color", "rgb(24, 24, 27)");
+    await assertInspectorBackdrop(page);
     await shot(page, `${width}-host-material`);
     await closeSheet(page, "Close settings");
     await page.getByRole("button", { name: /^Select layer 2:/ }).click();

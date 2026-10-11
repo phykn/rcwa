@@ -52,6 +52,14 @@ describe("ordinary production default versus explicit legacy fixture", () => {
       expect(html).not.toContain('class="three-canvas');
     },
   );
+  it("scopes the WebGL-safe inspector class to every 2D project", async () => {
+    for (const search of ["", "?example=rectangle"]) {
+      const html = await renderExample(search);
+      expect(html).toContain('class="inspector structure2d-inspector"');
+    }
+    const legacy = await renderExample("?example=1d");
+    expect(legacy).not.toContain("structure2d-inspector");
+  });
   it("keeps the original 1D fixture explicit without changing ordinary URLs", async () => {
     const html = await renderExample("?example=1d");
     expect(html).toContain('value="One-layer grating"');
