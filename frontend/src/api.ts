@@ -5,6 +5,101 @@ import type {
   SavedSummary,
   ForwardResult,
 } from "./model";
+import { parseJSONWith2DNumberGate, stringify2DEnvelope } from "./project2d";
+
+export interface ServerCapabilities {
+  supported_project_schema_versions: string[];
+  supported_result_schema_versions: string[];
+  engine: {
+    engine: string;
+    installed_version: string | null;
+    required_version: string;
+    available: boolean;
+    status: string;
+    message: string;
+  };
+  project_profiles: Record<
+    string,
+    {
+      operations: string[];
+      geometry: string[];
+      wavelength_count: number;
+      harmonics: { x: number[]; y?: number[] };
+      basis_size_max: number;
+      adapter_version: string;
+    }
+  >;
+}
+
+/** A reachable server is not necessarily a compatible solver for this project. */
+export function solverSupportError(
+  capabilities: unknown,
+  project: Project,
+): string | null {
+  const cap = capabilities as Partial<ServerCapabilities> | null;
+  if (
+    !cap ||
+    !Array.isArray(cap.supported_project_schema_versions) ||
+    !Array.isArray(cap.supported_result_schema_versions) ||
+    !cap.engine ||
+    !cap.project_profiles ||
+    typeof cap.project_profiles !== "object"
+  )
+    return "The local server did not provide supported solver capabilities. Update the local server and reconnect.";
+  if (
+    !cap.supported_project_schema_versions.includes(project.schema_version) ||
+    !cap.supported_result_schema_versions.includes(
+      project.schema_version === "1.0" ? "1.1" : project.schema_version,
+    )
+  )
+    return `This local server does not support schema ${project.schema_version}. Update it and reconnect. Your inputs are preserved.`;
+  if (
+    cap.engine.available !== true ||
+    cap.engine.status !== "available" ||
+    cap.engine.engine !== "meent" ||
+    cap.engine.installed_version !== "0.13.2" ||
+    cap.engine.required_version !== "0.13.2"
+  )
+    return "The local solver engine is unavailable or has an incompatible version. Install the pinned backend dependencies and reconnect.";
+  const profile = cap.project_profiles[project.schema_version];
+  if (
+    !profile ||
+    !Array.isArray(profile.operations) ||
+    !["validate", "forward", "poll", "cancel"].every((operation) =>
+      profile.operations.includes(operation),
+    )
+  )
+    return `This server does not support forward calculations for schema ${project.schema_version}.`;
+  if (
+    project.schema_version === "1.2" &&
+    (profile.adapter_version !== "1.2.0" ||
+      profile.wavelength_count !== 31 ||
+      profile.basis_size_max !== 121 ||
+      !Array.isArray(profile.geometry) ||
+      !["rectangle_2d", "rectangle_1d", "homogeneous"].every((kind) =>
+        profile.geometry.includes(kind),
+      ) ||
+      JSON.stringify(profile.harmonics?.x) !== "[1,5]" ||
+      JSON.stringify(profile.harmonics?.y) !== "[1,5]")
+  )
+    return "The local server's 2D profile is missing or incompatible. Update it and reconnect; these inputs will not be downgraded.";
+  return null;
+}
+
+export function projectRequestBody(
+  project: Project,
+  envelope: unknown = project,
+): string {
+  const body =
+    project.schema_version === "1.2"
+      ? stringify2DEnvelope(envelope)
+      : JSON.stringify(envelope);
+  if (new TextEncoder().encode(body).byteLength > 2_000_000)
+    throw new Error(
+      "This full-result request exceeds the local API's 2 MB limit. Export JSON to keep the complete result. To save inputs only, remove result and result_project from a copy, import it, then save. A computed run can instead be saved by job ID. Nothing was changed.",
+    );
+  return body;
+}
 const base = (
   (import.meta as unknown as { env: Record<string, string> }).env
     .VITE_API_BASE_URL || ""
@@ -19,6 +114,12 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+export class ApiContractError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, { cause });
+    this.name = "ApiContractError";
+  }
+}
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 20000);
@@ -28,7 +129,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers: { "Content-Type": "application/json", ...options.headers },
       signal: controller.signal,
     });
-    const data = await response.json().catch(() => null);
+    const text = await response.text();
+    let data;
+    if (response.ok) {
+      try {
+        data = parseJSONWith2DNumberGate(text);
+      } catch (cause) {
+        throw new ApiContractError(
+          `The server returned invalid JSON data. ${cause instanceof Error ? cause.message : "Contract validation failed."}`,
+          cause,
+        );
+      }
+    } else {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = null;
+      }
+    }
     if (!response.ok)
       throw new ApiError(
         typeof data?.detail === "string"
@@ -51,6 +169,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 }
 export const api = {
+  capabilities: () => request<ServerCapabilities>("/capabilities"),
   example: () => request<Project>("/example"),
   validate: (project: Project) =>
     request<{
@@ -58,7 +177,7 @@ export const api = {
       project: Project;
       input_hash: string;
       diagnostics: { severity: string; message: string }[];
-    }>("/validate", { method: "POST", body: JSON.stringify(project) }),
+    }>("/validate", { method: "POST", body: projectRequestBody(project) }),
   snapshot: (jobId: string) =>
     request<SavedProject>("/snapshots", {
       method: "POST",
@@ -67,7 +186,7 @@ export const api = {
   start: (project: Project) =>
     request<Job>("/jobs", {
       method: "POST",
-      body: JSON.stringify({ kind: "forward", project }),
+      body: projectRequestBody(project, { kind: "forward", project }),
     }),
   fit: (
     project: Project,
@@ -86,6 +205,6 @@ export const api = {
   save: (project: Project, result: ForwardResult | null) =>
     request<SavedProject>("/projects", {
       method: "POST",
-      body: JSON.stringify({ project, result }),
+      body: projectRequestBody(project, { project, result }),
     }),
 };

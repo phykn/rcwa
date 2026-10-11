@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 import { enableDragHandles } from "./browser-editor-controls.mjs";
 // Run after the other browser QA scripts with the real local API (:8000),
 // live Vite (:5173), and VITE_STATIC_PREVIEW=true preview (:4173) running.
@@ -185,7 +186,7 @@ async function newPage(url = appUrl, viewport = { width: 1440, height: 1100 }) {
   const target = await browser.newPage({ viewport });
   page = target;
   const calls = observe(target);
-  await target.goto(url);
+  await target.goto(legacyExampleUrl(url));
   await expect(target.locator(".connection")).toHaveText(
     url === previewUrl ? "Static preview" : "Solver connected",
   );

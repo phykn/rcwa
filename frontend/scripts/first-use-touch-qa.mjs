@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 // Chromium mobile touch replay. This does not emulate a real phone keyboard.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -37,7 +38,7 @@ for (const width of [360, 390]) {
       if (new URL(request.url()).pathname.startsWith("/api/"))
         apiCalls.push(request.url());
     });
-    await page.goto(process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173");
+    await page.goto(legacyExampleUrl(process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173"));
     await expect(page.locator(".three-canvas")).toHaveAttribute(
       "data-ready",
       "true",

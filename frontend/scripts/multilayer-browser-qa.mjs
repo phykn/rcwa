@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 import { enableDragHandles, openMaterial } from "./browser-editor-controls.mjs";
 // Run against the real local API, live Vite app and a separately built static app.
 // No successful numerical responses are mocked. Screenshots are mandatory and
@@ -95,7 +96,7 @@ async function launch(viewport, url = appUrl) {
         path: new URL(request.url()).pathname,
       });
   });
-  await page.goto(url);
+  await page.goto(legacyExampleUrl(url));
   await expect(page.locator(".connection")).toHaveText(
     url === staticUrl ? "Static preview" : "Solver connected",
   );

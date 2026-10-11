@@ -5,6 +5,7 @@ import { defaultProject, parseProjectFile } from "./model";
 import type {
   ForwardResult,
   Project,
+  Project1D,
   LegacyProject,
   RectangleLayer,
 } from "./model";
@@ -405,7 +406,7 @@ describe("strict untrusted change proposal import", () => {
     (p: Project) => {
       rectangle(p).background.source = "Forged source";
     },
-    (p: Project) => {
+    (p: Project1D) => {
       p.solver.harmonics = 8;
     },
     (p: Project) => {

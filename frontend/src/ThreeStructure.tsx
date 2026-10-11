@@ -3,7 +3,7 @@ import type { KeyboardEvent, PointerEvent } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { layerColor } from "./layerColors";
-import type { Material, Project } from "./model";
+import type { Material, Project1D as Project } from "./model";
 import {
   dimensionRange,
   structureMaterialAppearance,

@@ -1,4 +1,4 @@
-import type { Material, Project } from "./model";
+import type { Material, Project1D as Project } from "./model";
 
 export type StructureDimension = "width" | "height" | "pitch";
 export type StructureMaterial = "ridge" | "substrate" | "ambient" | "groove";

@@ -4,7 +4,15 @@ import {
   validLayerIndex,
   supportsSyntheticFit,
 } from "./model";
-import type { ForwardResult, Material, Project, Layer } from "./model";
+import type {
+  ForwardResult,
+  Material,
+  Project,
+  Project1D,
+  Layer,
+} from "./model";
+import { normalizeProject2D } from "./project2d";
+import { bindResult2D, boundResult2DCompatibilityError } from "./result2d";
 
 export type RunOrigin = "computed" | "server" | "imported" | "reference";
 export interface RunRecord {
@@ -75,6 +83,52 @@ export function semanticEqual(a: unknown, b: unknown): boolean {
   );
 }
 
+/** Exact value comparison for 1.2 identity: +0 and -0 remain different. */
+export function exactSemanticEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (
+    a === null ||
+    b === null ||
+    typeof a !== "object" ||
+    typeof b !== "object"
+  )
+    return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a) && Array.isArray(b) && a.length !== b.length)
+    return false;
+  const left = Object.keys(a),
+    right = Object.keys(b);
+  return (
+    left.length === right.length &&
+    left.every(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(b, key) &&
+        exactSemanticEqual(
+          (a as Record<string, unknown>)[key],
+          (b as Record<string, unknown>)[key],
+        ),
+    )
+  );
+}
+
+/** Editing equality also accepts invalid drafts; it does not normalize or hash. */
+export function projectInputsEqual(a: Project | null, b: Project): boolean {
+  if (a === null) return false;
+  return a.schema_version === "1.2" || b.schema_version === "1.2"
+    ? exactSemanticEqual(a, b)
+    : semanticEqual(a, b);
+}
+
+/** Version-aware same-input comparison for stale labels and normalized snapshots. */
+export function sameNormalizedProject(a: Project | null, b: Project): boolean {
+  if (a === null) return false;
+  try {
+    return projectInputsEqual(normalizeProject(a), normalizeProject(b));
+  } catch {
+    return false;
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.values(value).forEach(deepFreeze);
@@ -89,7 +143,8 @@ export function cloneProject<T extends Project>(project: T): T {
 }
 
 /** Canonicalize only schema-defined optional defaults, never drop input fields. */
-export function normalizeProject(project: Project): Project {
+export function normalizeProject<T extends Project>(project: T): T {
+  if (project.schema_version === "1.2") return normalizeProject2D(project) as T;
   const copy = cloneProject(project);
   for (const material of [
     copy.ambient,
@@ -117,9 +172,36 @@ export function createRunRecord(run: RunRecord): RunRecord {
   if (error) throw new Error(error);
   if (!["computed", "server", "imported", "reference"].includes(run.origin))
     throw new Error("Unknown run origin.");
-  const copy = deepFreeze(structuredClone(run));
+  // Binding is attached to the checked, frozen 1.2 result identity. Preserve it
+  // instead of copying the large order payload and losing the verified proof.
+  const copy =
+    run.result.schema_version === "1.2"
+      ? deepFreeze({
+          ...run,
+          inputProject: cloneProject(run.inputProject),
+          result: run.result,
+        })
+      : deepFreeze(structuredClone(run));
   immutableRuns.add(copy);
   return copy;
+}
+
+/** Verify at asynchronous ingress, never inside reducers or history operations. */
+export async function createRunRecordAsync(run: RunRecord): Promise<RunRecord> {
+  if (immutableRuns.has(run)) return run;
+  // Capture input values before hashing can yield to newer edits.
+  const captured = { ...run, inputProject: cloneProject(run.inputProject) };
+  if (
+    captured.inputProject.schema_version === "1.2" &&
+    boundResult2DCompatibilityError(captured.inputProject, captured.result) !==
+      null
+  ) {
+    captured.result = await bindResult2D(
+      captured.inputProject,
+      captured.result,
+    );
+  }
+  return createRunRecord(captured);
 }
 
 function immutableWorkspace(workspace: Workspace): Workspace {
@@ -141,8 +223,12 @@ function immutableWorkspace(workspace: Workspace): Workspace {
 
 function sameWorkspace(a: Workspace, b: Workspace): boolean {
   return (
-    semanticEqual(a.project, b.project) &&
-    semanticEqual(a.displayedRun, b.displayedRun)
+    projectInputsEqual(a.project, b.project) &&
+    (a.displayedRun === b.displayedRun ||
+      (a.displayedRun?.inputProject.schema_version === "1.2" ||
+      b.displayedRun?.inputProject.schema_version === "1.2"
+        ? exactSemanticEqual(a.displayedRun, b.displayedRun)
+        : semanticEqual(a.displayedRun, b.displayedRun)))
   );
 }
 
@@ -290,8 +376,8 @@ export interface Diagnostic {
 }
 export interface LegacyChangeProposal {
   schema_version: "rcwa-change-proposal/1.0";
-  base_project: Project;
-  candidate_project: Project;
+  base_project: Project1D;
+  candidate_project: Project1D;
   changes: GeometryChanges;
   base_input_hash: string;
   candidate_input_hash: string;
@@ -323,6 +409,8 @@ export interface LayerSummary {
   thickness_nm: number;
   material: MaterialSummary;
   cd_nm: number | null;
+  cd_x_nm?: number;
+  cd_y_nm?: number;
   background: MaterialSummary | null;
 }
 export type StackDifference =
@@ -394,8 +482,11 @@ export function summarizeLayer(layer: Layer): LayerSummary {
     thickness_nm: layer.thickness_nm,
     material: summarizeMaterial(layer.material),
     cd_nm: layer.geometry === "rectangle_1d" ? layer.cd_nm : null,
+    ...(layer.geometry === "rectangle_2d"
+      ? { cd_x_nm: layer.cd_x_nm, cd_y_nm: layer.cd_y_nm }
+      : {}),
     background:
-      layer.geometry === "rectangle_1d"
+      layer.geometry !== "homogeneous"
         ? summarizeMaterial(layer.background)
         : null,
   };
@@ -419,19 +510,25 @@ export function parseStackChanges(value: unknown): StackChanges {
 export function applyStackChanges(
   base: Project,
   changes: StackChanges,
-): Project {
+): Project1D {
+  reject2DProposal(base);
   const patch = parseStackChanges(changes);
   const candidate = strictProject(base, "base_project");
   candidate.schema_version = "1.1";
   if (patch.period_nm !== undefined) candidate.period_nm = patch.period_nm;
-  if (patch.layers !== undefined)
-    candidate.layers = structuredClone(patch.layers);
-  return strictProject(candidate, "candidate_project");
+  return strictProject(
+    patch.layers === undefined
+      ? candidate
+      : { ...candidate, layers: structuredClone(patch.layers) },
+    "candidate_project",
+  );
 }
 export function stackDiff(
   base: Project,
   candidate: Project,
 ): StackDifference[] {
+  reject2DProposal(base);
+  reject2DProposal(candidate);
   const diff: StackDifference[] = [];
   for (const field of ["schema_version", "period_nm"] as const)
     if (base[field] !== candidate[field])
@@ -526,7 +623,19 @@ function assertFiniteJson(value: unknown): void {
   if (value && typeof value === "object")
     Object.values(value).forEach(assertFiniteJson);
 }
-function strictProject(value: unknown, location: string): Project {
+const UNSUPPORTED_2D_PROPOSAL =
+  "Schema 1.2 change proposals are unsupported. Edit the structure directly instead.";
+function reject2DProposal(value: unknown): void {
+  if (
+    value &&
+    typeof value === "object" &&
+    "schema_version" in value &&
+    value.schema_version === "1.2"
+  )
+    throw new Error(UNSUPPORTED_2D_PROPOSAL);
+}
+function strictProject(value: unknown, location: string): Project1D {
+  reject2DProposal(value);
   const project = object(value, location);
   const projectKeys = [
     "schema_version",
@@ -600,7 +709,7 @@ function strictProject(value: unknown, location: string): Project {
   );
   const errors = validateProject(project);
   if (errors.length) throw new Error(`${location}: ${errors.join(" ")}`);
-  return normalizeProject(project as unknown as Project);
+  return normalizeProject(project as unknown as Project1D);
 }
 
 export function parseGeometryChanges(value: unknown): GeometryChanges {
@@ -617,7 +726,8 @@ export function parseGeometryChanges(value: unknown): GeometryChanges {
 export function applyGeometryChanges(
   base: Project,
   changes: GeometryChanges,
-): Project {
+): Project1D {
+  reject2DProposal(base);
   const patch = parseGeometryChanges(changes);
   const candidate = strictProject(base, "base_project");
   if (candidate.schema_version !== "1.0" || !supportsSyntheticFit(candidate))
@@ -646,6 +756,8 @@ export function geometryDiff(
   base: Project,
   candidate: Project,
 ): GeometryDifference[] {
+  reject2DProposal(base);
+  reject2DProposal(candidate);
   return GEOMETRY_FIELDS.flatMap((field) => {
     const before = geometryValue(base, field),
       after = geometryValue(candidate, field);
@@ -684,6 +796,15 @@ function refractiveIndex(
 
 /** Mirrors deterministic backend preflight; neither imports nor invokes a solver. */
 export function localPreflight(project: Project): Diagnostic[] {
+  // The 1.2 backend owns physical open-order/cutoff preflight. This branch only
+  // reports client schema errors and never runs the legacy 1D approximation.
+  if (project.schema_version === "1.2")
+    return validateProject(project).map((message) => ({
+      code: "project_validation",
+      severity: "error",
+      location: [],
+      message,
+    }));
   const diagnostics: Diagnostic[] = [];
   const materials: [Material, (string | number)[]][] = [
     [project.ambient, ["ambient"]],
@@ -792,6 +913,8 @@ export function parseChangeProposal(text: string): ChangeProposal {
   }
   assertFiniteJson(data);
   const envelope = object(data, "proposal");
+  reject2DProposal(envelope.base_project);
+  reject2DProposal(envelope.candidate_project);
   const fields = [
     "schema_version",
     "base_project",
@@ -886,6 +1009,12 @@ export function proposalApplyError(
   currentRevision: number,
 ): string | null {
   if (
+    current.schema_version === "1.2" ||
+    (proposal.base_project as Project).schema_version === "1.2" ||
+    (proposal.candidate_project as Project).schema_version === "1.2"
+  )
+    return UNSUPPORTED_2D_PROPOSAL;
+  if (
     previewRevision !== currentRevision ||
     !semanticEqual(
       normalizeProject(proposal.base_project),
@@ -905,6 +1034,10 @@ export function resultCompatibilityError(
 ): string | null {
   if (!isForwardResult(result))
     return "The stored forward result is missing or invalid.";
+  if ((project.schema_version === "1.2") !== (result.schema_version === "1.2"))
+    return "Result schema does not match the run inputs.";
+  if (project.schema_version === "1.2")
+    return boundResult2DCompatibilityError(project, result);
   if (
     !semanticEqual(project.illumination.wavelengths_nm, result.wavelengths_nm)
   )
@@ -947,23 +1080,28 @@ export function comparisonCompatibilityError(
   return null;
 }
 
-/** Compare illumination, accuracy and every ordered layer's optical conditions. */
+/** Compare geometry, illumination, accuracy and every layer's optical conditions. */
 export function comparisonConditionsDiffer(
   first: Project,
   next: Project,
 ): boolean {
-  const materials = (project: Project) => [
-    project.ambient,
-    project.substrate,
-    project.layers.map((layer) => ({
-      geometry: layer.geometry,
-      material: layer.material,
-      background: layer.geometry === "rectangle_1d" ? layer.background : null,
-    })),
-  ];
-  return (
-    first.illumination.angle_deg !== next.illumination.angle_deg ||
-    first.solver.harmonics !== next.solver.harmonics ||
-    !semanticEqual(materials(first), materials(next))
-  );
+  const conditions = (project: Project) => ({
+    schema_version: project.schema_version,
+    period_nm: project.period_nm,
+    ...(project.schema_version === "1.2"
+      ? { period_y_nm: project.period_y_nm }
+      : {}),
+    illumination: project.illumination,
+    solver: project.solver,
+    ambient: project.ambient,
+    substrate: project.substrate,
+    layers: project.layers.map((layer) => {
+      const { name, ...conditions } = layer;
+      void name;
+      return conditions;
+    }),
+  });
+  return !(first.schema_version === "1.2" || next.schema_version === "1.2"
+    ? exactSemanticEqual(conditions(first), conditions(next))
+    : semanticEqual(conditions(first), conditions(next)));
 }

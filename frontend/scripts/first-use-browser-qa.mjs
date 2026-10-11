@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 // A first-use task check against the genuine static reference, never fake recomputation.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -38,7 +39,7 @@ for (const width of [360, 390, 1440]) {
       if (new URL(req.url()).pathname.startsWith("/api/"))
         apiCalls.push(req.url());
     });
-    await page.goto(url);
+    await page.goto(legacyExampleUrl(url));
     await expect(page.locator(".three-canvas")).toHaveAttribute(
       "data-ready",
       "true",

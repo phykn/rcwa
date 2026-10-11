@@ -2,12 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { defaultProject } from "./model";
-import type { Material, Project } from "./model";
+import type { Material, Project, Project1D } from "./model";
 import { reviewInputChanges } from "./reviewChanges";
 import { ReviewPanel } from "./WorkflowPanels";
 import { summarizeMaterial } from "./workflow";
 
-function stack(): Project {
+function stack(): Project1D {
   return {
     ...structuredClone(defaultProject),
     schema_version: "1.1",

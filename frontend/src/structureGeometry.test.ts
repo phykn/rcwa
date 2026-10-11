@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ThreeStructure } from "./ThreeStructure";
 import { defaultProject } from "./model";
-import type { Layer, Project } from "./model";
+import type { Layer1D as Layer, Project1D as Project } from "./model";
 import {
   dimensionRange,
   materialSummary,

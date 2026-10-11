@@ -268,7 +268,7 @@ and read-only stack previews. GitHub Checks must additionally run PostgreSQL and
 live/static browser checks for the exact test-branch commit. Local tests do not
 substitute for those acceptance gates.
 
-## Backend-only explicit schema 1.2
+## Explicit schema 1.2
 
 Schema 1.2 adds centered rectangular two-dimensional multilayers to the existing
 validate/jobs/snapshot/import routes. It requires explicit `schema_version: "1.2"`,
@@ -287,9 +287,11 @@ type accepts it. Missing project version retains 1.0; 1.2 never appears by guess
 fields or migrating an import. Legacy hashes, saved readers and signed-zero /
 Unicode serialization remain unchanged.
 
-This backend increment does not add 2D fitting, change proposals, UI editing or a
-new public default. The example and current frontend remain legacy. A 1.2 request
-to a legacy-only operation fails before worker allocation.
+The frontend opens the exact synthetic 1.2 example and supports direct 2D editing.
+The HTTP `/api/example` route deliberately retains its legacy fixture for existing
+clients. Fitting and both change-proposal routes remain unavailable for 1.2; a 1.2
+request to those legacy-only operations fails before worker allocation. See the
+[2D editor](ui/2d-editor.md) for browser workflow and input/result identity.
 
 Job inputs are copied and normalized. A validated 2D result, its job and saved
 snapshot share one UTF-8 canonical input hash. Snapshot provenance uses the actual

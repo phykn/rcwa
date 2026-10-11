@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 import { assertMaterialImportOrdering } from "./browser-material-import-cases.mjs";
 import {
   enableDragHandles,
@@ -175,7 +176,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   const fontEvidence = observeFonts(page);
-  await page.goto(appUrl);
+  await page.goto(legacyExampleUrl(appUrl));
   await expect(page.locator(".connection")).toHaveText("Solver connected");
   await verifyFonts(page, fontEvidence);
   checks.push(
@@ -341,10 +342,10 @@ try {
 
   const resetGate = deferred();
   const resetStarted = deferred();
-  await page.route("**/api/example", async (route) => {
+  await page.route("**/reference-example.json", async (route) => {
     resetStarted.resolve();
     await resetGate.promise;
-    await route.fulfill({ json: reference.project });
+    await route.fulfill({ json: reference });
   });
   await menu();
   await page
@@ -353,7 +354,7 @@ try {
   await resetStarted.promise;
   await page.getByLabel("Project name").fill("Newer edit after reset request");
   const resetResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/api/example"),
+    response.url().endsWith("/reference-example.json"),
   );
   resetGate.resolve();
   await resetResponse;
@@ -361,7 +362,7 @@ try {
   await expect(page.getByLabel("Project name")).toHaveValue(
     "Newer edit after reset request",
   );
-  await page.unroute("**/api/example");
+  await page.unroute("**/reference-example.json");
   checks.push(
     "A delayed reset does not discard edits made while the request was in flight",
   );
@@ -535,7 +536,7 @@ try {
       return original.call(this, kind, ...options);
     };
   });
-  await fallback.goto(appUrl);
+  await fallback.goto(legacyExampleUrl(appUrl));
   await expect(fallback.locator(".webgl-fallback")).toBeVisible();
   await fallback.locator(".scene-guide > summary").click();
   await expect(fallback.locator(".view-instructions")).toHaveText(
@@ -568,7 +569,7 @@ try {
     viewport: { width: 360, height: 800 },
   });
   captionPage.on("pageerror", (error) => pageErrors.push(error.message));
-  await captionPage.goto(appUrl);
+  await captionPage.goto(legacyExampleUrl(appUrl));
   await expect(captionPage.locator(".connection")).toHaveText(
     "Solver connected",
   );
@@ -794,7 +795,7 @@ try {
     await referenceGate.promise;
     await route.fulfill({ json: reference });
   });
-  await preview.goto(previewUrl);
+  await preview.goto(legacyExampleUrl(previewUrl));
   await referenceStarted.promise;
   await preview
     .getByLabel("Project name")

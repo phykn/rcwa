@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import { api, apiDescription, ApiError } from "./api";
+import {
+  api,
+  apiDescription,
+  ApiError,
+  ApiContractError,
+  solverSupportError,
+} from "./api";
+import { hashProject2D, normalizeProject2D } from "./project2d";
+import default2DInput from "./fixtures/default-project-2d.json";
+import reference2DManifest from "./fixtures/reference-2d-manifest.json";
+import { ThreeStructure2D, DimensionCards2D } from "./ThreeStructure2D";
+import { DimensionEditor2D, dimensionFields2D } from "./DimensionEditor2D";
 import {
   defaultProject,
   downloadProject,
   isForwardResult,
   linspace,
-  parseProjectFile,
+  parseProjectFileAsync,
   validateProject,
   editStack,
   maximumPatternedCD,
@@ -22,6 +33,7 @@ import type {
   SavedProject,
   SavedSummary,
   RectangleLayer,
+  Layer,
   StackOperation,
 } from "./model";
 import { SpectrumPlot } from "./Visuals";
@@ -44,10 +56,12 @@ import {
   createHistory,
   workspaceReducer,
   createRunRecord,
+  createRunRecordAsync,
+  projectInputsEqual,
+  sameNormalizedProject,
+  exactSemanticEqual,
   semanticEqual,
-  normalizeProject,
   parseChangeProposal,
-  resultCompatibilityError,
 } from "./workflow";
 import type { Workspace, RunRecord } from "./workflow";
 const validIdentifier = (value: unknown): value is string =>
@@ -56,7 +70,7 @@ const validInputHash = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 class ForwardContractError extends Error {}
 function sameInputs(a: Project | null, b: Project) {
-  return a !== null && semanticEqual(normalizeProject(a), normalizeProject(b));
+  return a !== null && sameNormalizedProject(a, b);
 }
 type ReviewState = {
   title: string;
@@ -121,6 +135,7 @@ function Field({
   onChange,
   min,
   max,
+  maxExclusive = false,
   step = 1,
   help,
   id,
@@ -131,6 +146,7 @@ function Field({
   onChange: (v: number) => void;
   min?: number;
   max?: number;
+  maxExclusive?: boolean;
   step?: number;
   help?: string;
   id?: string;
@@ -142,7 +158,7 @@ function Field({
     text === "" ||
     !Number.isFinite(number) ||
     (min !== undefined && number < min) ||
-    (max !== undefined && number > max) ||
+    (max !== undefined && (maxExclusive ? number >= max : number > max)) ||
     (step === 1 && !Number.isInteger(number));
   return (
     <label className="field">
@@ -167,7 +183,7 @@ function Field({
             next !== "" &&
             Number.isFinite(v) &&
             (min === undefined || v >= min) &&
-            (max === undefined || v <= max) &&
+            (max === undefined || (maxExclusive ? v < max : v <= max)) &&
             (step !== 1 || Number.isInteger(v))
           )
             onChange(v);
@@ -175,7 +191,8 @@ function Field({
       />
       {invalid ? (
         <small className="input-error">
-          Use {min ?? "a number"}–{max ?? "∞"}
+          Use {min ?? "a number"}–{maxExclusive ? "below " : ""}
+          {max ?? "∞"}
           {step === 1 ? " in whole steps" : ""}. Last valid value is kept.
         </small>
       ) : (
@@ -433,6 +450,12 @@ function MaterialEditor({
 const staticPreview =
   (import.meta as unknown as { env: Record<string, string> }).env
     .VITE_STATIC_PREVIEW === "true";
+const default2DProject = normalizeProject2D(default2DInput);
+// An explicit legacy example URL keeps the original fixture accessible unchanged.
+const legacyExample =
+  typeof window !== "undefined" &&
+  new URLSearchParams(window.location.search).get("example") === "1d";
+const initialProject = legacyExample ? defaultProject : default2DProject;
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : "An unexpected error occurred.";
 
@@ -442,6 +465,7 @@ export default function App() {
   const previousFocus = useRef<HTMLElement | null>(null);
   const actionVersion = useRef(0);
   const savedRequest = useRef(0);
+  const connectionRequest = useRef(0);
   const startingRef = useRef(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingProject, setLoadingProject] = useState<string | null>(null);
@@ -463,7 +487,7 @@ export default function App() {
   }, [sheet]);
   const [history, setHistory] = useState(() =>
     createHistory({
-      project: structuredClone(defaultProject),
+      project: structuredClone(initialProject),
       displayedRun: null,
       selectedLayer: 0,
     }),
@@ -486,6 +510,11 @@ export default function App() {
     setReview(next);
   }
   const [comparison, setComparison] = useState<SavedProject[] | null>(null);
+  const comparisonRequest = useRef(0);
+  function closeComparison() {
+    comparisonRequest.current += 1;
+    setComparison(null);
+  }
   const [selectedCandidates, setSelectedCandidates] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
   const savingRef = useRef(false);
@@ -498,6 +527,7 @@ export default function App() {
   const [job, setJob] = useState<Job | null>(null);
   const [starting, setStarting] = useState(false);
   const [fitBusy, setFitBusy] = useState(false);
+  const [capabilities, setCapabilities] = useState<unknown>(undefined);
   const [connection, setConnection] = useState<
     "checking" | "online" | "offline"
   >("checking");
@@ -516,6 +546,11 @@ export default function App() {
     starting || job?.status === "queued" || job?.status === "running";
   const busy = forwardBusy || fitBusy;
   const errors = validateProject(project);
+  const supportError =
+    capabilities === undefined
+      ? null
+      : solverSupportError(capabilities, project);
+  const is2D = project.schema_version === "1.2";
   const stale = result !== null && !sameInputs(resultProject, project);
   const selectedLayer = validLayerIndex(project, history.present.selectedLayer);
   const layer = project.layers[selectedLayer];
@@ -526,61 +561,57 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
-    if (staticPreview) {
-      readReference()
-        .then((data) => {
-          if (!alive) return;
-          setConnection("offline");
-          if (inputsChanged.current) return;
-          dispatch({
-            type: "reset",
-            workspace: workspaceFromFile(data, "reference"),
-          });
-          setConnection("offline");
-        })
-        .catch((error) => {
-          if (alive) {
-            setConnection("offline");
-            setError(errorText(error));
-          }
+    const version = actionVersion.current;
+    const revision = historyRef.current.revision;
+    const capabilityRequest = ++connectionRequest.current;
+    readReference()
+      .then((data) => {
+        if (
+          !alive ||
+          inputsChanged.current ||
+          version !== actionVersion.current ||
+          revision !== historyRef.current.revision
+        )
+          return;
+        const current = historyRef.current;
+        const editing = !!current.editTransaction;
+        dispatch({
+          type: "reset",
+          workspace: {
+            ...workspaceFromFile(data, "reference"),
+            selectedLayer: current.present.selectedLayer,
+          },
         });
-      return () => {
-        alive = false;
-      };
-    }
-    api
-      .example()
-      .then((example) => {
-        if (!alive) return;
-        if (validateProject(example).length)
-          throw new Error("The server returned an unsupported example.");
-        setConnection("online");
-        if (!inputsChanged.current)
-          dispatch({
-            type: "reset",
-            workspace: { project: example, displayedRun: null },
-          });
+        // A reference arriving during a focused, unchanged field does not
+        // retarget the editor or split its subsequent single edit transaction.
+        if (editing) beginEdit();
       })
-      .catch(async () => {
-        if (alive) {
-          setConnection("offline");
-          if (!inputsChanged.current) {
-            try {
-              const data = await readReference();
-              if (alive && !inputsChanged.current) {
-                dispatch({
-                  type: "reset",
-                  workspace: workspaceFromFile(data, "reference"),
-                });
-              }
-            } catch {
-              /* Offline editing remains available if the bundled example is unavailable. */
-            }
-          }
-        }
+      .catch((failure) => {
+        if (
+          alive &&
+          version === actionVersion.current &&
+          !inputsChanged.current
+        )
+          setError(
+            `${errorText(failure)} Inputs remain editable; no result was installed.`,
+          );
       });
+    if (staticPreview) setConnection("offline");
+    else
+      api
+        .capabilities()
+        .then((data) => {
+          if (!alive || capabilityRequest !== connectionRequest.current) return;
+          setCapabilities(data);
+          setConnection("online");
+        })
+        .catch(() => {
+          if (alive && capabilityRequest === connectionRequest.current)
+            setConnection("offline");
+        });
     return () => {
       alive = false;
+      connectionRequest.current += 1;
     };
   }, []);
   useEffect(() => {
@@ -651,7 +682,7 @@ export default function App() {
       try {
         const next = await api.job(id);
         if (stopped || activeJob.current !== id) return;
-        if (!acceptForward(next, id)) return;
+        if (!(await acceptForward(next, id))) return;
         setConnection("online");
         setJob(next);
         if (next.status === "succeeded") {
@@ -684,7 +715,10 @@ export default function App() {
           );
           return;
         }
-        if (e instanceof ForwardContractError) {
+        if (
+          e instanceof ForwardContractError ||
+          e instanceof ApiContractError
+        ) {
           activeJob.current = null;
           setJob((previous) =>
             previous ? { ...previous, status: "failed" } : previous,
@@ -713,7 +747,14 @@ export default function App() {
     dispatch({ type: "end-edit" });
   }
   function update(next: Project, selection?: number) {
-    if (semanticEqual(next, historyRef.current.present.project)) return;
+    if (projectInputsEqual(next, historyRef.current.present.project)) {
+      if (
+        selection !== undefined &&
+        selection !== historyRef.current.present.selectedLayer
+      )
+        dispatch({ type: "select-layer", index: selection });
+      return;
+    }
     actionVersion.current += 1;
     inputsChanged.current = true;
     dispatch({
@@ -771,19 +812,18 @@ export default function App() {
         : null,
     };
   }
-  function workspaceFromSnapshot(
+  async function workspaceFromSnapshot(
     data: SavedProject,
     expectedId: string,
-  ): Workspace {
+  ): Promise<Workspace> {
     if (!validIdentifier(expectedId) || data.id !== expectedId)
       throw new Error("The server returned a different saved project.");
     if ("result_project" in data)
       throw new Error(
         "A server snapshot cannot supply alternate result inputs.",
       );
-    const parsed = parseProjectFile(
-      JSON.stringify({ project: data.project, result: data.result }),
-    );
+    const inputErrors = validateProject(data.project);
+    if (inputErrors.length) throw new Error(inputErrors.join("\n"));
     const trusted = data.provenance?.source === "server_computed";
     if (
       trusted &&
@@ -793,24 +833,39 @@ export default function App() {
         !validInputHash(data.provenance?.input_hash))
     )
       throw new Error("The saved run is missing its server identity.");
-    const workspace = workspaceFromFile(
-      parsed,
-      trusted ? "server" : "imported",
-    );
-    if (workspace.displayedRun)
-      workspace.displayedRun = createRunRecord({
-        ...workspace.displayedRun,
-        snapshotId: data.id,
-        ...(trusted
-          ? {
-              sourceJobId: data.provenance!.job_id!,
-              inputHash: data.provenance!.input_hash!,
-            }
-          : {}),
-      });
-    return workspace;
+    const run = data.result
+      ? await createRunRecordAsync({
+          inputProject: data.project,
+          result: data.result,
+          origin: trusted ? "server" : "imported",
+          snapshotId: data.id,
+          ...(trusted
+            ? {
+                sourceJobId: data.provenance!.job_id!,
+                inputHash: data.provenance!.input_hash!,
+              }
+            : {}),
+        })
+      : null;
+    if (trusted && data.project.schema_version === "1.2") {
+      const provenance = data.provenance!;
+      const metadata = run?.result.metadata;
+      if (
+        run?.result.schema_version !== "1.2" ||
+        provenance.project_schema_version !== "1.2" ||
+        provenance.result_schema_version !== "1.2" ||
+        provenance.input_hash !== metadata?.input_hash ||
+        provenance.engine !== metadata?.engine ||
+        provenance.engine_version !== metadata?.version ||
+        provenance.adapter_version !== metadata?.adapter_version
+      )
+        throw new Error(
+          "The server snapshot provenance does not match its exact 2D input and result.",
+        );
+    }
+    return { project: data.project, displayedRun: run };
   }
-  function acceptForward(next: Job, id?: string) {
+  async function acceptForward(next: Job, id?: string) {
     const context = jobContext.current;
     if (
       !context ||
@@ -831,25 +886,38 @@ export default function App() {
         "The server returned a different or invalid forward job. Your previous result is preserved. Check the server before starting another job.",
       );
     if (next.status === "succeeded") {
-      const mismatch = resultCompatibilityError(context.project, next.result);
       if (
-        mismatch ||
         !isForwardResult(next.result) ||
         next.result.result_type !== "forward"
       )
-        throw new ForwardContractError(
-          mismatch || "The forward result is invalid.",
-        );
-      dispatch({
-        type: "set-displayed-run",
-        run: createRunRecord({
+        throw new ForwardContractError("The forward result is invalid.");
+      let run: RunRecord;
+      try {
+        run = await createRunRecordAsync({
           inputProject: context.project,
           result: next.result,
           origin: "computed",
           sourceJobId: next.id,
           inputHash: context.hash,
-        }),
-      });
+        });
+      } catch (failure) {
+        throw new ForwardContractError(errorText(failure));
+      }
+      if (
+        context !== jobContext.current ||
+        context.version !== actionVersion.current ||
+        context.revision !== historyRef.current.revision ||
+        (id && activeJob.current !== id)
+      )
+        return false;
+      if (
+        context.project.schema_version === "1.2" &&
+        run.result.metadata.input_hash !== context.hash
+      )
+        throw new ForwardContractError(
+          "The 2D result does not match the validated job input hash.",
+        );
+      dispatch({ type: "set-displayed-run", run });
       setPolarization(next.result.spectra.s ? "s" : "p");
     }
     return true;
@@ -876,33 +944,49 @@ export default function App() {
       revision === historyRef.current.revision &&
       workspace === historyRef.current.present;
   }
-  function updateLayer(values: Partial<RectangleLayer>) {
+  function updateLayer(
+    values: Partial<RectangleLayer> & { cd_x_nm?: number; cd_y_nm?: number },
+  ) {
     const current = historyRef.current.present;
     const currentProject = current.project;
     const index = validLayerIndex(currentProject, current.selectedLayer);
     if (
       currentProject.layers[index].geometry === "homogeneous" &&
-      ("cd_nm" in values || "background" in values)
+      ("cd_nm" in values ||
+        "cd_x_nm" in values ||
+        "cd_y_nm" in values ||
+        "background" in values)
     )
       return;
-    update({
-      ...currentProject,
-      layers: currentProject.layers.map((item, itemIndex) =>
-        itemIndex === index ? ({ ...item, ...values } as typeof item) : item,
-      ),
-    });
+    const next = structuredClone(currentProject);
+    Object.assign(next.layers[index], values);
+    update(next);
+  }
+  function updateLight(
+    values: Partial<Project["illumination"]> & { azimuth_deg?: number },
+  ) {
+    const next = structuredClone(historyRef.current.present.project);
+    Object.assign(next.illumination, values);
+    update(next);
   }
   function updateWavelengths(start: number, end: number, count: number) {
-    update({
-      ...project,
-      illumination: {
-        ...project.illumination,
-        wavelengths_nm: count === 1 ? [start] : linspace(start, end, count),
-      },
+    if (!Number.isInteger(count) || count < 1 || count > (is2D ? 31 : 81))
+      return;
+    updateLight({
+      wavelengths_nm: count === 1 ? [start] : linspace(start, end, count),
     });
   }
   async function run() {
-    if (staticPreview || busy || startingRef.current || errors.length) return;
+    if (
+      staticPreview ||
+      busy ||
+      startingRef.current ||
+      errors.length ||
+      supportError ||
+      connection !== "online" ||
+      !capabilities
+    )
+      return;
     startingRef.current = true;
     endEdit();
     const version = ++actionVersion.current;
@@ -931,6 +1015,18 @@ export default function App() {
           validation.diagnostics?.map((item) => item.message).join(" ") ||
             "The server could not validate these exact inputs.",
         );
+      if (
+        submitted.schema_version === "1.2" &&
+        (await hashProject2D(validation.project)) !== validation.input_hash
+      )
+        throw new ForwardContractError(
+          "The server validation hash does not match these exact 2D inputs.",
+        );
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
       jobContext.current = {
         project: validation.project,
         hash: validation.input_hash,
@@ -938,9 +1034,11 @@ export default function App() {
         revision,
       };
       const next = await api.start(validation.project);
-      if (!acceptForward(next)) return;
+      if (!(await acceptForward(next))) return;
       setConnection("online");
-      activeJob.current = next.status === "running" ? next.id : null;
+      activeJob.current = ["queued", "running"].includes(next.status)
+        ? next.id
+        : null;
       setJob(next);
       if (next.status === "succeeded")
         setNotice("Calculation complete. Results are ready.");
@@ -949,7 +1047,13 @@ export default function App() {
     } catch (e) {
       if (version === actionVersion.current) {
         setError(errorText(e));
-        setConnection(e instanceof ApiError ? "online" : "offline");
+        setConnection(
+          e instanceof ApiError ||
+            e instanceof ForwardContractError ||
+            e instanceof ApiContractError
+            ? "online"
+            : "offline",
+        );
       }
     } finally {
       startingRef.current = false;
@@ -961,7 +1065,7 @@ export default function App() {
     const id = job.id;
     try {
       const next = await api.cancel(id);
-      if (activeJob.current !== id || !acceptForward(next, id)) return;
+      if (activeJob.current !== id || !(await acceptForward(next, id))) return;
       setJob(next);
       if (next.status === "succeeded") {
         activeJob.current = null;
@@ -1002,13 +1106,15 @@ export default function App() {
             "This run has no server job identity. Export JSON to keep a local copy.",
           );
         const data = await api.snapshot(run.sourceJobId);
-        const savedWorkspace = workspaceFromSnapshot(data, data.id);
+        const savedWorkspace = await workspaceFromSnapshot(data, data.id);
         if (
           data.provenance?.source !== "server_computed" ||
           data.provenance.job_id !== run.sourceJobId ||
           data.provenance.input_hash !== run.inputHash ||
-          !semanticEqual(data.project, run.inputProject) ||
-          !semanticEqual(data.result, run.result)
+          !sameInputs(data.project, run.inputProject) ||
+          !(run.result.schema_version === "1.2"
+            ? exactSemanticEqual(data.result, run.result)
+            : semanticEqual(data.result, run.result))
         )
           throw new Error("The saved snapshot does not match this exact run.");
         if (
@@ -1026,11 +1132,16 @@ export default function App() {
           frame.project,
           currentResult ? run.result : null,
         );
-        workspaceFromSnapshot(saved, saved.id);
+        await workspaceFromSnapshot(saved, saved.id);
         if (
           saved.provenance?.source !== "unverified_import" ||
-          !semanticEqual(saved.project, normalizeProject(frame.project)) ||
-          !semanticEqual(saved.result, currentResult ? run.result : null)
+          !sameInputs(saved.project, frame.project) ||
+          !(run?.result.schema_version === "1.2"
+            ? exactSemanticEqual(
+                saved.result,
+                currentResult ? run.result : null,
+              )
+            : semanticEqual(saved.result, currentResult ? run.result : null))
         )
           throw new Error(
             "The saved project does not match the inputs sent to the server.",
@@ -1107,7 +1218,14 @@ export default function App() {
         revision !== historyRef.current.revision
       )
         return;
-      install(workspaceFromSnapshot(data, id));
+      const workspace = await workspaceFromSnapshot(data, id);
+      if (
+        request !== savedRequest.current ||
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
+      install(workspace);
       closeSaved();
       setNotice("Project loaded.");
       setError("");
@@ -1180,23 +1298,51 @@ export default function App() {
         setError("");
         return;
       }
-      const data = parseProjectFile(text);
+      const data = await parseProjectFileAsync(text);
+      if (
+        version !== actionVersion.current ||
+        revision !== historyRef.current.revision
+      )
+        return;
       install(workspaceFromFile(data, "imported"));
       setNotice("JSON loaded. Review the inputs and saved results.");
       setError("");
     } catch (e) {
-      if (version === actionVersion.current) setError(errorText(e));
+      if (version === actionVersion.current)
+        setError(
+          `${errorText(e)} If the inputs are valid, remove the result and result_project fields from the JSON file and import it again to recover inputs only.`,
+        );
     } finally {
       event.target.value = "";
     }
   }
   async function readReference() {
     const response = await fetch(
-      new URL("./reference-example.json", document.baseURI),
+      new URL(
+        legacyExample ? "./reference-example.json" : "./reference-2d.json",
+        document.baseURI,
+      ),
     );
     if (!response.ok)
       throw new Error("The bundled reference could not be loaded.");
-    return parseProjectFile(await response.text());
+    const text = await response.text();
+    if (!legacyExample) {
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(text),
+      );
+      const hash = Array.from(new Uint8Array(digest), (byte) =>
+        byte.toString(16).padStart(2, "0"),
+      ).join("");
+      if (hash !== reference2DManifest.bundle_sha256)
+        throw new Error("The stored 2D reference failed its integrity check.");
+    }
+    const parsed = await parseProjectFileAsync(text);
+    if (!legacyExample && !sameInputs(parsed.project, default2DProject))
+      throw new Error(
+        "The stored 2D reference does not contain the approved example inputs.",
+      );
+    return parsed;
   }
   async function loadReference() {
     endEdit();
@@ -1219,43 +1365,31 @@ export default function App() {
     }
   }
   async function reconnect() {
+    const request = ++connectionRequest.current;
     try {
-      await api.example();
+      const data = await api.capabilities();
+      if (request !== connectionRequest.current) return;
+      setCapabilities(data);
       setConnection("online");
-      setNotice("Solver connected. Your current inputs have been preserved.");
+      const unsupported = solverSupportError(
+        data,
+        historyRef.current.present.project,
+      );
+      setNotice(
+        unsupported
+          ? ""
+          : "Solver connected. Your current inputs have been preserved.",
+      );
       setError("");
     } catch (e) {
+      if (request !== connectionRequest.current) return;
+      setCapabilities(undefined);
       setError(errorText(e));
       setConnection("offline");
     }
   }
   async function resetExample() {
-    if (staticPreview) {
-      await loadReference();
-      return;
-    }
-    endEdit();
-    const version = ++actionVersion.current,
-      revision = historyRef.current.revision;
-    inputsChanged.current = true;
-    try {
-      const example = await api.example();
-      if (
-        version !== actionVersion.current ||
-        revision !== historyRef.current.revision
-      )
-        return;
-      if (validateProject(example).length)
-        throw new Error("The server returned an unsupported example.");
-      update(example);
-      setConnection("online");
-      setNotice("Example inputs loaded.");
-      setError("");
-    } catch (e) {
-      if (version !== actionVersion.current) return;
-      setError(errorText(e));
-      setConnection("offline");
-    }
+    await loadReference();
   }
 
   async function compareSelected() {
@@ -1276,12 +1410,12 @@ export default function App() {
       const candidates = await Promise.all(
         ids.map(async (id) => {
           const data = await api.load(id);
-          const workspace = workspaceFromSnapshot(data, id);
+          const workspace = await workspaceFromSnapshot(data, id);
           if (!workspace.displayedRun)
             throw new Error(
               `${data.name} has no saved spectrum. Run and save it before comparison.`,
             );
-          return data;
+          return { ...data, result: workspace.displayedRun.result };
         }),
       );
       if (
@@ -1303,12 +1437,33 @@ export default function App() {
       if (request === savedRequest.current || !showSaved) setComparing(false);
     }
   }
-  function reviewCandidate(candidate: SavedProject) {
+  async function reviewCandidate(candidate: SavedProject) {
     endEdit();
+    const version = actionVersion.current,
+      revision = historyRef.current.revision,
+      request = ++comparisonRequest.current;
+    let workspace: Workspace;
+    try {
+      workspace = await workspaceFromSnapshot(candidate, candidate.id);
+    } catch (failure) {
+      if (
+        version === actionVersion.current &&
+        revision === historyRef.current.revision &&
+        request === comparisonRequest.current
+      )
+        setError(errorText(failure));
+      return;
+    }
+    if (
+      version !== actionVersion.current ||
+      revision !== historyRef.current.revision ||
+      request !== comparisonRequest.current
+    )
+      return;
     presentReview({
       title: "Review saved candidate",
       baseProject: historyRef.current.present.project,
-      workspace: workspaceFromSnapshot(candidate, candidate.id),
+      workspace,
       revision: historyRef.current.revision,
       actionVersion: actionVersion.current,
       note: "Apply this candidate with its exact saved spectrum. You can undo this change without running the solver.",
@@ -1341,7 +1496,7 @@ export default function App() {
     // Consume this review before any state update can schedule another click.
     // A repeated Apply or a queued action after Cancel is therefore a no-op.
     presentReview(null);
-    setComparison(null);
+    closeComparison();
     install(pending.workspace);
     setError("");
     setNotice("Changes applied. Undo is available in the Project menu.");
@@ -1382,6 +1537,37 @@ export default function App() {
         dimension === "width" ? { cd_nm: value } : { thickness_nm: value },
       );
   }
+  function changeDimension2D(
+    kind: "width" | "pitch",
+    axis: "x" | "y",
+    value: number,
+  ) {
+    if (busy || !Number.isFinite(value)) return;
+    const next = structuredClone(historyRef.current.present.project);
+    if (next.schema_version !== "1.2") return;
+    const field = dimensionFields2D(
+      next,
+      validLayerIndex(next, historyRef.current.present.selectedLayer),
+      kind,
+    ).find((item) => item.axis === axis);
+    if (!field || value < field.min || value > field.max) return;
+    if (kind === "pitch") {
+      if (axis === "x") next.period_nm = value;
+      else next.period_y_nm = value;
+    } else {
+      const target =
+        next.layers[
+          validLayerIndex(next, historyRef.current.present.selectedLayer)
+        ];
+      if (target.geometry === "rectangle_2d") {
+        if (axis === "x") target.cd_x_nm = value;
+        else target.cd_y_nm = value;
+      } else if (target.geometry === "rectangle_1d" && axis === "x")
+        target.cd_nm = value;
+      else return;
+    }
+    update(next);
+  }
   const dimensionValues = {
     width: layer.geometry === "rectangle_1d" ? layer.cd_nm : 0,
     height: layer.thickness_nm,
@@ -1389,28 +1575,28 @@ export default function App() {
   };
   const titles: Record<Sheet, string> = {
     width:
-      project.layers.length > 1
+      is2D || project.layers.length > 1
         ? `Layer ${selectedLayer + 1} · Width`
         : "Ridge width",
     height:
-      project.layers.length > 1
+      is2D || project.layers.length > 1
         ? `Layer ${selectedLayer + 1} · Thickness`
         : "Layer thickness",
-    pitch: "Pattern pitch",
+    pitch: is2D ? "Shared pitch" : "Pattern pitch",
     ridge:
-      project.layers.length > 1
+      is2D || project.layers.length > 1
         ? `Layer ${selectedLayer + 1} · Material`
         : layer.geometry === "homogeneous"
           ? "Layer material"
           : "Ridge material",
     groove:
-      project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · Groove`
+      is2D || project.layers.length > 1
+        ? `Layer ${selectedLayer + 1} · ${is2D ? "Background" : "Groove"}`
         : "Groove material",
     ambient: "Ambient material",
     substrate: "Substrate material",
     materials:
-      project.layers.length > 1
+      is2D || project.layers.length > 1
         ? `Layer ${selectedLayer + 1} · Materials`
         : "Optical materials",
     light: "Incident light",
@@ -1422,7 +1608,7 @@ export default function App() {
     ["width", "height", "ridge", "groove", "materials", "layer"].includes(
       sheet,
     ) &&
-    (project.layers.length > 1 || sheet === "layer");
+    (is2D || project.layers.length > 1 || sheet === "layer");
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -1546,7 +1732,9 @@ export default function App() {
             {staticPreview
               ? "Static preview"
               : connection === "online"
-                ? "Solver connected"
+                ? supportError
+                  ? "Solver unsupported"
+                  : "Solver connected"
                 : connection === "checking"
                   ? "Connecting…"
                   : "Solver offline"}
@@ -1563,7 +1751,7 @@ export default function App() {
                 aria-label="Project name"
                 id="project-name"
                 value={project.name}
-                maxLength={100}
+                maxLength={is2D ? 200 : 100}
                 disabled={busy}
                 onFocus={beginEdit}
                 onBlur={endEdit}
@@ -1585,17 +1773,46 @@ export default function App() {
               onSelect={selectLayer}
               onChange={changeStack}
             />
-            <ThreeStructure
-              project={project}
-              selectedLayer={selectedLayer}
-              onSelectLayer={selectLayer}
-              disabled={busy}
-              onChange={changeDimension}
-              onOpen={openSheet}
-              onEditLayer={() => openSheet("layer")}
-              onEditStart={beginEdit}
-              onEditEnd={endEdit}
-            />
+            {project.schema_version === "1.2" ? (
+              <>
+                <ThreeStructure2D
+                  project={project}
+                  selectedLayer={selectedLayer}
+                  onSelectLayer={selectLayer}
+                  disabled={busy}
+                />
+                <div className="s2-context">
+                  <h2>Edit Layer {selectedLayer + 1}</h2>
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => openSheet("layer")}
+                  >
+                    Layer settings ↗
+                  </button>
+                </div>
+                <DimensionCards2D
+                  project={project}
+                  selectedLayer={selectedLayer}
+                  disabled={busy}
+                  onEdit={(kind) =>
+                    openSheet(kind === "thickness" ? "height" : kind)
+                  }
+                />
+              </>
+            ) : (
+              <ThreeStructure
+                project={project}
+                selectedLayer={selectedLayer}
+                onSelectLayer={selectLayer}
+                disabled={busy}
+                onChange={changeDimension}
+                onOpen={openSheet}
+                onEditLayer={() => openSheet("layer")}
+                onEditStart={beginEdit}
+                onEditEnd={endEdit}
+              />
+            )}
             <fieldset disabled={busy} className="setup-rows">
               <button
                 className="setting-row"
@@ -1611,6 +1828,9 @@ export default function App() {
                   nm
                   <span>
                     {project.illumination.angle_deg}° ·{" "}
+                    {project.schema_version === "1.2" && (
+                      <>azimuth {project.illumination.azimuth_deg}° · </>
+                    )}
                     {project.illumination.polarization === "both"
                       ? "s & p"
                       : project.illumination.polarization}
@@ -1643,7 +1863,13 @@ export default function App() {
                 <button
                   className="run-button"
                   onClick={run}
-                  disabled={staticPreview || busy || !!errors.length}
+                  disabled={
+                    staticPreview ||
+                    busy ||
+                    !!errors.length ||
+                    !!supportError ||
+                    connection !== "online"
+                  }
                 >
                   {busy ? <span className="spinner" /> : <Icon name="play" />}
                   {fitBusy
@@ -1685,6 +1911,14 @@ export default function App() {
               ) : null}
             </div>
 
+            {supportError && !staticPreview && (
+              <div className="connection-banner" role="status">
+                <span>{supportError}</span>
+                <button onClick={reconnect} disabled={busy}>
+                  Reconnect
+                </button>
+              </div>
+            )}
             {connection === "offline" && !staticPreview && (
               <div className="connection-banner">
                 <span>
@@ -1715,7 +1949,9 @@ export default function App() {
                   <span className="setting-icon">≋</span>
                   <span className="setting-name">Calculation</span>
                   <span className="setting-value">
-                    N = {project.solver.harmonics}
+                    {project.schema_version === "1.2"
+                      ? `X ${project.solver.harmonics_x} · Y ${project.solver.harmonics_y}`
+                      : `N = ${project.solver.harmonics}`}
                   </span>
                   <Icon name="arrow" />
                 </button>
@@ -1869,14 +2105,20 @@ export default function App() {
             )}
             {resultProject && (
               <p className="result-inputs">
-                Original inputs: pitch {resultProject.period_nm} nm ·{" "}
+                Original inputs: pitch X {resultProject.period_nm} nm
+                {resultProject.schema_version === "1.2"
+                  ? ` · pitch Y ${resultProject.period_y_nm} nm`
+                  : ""}{" "}
+                ·{" "}
                 {supportsSyntheticFit(resultProject) &&
                 resultProject.layers[0].geometry === "rectangle_1d"
                   ? `width ${resultProject.layers[0].cd_nm} nm · height ${resultProject.layers[0].thickness_nm} nm`
                   : stackSummary(resultProject)}{" "}
-                · {resultProject.illumination.angle_deg}° · N ={" "}
-                {resultProject.solver.harmonics}.{" "}
-                {resultProject.illumination.wavelengths_nm.length} wavelength
+                · {resultProject.illumination.angle_deg}° ·{" "}
+                {resultProject.schema_version === "1.2"
+                  ? `azimuth ${resultProject.illumination.azimuth_deg}° · Hx ${resultProject.solver.harmonics_x}, Hy ${resultProject.solver.harmonics_y}`
+                  : `N = ${resultProject.solver.harmonics}`}
+                . {resultProject.illumination.wavelengths_nm.length} wavelength
                 samples,{" "}
                 {resultProject.illumination.polarization === "both"
                   ? "s and p"
@@ -1914,13 +2156,17 @@ export default function App() {
             <div className="spectrum-note">
               <b>Total ≠ specular.</b> R and T sum power contributions over all
               retained diffraction orders. R₀ and T₀ contain only the zeroth
-              order.
+              order{result?.schema_version === "1.2" ? " (m, n) = (0, 0)" : ""}.
             </div>
             <div className="notes-grid">
               <p>
-                <b>Plane-wave baseline</b>An infinite periodic 1D stack with
-                semi-infinite ambient/substrate. Finite beam, numerical
-                aperture, and finite-target effects are omitted.
+                <b>Plane-wave baseline</b>An infinite periodic{" "}
+                {resultProject?.schema_version === "1.2" ||
+                (!resultProject && is2D)
+                  ? "2D"
+                  : "1D"}{" "}
+                stack with semi-infinite ambient/substrate. Finite beam,
+                numerical aperture, and finite-target effects are omitted.
               </p>
               <p>
                 <b>Power normalization</b>R/T are normalized to incident power.
@@ -1955,7 +2201,7 @@ export default function App() {
       </main>
       <dialog
         ref={inspector}
-        className="inspector"
+        className={`inspector ${is2D && (sheet === "width" || sheet === "pitch") ? "structure2d-dialog" : ""}`}
         aria-labelledby="inspector-title"
         onCancel={(e) => {
           e.preventDefault();
@@ -1966,9 +2212,10 @@ export default function App() {
         }}
       >
         <div
-          className="sheet-body"
+          className={`sheet-body ${is2D && (sheet === "width" || sheet === "pitch") ? "structure2d-sheet" : ""}`}
           onFocusCapture={(event) => {
             if (
+              !(is2D && (sheet === "width" || sheet === "pitch")) &&
               (event.target as HTMLElement).matches(
                 "input:not([type=file]), textarea",
               )
@@ -1977,6 +2224,7 @@ export default function App() {
           }}
           onBlurCapture={(event) => {
             if (
+              !(is2D && (sheet === "width" || sheet === "pitch")) &&
               (event.target as HTMLElement).matches(
                 "input:not([type=file]), textarea",
               )
@@ -2019,7 +2267,7 @@ export default function App() {
                   <input
                     aria-label="Layer name"
                     value={layer.name}
-                    maxLength={100}
+                    maxLength={is2D ? 200 : 100}
                     onChange={(event) =>
                       updateLayer({ name: event.target.value })
                     }
@@ -2033,12 +2281,16 @@ export default function App() {
                     onChange={(event) =>
                       changeStack({
                         type: "geometry",
-                        geometry: event.target.value as
-                          "rectangle_1d" | "homogeneous",
+                        geometry: event.target.value as Layer["geometry"],
                       })
                     }
                   >
-                    <option value="rectangle_1d">Patterned</option>
+                    {is2D && (
+                      <option value="rectangle_2d">Pattern · X and Y</option>
+                    )}
+                    <option value="rectangle_1d">
+                      {is2D ? "Ridge · repeats in X" : "Patterned"}
+                    </option>
                     <option value="homogeneous">Uniform</option>
                   </select>
                 </label>
@@ -2062,6 +2314,35 @@ export default function App() {
                     onChange={(cd_nm) => updateLayer({ cd_nm })}
                   />
                 )}
+                {layer.geometry === "rectangle_2d" && (
+                  <div className="field-grid">
+                    <Field
+                      label="Width X"
+                      unit="nm"
+                      value={layer.cd_x_nm}
+                      min={0}
+                      max={project.period_nm}
+                      step={0.1}
+                      onChange={(cd_x_nm) => updateLayer({ cd_x_nm })}
+                    />
+                    <Field
+                      label="Width Y"
+                      unit="nm"
+                      value={layer.cd_y_nm}
+                      min={0}
+                      max={
+                        project.schema_version === "1.2"
+                          ? project.period_y_nm
+                          : 0
+                      }
+                      step={0.1}
+                      onChange={(cd_y_nm) => updateLayer({ cd_y_nm })}
+                    />
+                  </div>
+                )}
+                {is2D && layer.geometry === "rectangle_1d" && (
+                  <p className="sheet-hint">This ridge is uniform along Y.</p>
+                )}
                 <button
                   className="text-button"
                   onClick={() => setSheet("ridge")}
@@ -2077,27 +2358,46 @@ export default function App() {
               </>
             )}
 
-            {sheet && ["width", "height", "pitch"].includes(sheet) && (
-              <DimensionEditor
-                dimension={sheet as Dimension}
-                value={dimensionValues[sheet as Dimension]}
-                min={
-                  sheet === "pitch"
-                    ? Math.max(20, maximumPatternedCD(project))
-                    : 0
+            {project.schema_version === "1.2" &&
+            (sheet === "width" || sheet === "pitch") ? (
+              <DimensionEditor2D
+                project={project}
+                selectedLayer={selectedLayer}
+                kind={sheet}
+                disabled={busy}
+                onChange={(axis, value) =>
+                  changeDimension2D(sheet, axis, value)
                 }
-                max={
-                  sheet === "pitch"
-                    ? 5000
-                    : sheet === "height"
-                      ? 2000
-                      : project.period_nm
-                }
-                onChange={(value) => changeDimension(sheet as Dimension, value)}
-                onEditStart={beginEdit}
-                onEditEnd={endEdit}
+                onBeginEdit={beginEdit}
+                onEndEdit={endEdit}
                 onDone={() => setSheet(null)}
               />
+            ) : (
+              sheet &&
+              ["width", "height", "pitch"].includes(sheet) && (
+                <DimensionEditor
+                  dimension={sheet as Dimension}
+                  value={dimensionValues[sheet as Dimension]}
+                  min={
+                    sheet === "pitch"
+                      ? Math.max(20, maximumPatternedCD(project))
+                      : 0
+                  }
+                  max={
+                    sheet === "pitch"
+                      ? 5000
+                      : sheet === "height"
+                        ? 2000
+                        : project.period_nm
+                  }
+                  onChange={(value) =>
+                    changeDimension(sheet as Dimension, value)
+                  }
+                  onEditStart={beginEdit}
+                  onEditEnd={endEdit}
+                  onDone={() => setSheet(null)}
+                />
+              )
             )}
             {sheet &&
               ["ridge", "groove", "ambient", "substrate", "materials"].includes(
@@ -2115,7 +2415,7 @@ export default function App() {
                     {(["ridge", "groove", "ambient", "substrate"] as const)
                       .filter(
                         (key) =>
-                          key !== "groove" || layer.geometry === "rectangle_1d",
+                          key !== "groove" || layer.geometry !== "homogeneous",
                       )
                       .map((key) => (
                         <button
@@ -2125,7 +2425,11 @@ export default function App() {
                         >
                           {key === "ridge" && layer.geometry === "homogeneous"
                             ? "Layer"
-                            : key[0].toUpperCase() + key.slice(1)}
+                            : is2D && key === "ridge"
+                              ? "Pattern"
+                              : is2D && key === "groove"
+                                ? "Background"
+                                : key[0].toUpperCase() + key.slice(1)}
                         </button>
                       ))}
                   </div>
@@ -2133,17 +2437,21 @@ export default function App() {
                     <MaterialEditor
                       getImportGuard={materialImportGuard}
                       label={
-                        layer.geometry === "homogeneous" ? "Layer" : "Ridge"
+                        layer.geometry === "homogeneous"
+                          ? "Layer"
+                          : is2D
+                            ? "Pattern"
+                            : "Ridge"
                       }
                       material={layer.material}
                       onChange={(material) => updateLayer({ material })}
                     />
                   )}
-                  {layer.geometry === "rectangle_1d" &&
+                  {layer.geometry !== "homogeneous" &&
                     (sheet === "groove" || sheet === "materials") && (
                       <MaterialEditor
                         getImportGuard={materialImportGuard}
-                        label="Groove"
+                        label={is2D ? "Background" : "Groove"}
                         material={layer.background}
                         onChange={(background) => updateLayer({ background })}
                       />
@@ -2216,16 +2524,10 @@ export default function App() {
                     label="Wavelength samples"
                     value={waves.length}
                     min={1}
-                    max={81}
+                    max={is2D ? 31 : 81}
                     onChange={(v) =>
                       v === 1
-                        ? update({
-                            ...project,
-                            illumination: {
-                              ...project.illumination,
-                              wavelengths_nm: [waves[0]],
-                            },
-                          })
+                        ? updateLight({ wavelengths_nm: [waves[0]] })
                         : updateWavelengths(waves[0], waves.at(-1)!, v)
                     }
                   />
@@ -2236,37 +2538,50 @@ export default function App() {
                     min={0}
                     max={75}
                     step={0.1}
-                    onChange={(angle_deg) =>
-                      update({
-                        ...project,
-                        illumination: { ...project.illumination, angle_deg },
-                      })
-                    }
+                    onChange={(angle_deg) => updateLight({ angle_deg })}
                   />
+                  {project.schema_version === "1.2" && (
+                    <Field
+                      label="Azimuth · φ"
+                      unit="°"
+                      value={project.illumination.azimuth_deg}
+                      min={0}
+                      max={360}
+                      maxExclusive
+                      step={0.1}
+                      onChange={(azimuth_deg) => updateLight({ azimuth_deg })}
+                    />
+                  )}
                 </div>
                 <label className="field">
                   <span>Polarization</span>
                   <select
                     value={project.illumination.polarization}
                     onChange={(e) =>
-                      update({
-                        ...project,
-                        illumination: {
-                          ...project.illumination,
-                          polarization: e.target
-                            .value as Project["illumination"]["polarization"],
-                        },
+                      updateLight({
+                        polarization: e.target
+                          .value as Project["illumination"]["polarization"],
                       })
                     }
                   >
                     <option value="both">Separate s and p curves</option>
-                    <option value="s">s / TE · E ∥ grooves</option>
-                    <option value="p">p / TM · H ∥ grooves</option>
+                    <option value="s">
+                      {is2D
+                        ? "s · E perpendicular to incidence plane"
+                        : "s / TE · E ∥ grooves"}
+                    </option>
+                    <option value="p">
+                      {is2D
+                        ? "p · E parallel to incidence plane"
+                        : "p / TM · H ∥ grooves"}
+                    </option>
                   </select>
                 </label>
                 <p className="sheet-hint">
-                  The incidence plane is x–z; grooves run along y. Use Import
-                  JSON for an exact, nonuniform wavelength list.
+                  {is2D
+                    ? "Azimuth rotates the incidence plane from X toward Y. "
+                    : "The incidence plane is x–z; grooves run along y. "}
+                  Use Import JSON for an exact, nonuniform wavelength list.
                 </p>
               </>
             )}
@@ -2276,26 +2591,57 @@ export default function App() {
                   Increase Fourier order N and compare results to assess
                   convergence. A higher order alone does not guarantee accuracy.
                 </p>
-                <Field
-                  label="Harmonic order N"
-                  value={project.solver.harmonics}
-                  min={1}
-                  max={20}
-                  onChange={(harmonics) =>
-                    update({ ...project, solver: { harmonics } })
-                  }
-                  help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
-                />
+                {project.schema_version === "1.2" ? (
+                  <div className="field-grid">
+                    {(["x", "y"] as const).map((axis) => (
+                      <Field
+                        key={axis}
+                        label={`Harmonic order ${axis.toUpperCase()}`}
+                        value={
+                          axis === "x"
+                            ? project.solver.harmonics_x
+                            : project.solver.harmonics_y
+                        }
+                        min={1}
+                        max={5}
+                        onChange={(value) => {
+                          if (!Number.isInteger(value)) return;
+                          const next = structuredClone(project);
+                          if (axis === "x") next.solver.harmonics_x = value;
+                          else next.solver.harmonics_y = value;
+                          update(next);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Field
+                    label="Harmonic order N"
+                    value={project.solver.harmonics}
+                    min={1}
+                    max={20}
+                    onChange={(harmonics) => {
+                      if (Number.isInteger(harmonics))
+                        update({ ...project, solver: { harmonics } });
+                    }}
+                    help={`Retained orders: −${project.solver.harmonics} … +${project.solver.harmonics} (${2 * project.solver.harmonics + 1} total)`}
+                  />
+                )}
                 <div className="fixed-setting">
                   <span>Geometry</span>
-                  <strong>1D finite-layer stack</strong>
+                  <strong>
+                    {is2D
+                      ? "2D rectangular finite-layer stack"
+                      : "1D finite-layer stack"}
+                  </strong>
                 </div>
                 <div className="fixed-setting">
                   <span>Layers</span>
                   <strong>{project.layers.length} · top to bottom</strong>
                 </div>
                 <p className="sheet-hint">
-                  Infinite 1D model; finite-target effects are omitted.
+                  Infinite {is2D ? "2D" : "1D"} model; finite-target effects are
+                  omitted.
                 </p>
               </>
             )}
@@ -2325,6 +2671,7 @@ export default function App() {
           }
           onApply={applyReview}
           onClose={() => {
+            comparisonRequest.current += 1;
             if (reviewRef.current === review) presentReview(null);
           }}
         />
@@ -2333,7 +2680,7 @@ export default function App() {
         <ComparisonPanel
           candidates={comparison}
           onUse={reviewCandidate}
-          onClose={() => setComparison(null)}
+          onClose={closeComparison}
         />
       )}
       {showSaved && (

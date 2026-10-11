@@ -58,6 +58,11 @@ The API is an unauthenticated local-development prototype. Do not expose it on t
 
 ### Pages reference preview
 
+The ordinary URL opens the accepted synthetic 2D multilayer and its complete
+stored spectrum. The explicit `?example=1d` URL retains the original fixture for
+legacy exploration and regression checks. Neither route computes on Pages.
+See [the 2D editor](ui/2d-editor.md) for controls and exact input/result binding.
+
 The workflow is prepared to publish the static preview after `Checks` succeeds on the main branch. Set repository Settings → Pages → Source to GitHub Actions. The `VITE_STATIC_PREVIEW=true` build displays only the stored example computed by the real Python solver. The local calculation API remains private. See [GitHub's official Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 ## Job and storage lifetime

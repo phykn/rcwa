@@ -2,11 +2,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import reference from "../public/reference-example.json";
-import type { ForwardResult, Project, SavedProject } from "./model";
+import type {
+  ForwardResult,
+  ForwardResult1D,
+  Project,
+  SavedProject,
+} from "./model";
 import { SpectrumPlot } from "./Visuals";
 import { ComparisonPanel } from "./WorkflowPanels";
 
-const result = reference.result as unknown as ForwardResult;
+const result = reference.result as unknown as ForwardResult1D;
 function plot(
   value: ForwardResult | null = result,
   polarization: "s" | "p" = "s",

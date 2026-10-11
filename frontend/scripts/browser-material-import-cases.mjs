@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 // Delays only user-selected material files. No solver responses are synthesized.
 import assert from "node:assert/strict";
 import { expect } from "@playwright/test";
@@ -42,7 +43,7 @@ export async function assertMaterialImportOrdering(
     k_values: [0, 0],
   });
   async function reset() {
-    await page.goto(url);
+    await page.goto(legacyExampleUrl(url));
     await expect(page.locator(".result-badge")).toHaveText(
       "Precomputed example",
     );
@@ -282,7 +283,7 @@ export async function assertMaterialImportOrdering(
       "A superseded failed read cannot replace the latest material or show an obsolete error; material ordering checks make zero API calls",
     );
     // A real bounded forward job must still finish and unlock after an old read.
-    await page.goto(liveUrl);
+    await page.goto(legacyExampleUrl(liveUrl));
     await expect(page.locator(".connection")).toHaveText("Solver connected");
     const runProject = structuredClone(reference.project);
     runProject.illumination.wavelengths_nm = [511, 623, 739];

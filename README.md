@@ -1,11 +1,11 @@
 # RCWA Workbench
 
-A web workbench for simulating one-dimensional optical gratings and exploring synthetic critical-dimension (CD) recovery.
+A web workbench for simulating rectangular 2D optical multilayers and 1D gratings, with direct 3D editing and saved spectra.
 
 ## Features
 
-- Direct 3D stack editor for 1–8 rectangular-grating or uniform-film layers
-- Shared period, per-layer dimensions/materials, and plane-wave s/p illumination
+- Direct 3D stack editor for 1–8 rectangular 2D patterns, 1D ridges or uniform films
+- Shared X/Y periods, per-layer dimensions/materials, and oblique plane-wave s/p illumination
 - Constant or tabulated optical constants, including absorbing substrates
 - Order-resolved, total and specular reflectance/transmittance
 - Single-rectangular-layer synthetic CD fitting with bounded multistart optimization
@@ -13,15 +13,11 @@ A web workbench for simulating one-dimensional optical gratings and exploring sy
 - Project and result JSON import/export with exact server-run snapshots
 - Local HTTP/OpenAPI and optional stdio MCP tools for general AI clients
 
-Built with React, TypeScript, FastAPI and pinned meent 0.13.2. The solver supports isotropic, centered 1D stacks under one common period, including passive absorbing films and substrates. Project schema 1.0 and historical saved results remain readable; multilayer editing uses schema 1.1. The static preview shows a precomputed example; new simulations and fitting require the local Python API.
+Built with React, TypeScript, FastAPI and pinned meent 0.13.2. The default is a synthetic, three-layer, genuinely coupled 2D dielectric example with an input-bound precomputed spectrum. Its centered rectangular patterns repeat along both X and Y. The labeled cutaway only changes the view; dimensions and materials remain the solver inputs. Static Pages never calculates; run the local Python API for new results.
 
-The local backend also accepts explicit schema 1.2 for coupled 2D rectangular
-multilayers through the same HTTP/MCP job and snapshot routes. Its bounded profile
-allows separate x/y periods and Hx/Hy up to 5, eight layers and 31 wavelengths.
-The current editor, public example, fitting and change proposals remain 1D.
-See the [backend-only 1.2 contract](docs/agent-api.md#backend-only-explicit-schema-12)
-for scope, resource limits and oversized-export recovery. Successful edited inputs
-do not inherit the synthetic fixture's input-specific convergence evidence.
+Schema 1.2 supports separate X/Y periods, oblique incidence with azimuth, Hx/Hy up to 5, eight layers and 31 wavelengths. The editor exposes Width X/Y and shared Pitch X/Y without changing imported 1D projects. Legacy schema 1.0/1.1 files, hashes, history, proposals and single-layer synthetic fitting remain supported. Fitting and change proposals are unavailable for 1.2. The explicit `?example=1d` URL opens the retained original 1D fixture; it does not change the ordinary 2D default or migrate any import.
+
+See the [2D editor and result identity](docs/ui/2d-editor.md) and [explicit 1.2 API contract](docs/agent-api.md#explicit-schema-12) for scope, resource limits and oversized-export recovery. The example uses synthetic optical constants, not measured or actual HBM data. Successful edited inputs do not inherit its input-specific offline convergence evidence.
 
 ## Quickstart
 

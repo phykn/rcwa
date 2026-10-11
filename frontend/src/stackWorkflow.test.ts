@@ -13,7 +13,7 @@ import {
   validLayerIndex,
   validateProject,
 } from "./model";
-import type { Layer, Material, Project } from "./model";
+import type { Layer, Material, Project, Project1D } from "./model";
 import {
   applyGeometryChanges,
   applyStackChanges,
@@ -30,7 +30,7 @@ import {
   STACK_PROPOSAL_MAX_BYTES,
 } from "./workflow";
 
-function stack(): Project {
+function stack(): Project1D {
   return {
     ...structuredClone(defaultProject),
     schema_version: "1.1",

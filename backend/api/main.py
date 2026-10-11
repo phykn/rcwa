@@ -298,7 +298,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "Local loopback, one API worker, unauthenticated; Origin/Host checks are not authentication",
                 "Static Pages is precomputed only, with no live API",
                 "No phase, Jones, ellipsometry, arbitrary or offset/rotated geometry, anisotropy, or measured-data inversion",
-                "1.2 forward only: no 2D fitting, change proposals, UI adapter or default switch in this backend stage",
+                "1.2 supports forward calculations; 2D fitting and change proposals are not supported",
                 "At most one 1.2 process within two total jobs; legacy limits above do not describe 1.2, use project_profiles",
                 "The example remains legacy. 1.2 requires explicit schema_version and every layer geometry tag",
                 "Full-result imports above the 2 MB request cap return 413; use project-only import or save a succeeded job by ID",

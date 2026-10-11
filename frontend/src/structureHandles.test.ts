@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { defaultProject } from "./model";
-import type { Project } from "./model";
+import type { Project1D as Project } from "./model";
 import {
   layoutStructureHandles,
   STRUCTURE_HANDLE_SAFE_AREA,

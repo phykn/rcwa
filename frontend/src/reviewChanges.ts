@@ -1,5 +1,9 @@
 import type { Layer, Material, Project } from "./model";
-import { semanticEqual, summarizeMaterial } from "./workflow";
+import {
+  exactSemanticEqual,
+  semanticEqual,
+  summarizeMaterial,
+} from "./workflow";
 
 export interface ReviewChange {
   key: string;
@@ -14,13 +18,15 @@ const geometryName = (value: Layer["geometry"] | undefined) =>
     ? "Uniform film"
     : value === "rectangle_1d"
       ? "Patterned grating"
-      : "Not present";
-const valueText = (value: unknown, unit = "") =>
+      : value === "rectangle_2d"
+        ? "2D rectangular pattern"
+        : "Not present";
+const valueText = (value: unknown, unit = "", preserveSignedZero = false) =>
   value === undefined
     ? "Not set"
     : value === null
       ? "None"
-      : `${String(value)}${unit}`;
+      : `${preserveSignedZero && Object.is(value, -0) ? "-0" : String(value)}${unit}`;
 const layerLabel = (index: number, layer: Layer) =>
   `Layer ${index + 1} · ${layer.name}`;
 const orderText = (layers: Layer[]) =>
@@ -39,6 +45,11 @@ export function reviewInputChanges(
   after: Project,
 ): ReviewChange[] {
   const changes: ReviewChange[] = [];
+  const has2D =
+    before.schema_version === "1.2" || after.schema_version === "1.2";
+  const equal = has2D ? exactSemanticEqual : semanticEqual;
+  const inputText = (value: unknown, unit = "") =>
+    valueText(value, unit, has2D);
   const legacy =
     before.schema_version === "1.0" && after.schema_version === "1.0";
   function field(
@@ -46,9 +57,9 @@ export function reviewInputChanges(
     label: string,
     a: unknown,
     b: unknown,
-    format = valueText,
+    format = inputText,
   ) {
-    if (!semanticEqual(a, b))
+    if (!equal(a, b))
       changes.push({ key, label, before: format(a), after: format(b) });
   }
   function material(
@@ -80,7 +91,7 @@ export function reviewInputChanges(
                 : value === "tabulated"
                   ? "Tabulated n/k"
                   : "Not present"
-          : valueText,
+          : inputText,
       );
     const columns = [
       ["wavelengths_nm", "wavelength"],
@@ -88,7 +99,7 @@ export function reviewInputChanges(
       ["k_values", "k"],
     ] as const;
     const changedColumns = columns.filter(
-      ([property]) => !semanticEqual(a?.[property], b?.[property]),
+      ([property]) => !equal(a?.[property], b?.[property]),
     );
     if (!changedColumns.length) return;
     // Compare actual samples as well as the existing compact fingerprint: even
@@ -101,7 +112,8 @@ export function reviewInputChanges(
         Math.max(a?.[property]?.length ?? 0, b?.[property]?.length ?? 0);
         index++
       )
-        if (a?.[property]?.[index] !== b?.[property]?.[index]) rows.add(index);
+        if (!equal(a?.[property]?.[index], b?.[property]?.[index]))
+          rows.add(index);
     if (rows.size)
       changes.push({
         key: `${key}.table`,
@@ -148,21 +160,34 @@ export function reviewInputChanges(
       legacy && index === 0 ? "Height" : `${label} · Thickness`,
       a?.thickness_nm,
       b?.thickness_nm,
-      (value) => valueText(value, " nm"),
+      (value) => inputText(value, " nm"),
     );
     field(
       `${key}.cd_nm`,
-      legacy && index === 0 ? "Width" : `${label} · Width (CD)`,
+      legacy && index === 0
+        ? "Width"
+        : `${label} · ${has2D ? "Width X" : "Width"} (CD)`,
       a?.geometry === "rectangle_1d" ? a.cd_nm : undefined,
       b?.geometry === "rectangle_1d" ? b.cd_nm : undefined,
-      (value) => valueText(value, " nm"),
+      (value) => inputText(value, " nm"),
     );
+    for (const [property, axis] of [
+      ["cd_x_nm", "X"],
+      ["cd_y_nm", "Y"],
+    ] as const)
+      field(
+        `${key}.${property}`,
+        `${label} · Width ${axis} (CD)`,
+        a?.geometry === "rectangle_2d" ? a[property] : undefined,
+        b?.geometry === "rectangle_2d" ? b[property] : undefined,
+        (value) => inputText(value, " nm"),
+      );
     material(`${key}.material`, label, a?.material, b?.material);
     material(
       `${key}.background`,
-      `${label} · Groove`,
-      a?.geometry === "rectangle_1d" ? a.background : undefined,
-      b?.geometry === "rectangle_1d" ? b.background : undefined,
+      `${label} · ${has2D ? "Background" : "Groove"}`,
+      a && a.geometry !== "homogeneous" ? a.background : undefined,
+      b && b.geometry !== "homogeneous" ? b.background : undefined,
     );
   }
   field(
@@ -171,8 +196,19 @@ export function reviewInputChanges(
     before.schema_version,
     after.schema_version,
   );
-  field("period_nm", "Pitch", before.period_nm, after.period_nm, (value) =>
-    valueText(value, " nm"),
+  field(
+    "period_nm",
+    has2D ? "Pitch X" : "Pitch",
+    before.period_nm,
+    after.period_nm,
+    (value) => inputText(value, " nm"),
+  );
+  field(
+    "period_y_nm",
+    "Pitch Y",
+    before.schema_version === "1.2" ? before.period_y_nm : undefined,
+    after.schema_version === "1.2" ? after.period_y_nm : undefined,
+    (value) => inputText(value, " nm"),
   );
 
   // Exact matching handles additions/removals and pure reorders without
@@ -180,17 +216,14 @@ export function reviewInputChanges(
   const used = new Set<number>();
   const matches = after.layers.map((next) => {
     const index = before.layers.findIndex(
-      (current, index) => !used.has(index) && semanticEqual(current, next),
+      (current, index) => !used.has(index) && equal(current, next),
     );
     if (index >= 0) used.add(index);
     return index;
   });
   const onlyAdded = used.size === before.layers.length;
   const onlyRemoved = matches.every((index) => index >= 0);
-  if (
-    !semanticEqual(before.layers, after.layers) &&
-    (onlyAdded || onlyRemoved)
-  ) {
+  if (!equal(before.layers, after.layers) && (onlyAdded || onlyRemoved)) {
     changes.push({
       key: "layers.order",
       label: "Layer order (top to bottom)",
@@ -220,7 +253,16 @@ export function reviewInputChanges(
     "Incidence angle",
     before.illumination.angle_deg,
     after.illumination.angle_deg,
-    (value) => valueText(value, "°"),
+    (value) => inputText(value, "°"),
+  );
+  field(
+    "illumination.azimuth_deg",
+    "Azimuth angle",
+    before.schema_version === "1.2"
+      ? before.illumination.azimuth_deg
+      : undefined,
+    after.schema_version === "1.2" ? after.illumination.azimuth_deg : undefined,
+    (value) => inputText(value, "°"),
   );
   field(
     "illumination.polarization",
@@ -232,11 +274,21 @@ export function reviewInputChanges(
   field(
     "solver.harmonics",
     "Fourier order N",
-    before.solver.harmonics,
-    after.solver.harmonics,
+    before.schema_version === "1.2" ? undefined : before.solver.harmonics,
+    after.schema_version === "1.2" ? undefined : after.solver.harmonics,
   );
+  for (const [property, axis] of [
+    ["harmonics_x", "X"],
+    ["harmonics_y", "Y"],
+  ] as const)
+    field(
+      `solver.${property}`,
+      `Fourier order H${axis.toLowerCase()}`,
+      before.schema_version === "1.2" ? before.solver[property] : undefined,
+      after.schema_version === "1.2" ? after.solver[property] : undefined,
+    );
   if (
-    !semanticEqual(
+    !equal(
       before.illumination.wavelengths_nm,
       after.illumination.wavelengths_nm,
     )
@@ -248,7 +300,7 @@ export function reviewInputChanges(
     const changed = Array.from(
       { length: Math.max(a.length, b.length) },
       (_, i) => i,
-    ).filter((i) => a[i] !== b[i]).length;
+    ).filter((i) => !equal(a[i], b[i])).length;
     changes.push({
       key: "illumination.wavelengths_nm",
       label: "Wavelength sampling",

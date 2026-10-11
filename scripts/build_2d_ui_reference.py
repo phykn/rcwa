@@ -1,6 +1,6 @@
 """Package the accepted synthetic 2D reference without running new physics.
 
-This prototype generator copies the complete result. Its public/shared binder
+This reference generator copies the complete result. Its public/shared binder
 and immutable fixture hashes guard against pairing a picture with other inputs.
 """
 from __future__ import annotations
@@ -45,9 +45,9 @@ def generate(check: bool) -> None:
         "origin": "precomputed synthetic example; not a new job or server snapshot",
     }
     outputs = {
-        ROOT / "frontend/public/prototype-2d-reference.json": bundle,
-        ROOT / "frontend/src/prototype2d/default-project.json": project_bytes,
-        ROOT / "frontend/src/prototype2d/reference-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
+        ROOT / "frontend/public/reference-2d.json": bundle,
+        ROOT / "frontend/src/fixtures/default-project-2d.json": project_bytes,
+        ROOT / "frontend/src/fixtures/reference-2d-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
     }
     for path, content in outputs.items():
         if check:

@@ -1,3 +1,16 @@
+import {
+  normalizeProject2D,
+  parseJSONWith2DNumberGate,
+  sameProject2D,
+  stringify2DEnvelope,
+  validateProject2D,
+} from "./project2d";
+import type { Project2D, Rectangle2DLayer } from "./project2d";
+import { bindResult2D, isForwardResult2D } from "./result2d";
+import type { PublicForwardResult2D } from "./result2d";
+export type { Project2D, Rectangle2DLayer } from "./project2d";
+export type { PublicForwardResult2D } from "./result2d";
+
 export type Polarization = "s" | "p" | "both";
 export interface Material {
   name: string;
@@ -23,14 +36,15 @@ export interface HomogeneousLayer {
   thickness_nm: number;
   material: Material;
 }
-export type Layer = RectangleLayer | HomogeneousLayer;
-export interface Project {
+export type Layer1D = RectangleLayer | HomogeneousLayer;
+export type Layer = Layer1D | Rectangle2DLayer;
+export interface Project1D {
   schema_version: "1.0" | "1.1";
   name: string;
   period_nm: number;
   ambient: Material;
   substrate: Material;
-  layers: Layer[];
+  layers: Layer1D[];
   illumination: {
     wavelengths_nm: number[];
     angle_deg: number;
@@ -38,7 +52,8 @@ export interface Project {
   };
   solver: { harmonics: number };
 }
-export interface LegacyProject extends Project {
+export type Project = Project1D | Project2D;
+export interface LegacyProject extends Project1D {
   schema_version: "1.0";
   layers: RectangleLayer[];
 }
@@ -50,7 +65,7 @@ export interface Spectrum {
   A_balance: number[];
   orders?: unknown[];
 }
-export interface ForwardResult {
+export interface ForwardResult1D {
   result_type?: "forward";
   schema_version: "1.0" | "1.1";
   wavelengths_nm: number[];
@@ -58,6 +73,7 @@ export interface ForwardResult {
   metadata: Record<string, unknown>;
   warnings: string[];
 }
+export type ForwardResult = ForwardResult1D | PublicForwardResult2D;
 export interface Job {
   id: string;
   kind: "forward" | "fit";
@@ -86,6 +102,9 @@ export interface SavedSummary {
     input_hash?: string | null;
     engine?: string | null;
     engine_version?: string | null;
+    project_schema_version?: string | null;
+    result_schema_version?: string | null;
+    adapter_version?: string | null;
   };
 }
 export interface SavedProject extends SavedSummary {
@@ -145,7 +164,9 @@ export function validateProject(project: unknown): string[] {
   const errors: string[] = [];
   if (!project || typeof project !== "object")
     return ["Project must be a JSON object."];
-  const p = project as Project;
+  if ((project as { schema_version?: unknown }).schema_version === "1.2")
+    return validateProject2D(project);
+  const p = project as Project1D;
   if (!["1.0", "1.1"].includes(p.schema_version))
     errors.push("Only project schemas 1.0 and 1.1 are supported.");
   if (typeof p.name !== "string" || !p.name.trim() || p.name.length > 100)
@@ -320,7 +341,9 @@ export function validateProject(project: unknown): string[] {
 }
 export function isForwardResult(value: unknown): value is ForwardResult {
   if (!value || typeof value !== "object") return false;
-  const v = value as ForwardResult;
+  if ((value as { schema_version?: unknown }).schema_version === "1.2")
+    return isForwardResult2D(value);
+  const v = value as ForwardResult1D;
   if (
     !["1.0", "1.1"].includes(v.schema_version) ||
     !v.metadata ||
@@ -354,20 +377,44 @@ export function isForwardResult(value: unknown): value is ForwardResult {
     )
   );
 }
-export function parseProjectFile(text: string): ProjectFile {
-  const data: unknown = JSON.parse(text);
+function importedProject(value: unknown): Project {
+  // A missing discriminator is the legacy profile, never inferred from y fields.
+  const legacy =
+    value && typeof value === "object" && !("schema_version" in value)
+      ? { ...value, schema_version: "1.0" }
+      : value;
+  if (
+    legacy &&
+    typeof legacy === "object" &&
+    "schema_version" in legacy &&
+    legacy.schema_version === "1.2"
+  )
+    return normalizeProject2D(legacy);
+  const errors = validateProject(legacy);
+  if (errors.length) throw new Error(errors.join("\n"));
+  return legacy as Project1D;
+}
+
+function readProjectFile(text: string): ProjectFile {
+  const data = parseJSONWith2DNumberGate(text);
   const wrapped =
     data && typeof data === "object" && "project" in data
       ? (data as ProjectFile)
       : { project: data as Project };
-  const errors = validateProject(wrapped.project);
-  if (errors.length) throw new Error(errors.join("\n"));
+  const project = importedProject(wrapped.project);
+  const resultProject =
+    wrapped.result_project == null
+      ? wrapped.result_project
+      : importedProject(wrapped.result_project);
   if (wrapped.result != null && !isForwardResult(wrapped.result))
     throw new Error("Saved result is invalid or uses an unsupported format.");
-  if (wrapped.result_project && validateProject(wrapped.result_project).length)
-    throw new Error("Saved result inputs are invalid.");
   if (wrapped.result) {
-    const inputs = wrapped.result_project || wrapped.project;
+    const inputs = resultProject || project;
+    if (
+      (inputs.schema_version === "1.2") !==
+      (wrapped.result.schema_version === "1.2")
+    )
+      throw new Error("Saved result schema does not match its input project.");
     const expected =
       inputs.illumination.polarization === "both"
         ? ["p", "s"]
@@ -382,37 +429,87 @@ export function parseProjectFile(text: string): ProjectFile {
         "Saved result wavelengths/polarizations do not match its input project.",
       );
   }
-  // Deliberately discard envelope provenance and other origin claims. Files
-  // are unverified imports even when copied from a server-computed snapshot.
+  // Imported files never establish provenance, even after exact local binding.
   return {
     format: wrapped.format,
-    project: wrapped.project,
+    project,
     result: wrapped.result,
-    result_project: wrapped.result_project,
+    result_project: resultProject,
   };
 }
-export function sameProject(a: Project | null, b: Project): boolean {
-  return a !== null && JSON.stringify(a) === JSON.stringify(b);
+
+/** Synchronous legacy/project-only import. 1.2 results require verified async ingress. */
+export function parseProjectFile(text: string): ProjectFile {
+  const parsed = readProjectFile(text);
+  if (parsed.result?.schema_version === "1.2")
+    throw new Error(
+      "Schema 1.2 results require asynchronous binding verification. Use the verified import flow, or import the project only.",
+    );
+  return parsed;
 }
+
+/** Parse original raw tokens, then bind a complete 1.2 result before returning it. */
+export async function parseProjectFileAsync(
+  text: string,
+): Promise<ProjectFile> {
+  const parsed = readProjectFile(text);
+  if (parsed.result?.schema_version === "1.2") {
+    const inputs = parsed.result_project || parsed.project;
+    if (inputs.schema_version !== "1.2")
+      throw new Error("Saved result schema does not match its input project.");
+    try {
+      parsed.result = await bindResult2D(inputs, parsed.result);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Binding verification failed.";
+      throw new Error(
+        `${message} Import the project only to recover its inputs.`,
+        { cause: error },
+      );
+    }
+  }
+  return parsed;
+}
+
+export function sameProject(a: Project | null, b: Project): boolean {
+  if (a === null) return false;
+  if (a.schema_version === "1.2" || b.schema_version === "1.2")
+    return (
+      a.schema_version === "1.2" &&
+      b.schema_version === "1.2" &&
+      sameProject2D(a, b)
+    );
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** Full export preserves every result order and all schema-1.2 signed zeros. */
+export function serializeProjectFile(
+  project: Project,
+  result: ForwardResult | null,
+  resultProject: Project | null,
+  exportedAt = new Date().toISOString(),
+): string {
+  const envelope = {
+    format: "lattice-project/1.0",
+    exported_at: exportedAt,
+    project,
+    result,
+    result_project: resultProject,
+  };
+  return project.schema_version === "1.2" ||
+    result?.schema_version === "1.2" ||
+    resultProject?.schema_version === "1.2"
+    ? stringify2DEnvelope(envelope)
+    : JSON.stringify(envelope, null, 2);
+}
+
 export function downloadProject(
   project: Project,
   result: ForwardResult | null,
   resultProject: Project | null,
 ) {
   const blob = new Blob(
-    [
-      JSON.stringify(
-        {
-          format: "lattice-project/1.0",
-          exported_at: new Date().toISOString(),
-          project,
-          result,
-          result_project: resultProject,
-        },
-        null,
-        2,
-      ),
-    ],
+    [serializeProjectFile(project, result, resultProject)],
     { type: "application/json" },
   );
   const link = document.createElement("a");
@@ -423,27 +520,49 @@ export function downloadProject(
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function maximumPatternedCD(project: Project): number {
+export function isRectangleLayer(layer: Layer): layer is RectangleLayer {
+  return layer.geometry === "rectangle_1d";
+}
+export function isRectangle2DLayer(layer: Layer): layer is Rectangle2DLayer {
+  return layer.geometry === "rectangle_2d";
+}
+export function maximumPatternedCDX(project: Project): number {
   return Math.max(
     0,
     ...project.layers.map((layer) =>
-      layer.geometry === "rectangle_1d" ? layer.cd_nm : 0,
+      layer.geometry === "rectangle_1d"
+        ? layer.cd_nm
+        : layer.geometry === "rectangle_2d"
+          ? layer.cd_x_nm
+          : 0,
     ),
   );
 }
+export function maximumPatternedCDY(project: Project): number {
+  // 1D ridges are invariant in y and impose no finite-width y constraint.
+  return Math.max(
+    0,
+    ...project.layers.map((layer) =>
+      layer.geometry === "rectangle_2d" ? layer.cd_y_nm : 0,
+    ),
+  );
+}
+export const maximumPatternedCD = maximumPatternedCDX;
 export function totalThickness(project: Project): number {
   return project.layers.reduce((total, layer) => total + layer.thickness_nm, 0);
 }
 export function supportsSyntheticFit(project: Project): boolean {
   return (
-    project.layers.length === 1 && project.layers[0].geometry === "rectangle_1d"
+    project.schema_version !== "1.2" &&
+    project.layers.length === 1 &&
+    project.layers[0].geometry === "rectangle_1d"
   );
 }
 export function stackSummary(project: Project): string {
   return project.layers
     .map(
       (layer, index) =>
-        `${index + 1}. ${layer.name}: ${layer.geometry === "rectangle_1d" ? `CD ${layer.cd_nm} nm · ` : "Uniform · "}${layer.thickness_nm} nm`,
+        `${index + 1}. ${layer.name}: ${layer.geometry === "rectangle_1d" ? `CD ${layer.cd_nm} nm · ` : layer.geometry === "rectangle_2d" ? `Width X ${layer.cd_x_nm} nm · Y ${layer.cd_y_nm} nm · ` : "Uniform · "}${layer.thickness_nm} nm`,
     )
     .join("; ");
 }
@@ -459,19 +578,29 @@ export type StackOperation =
   | { type: "remove" }
   | { type: "move"; direction: -1 | 1 }
   | { type: "geometry"; geometry: Layer["geometry"] };
-/** Explicit structural edits promote to 1.1. No import or ordinary edit migrates data. */
+/** Explicit legacy structural edits promote to 1.1; 1.2 never demotes. */
 export function editStack(
   project: Project,
   selected: number,
   operation: StackOperation,
 ): { project: Project; selectedLayer: number } {
   const index = validLayerIndex(project, selected);
+  if (
+    (operation.type === "add" || operation.type === "geometry") &&
+    operation.geometry === "rectangle_2d" &&
+    project.schema_version !== "1.2"
+  )
+    throw new Error(
+      "A 2D pattern requires a schema 1.2 project. Legacy projects are not silently converted.",
+    );
   const next = structuredClone(project);
-  const layer = next.layers[index];
+  // Mutate a common layer view only after checking the project's family above.
+  const layers: Layer[] = next.layers;
+  const layer = layers[index];
   let selectedLayer = index;
   if (
     (operation.type === "add" || operation.type === "duplicate") &&
-    next.layers.length >= 8
+    layers.length >= 8
   )
     throw new Error("A stack can contain at most eight finite layers.");
   if (operation.type === "add") {
@@ -484,25 +613,31 @@ export function editStack(
             thickness_nm: base.thickness_nm,
             material: base.material,
           }
-        : { ...base, cd_nm: Math.min(base.cd_nm, next.period_nm) };
-    next.layers.splice(index + 1, 0, added);
+        : operation.geometry === "rectangle_2d" && next.schema_version === "1.2"
+          ? {
+              name: "Patterned layer",
+              geometry: "rectangle_2d",
+              thickness_nm: base.thickness_nm,
+              cd_x_nm: Math.min(base.cd_nm, next.period_nm),
+              cd_y_nm: Math.min(base.cd_nm, next.period_y_nm),
+              material: base.material,
+              background: base.background,
+            }
+          : { ...base, cd_nm: Math.min(base.cd_nm, next.period_nm) };
+    layers.splice(index + 1, 0, added);
     selectedLayer = index + 1;
   } else if (operation.type === "duplicate") {
-    next.layers.splice(index + 1, 0, structuredClone(layer));
+    layers.splice(index + 1, 0, structuredClone(layer));
     selectedLayer = index + 1;
   } else if (operation.type === "remove") {
-    if (next.layers.length === 1)
-      throw new Error("Keep at least one finite layer.");
-    next.layers.splice(index, 1);
-    selectedLayer = Math.min(index, next.layers.length - 1);
+    if (layers.length === 1) throw new Error("Keep at least one finite layer.");
+    layers.splice(index, 1);
+    selectedLayer = Math.min(index, layers.length - 1);
   } else if (operation.type === "move") {
     const destination = index + operation.direction;
-    if (destination < 0 || destination >= next.layers.length)
+    if (destination < 0 || destination >= layers.length)
       return { project, selectedLayer: index };
-    [next.layers[index], next.layers[destination]] = [
-      next.layers[destination],
-      next.layers[index],
-    ];
+    [layers[index], layers[destination]] = [layers[destination], layers[index]];
     selectedLayer = destination;
   } else {
     if (layer.geometry === operation.geometry)
@@ -512,16 +647,29 @@ export function editStack(
       thickness_nm: layer.thickness_nm,
       material: layer.material,
     };
-    next.layers[index] =
+    const widthX =
+      layer.geometry === "rectangle_2d"
+        ? layer.cd_x_nm
+        : layer.geometry === "rectangle_1d"
+          ? layer.cd_nm
+          : next.period_nm / 2;
+    const background =
+      layer.geometry === "homogeneous"
+        ? structuredClone(next.ambient)
+        : layer.background;
+    layers[index] =
       operation.geometry === "homogeneous"
         ? { ...base, geometry: "homogeneous" }
-        : {
-            ...base,
-            geometry: "rectangle_1d",
-            cd_nm: next.period_nm / 2,
-            background: structuredClone(next.ambient),
-          };
+        : operation.geometry === "rectangle_2d" && next.schema_version === "1.2"
+          ? {
+              ...base,
+              geometry: "rectangle_2d",
+              cd_x_nm: widthX,
+              cd_y_nm: next.period_y_nm / 2,
+              background,
+            }
+          : { ...base, geometry: "rectangle_1d", cd_nm: widthX, background };
   }
-  next.schema_version = "1.1";
+  if (next.schema_version !== "1.2") next.schema_version = "1.1";
   return { project: next, selectedLayer };
 }

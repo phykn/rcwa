@@ -3,6 +3,27 @@ import { layerColor } from "./layerColors";
 import type { KeyboardEvent } from "react";
 import type { Project, StackOperation } from "./model";
 
+// These exact canonical example names are shortened for display only. User
+// names, the project data and the accessible label remain unchanged.
+const canonicalExampleNames = new Set([
+  "Synthetic high-index rectangular inclusion",
+  "Synthetic interference film",
+  "Synthetic low-index rectangular inclusion",
+]);
+function chipName(project: Project, index: number) {
+  const layer = project.layers[index];
+  if (
+    project.schema_version !== "1.2" ||
+    !canonicalExampleNames.has(layer.name)
+  )
+    return layer.name;
+  return layer.geometry === "rectangle_2d"
+    ? "Pattern"
+    : layer.geometry === "rectangle_1d"
+      ? "Ridge"
+      : "Film";
+}
+
 function collapse(disclosure: HTMLDetailsElement | null, focus = true) {
   if (!disclosure) return;
   disclosure.open = false;
@@ -102,12 +123,22 @@ export function LayerStack({
               disabled={disabled || project.layers.length >= 8}
               aria-label="Add patterned layer"
               onClick={() => {
-                onChange({ type: "add", geometry: "rectangle_1d" });
+                onChange({
+                  type: "add",
+                  geometry:
+                    project.schema_version === "1.2"
+                      ? "rectangle_2d"
+                      : "rectangle_1d",
+                });
                 collapse(add.current);
               }}
             >
               <strong>Patterned layer</strong>
-              <span>Repeating ridges and gaps</span>
+              <span>
+                {project.schema_version === "1.2"
+                  ? "Rectangles repeating in X and Y"
+                  : "Repeating ridges and gaps"}
+              </span>
             </button>
             <button
               disabled={disabled || project.layers.length >= 8}
@@ -151,7 +182,7 @@ export function LayerStack({
               >
                 {index + 1}
               </span>
-              <span className="stack-name">{layer.name}</span>
+              <span className="stack-name">{chipName(project, index)}</span>
               {index === selected && (
                 <span className="stack-check" aria-hidden="true">
                   ✓

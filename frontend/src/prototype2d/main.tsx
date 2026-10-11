@@ -5,7 +5,7 @@ import type {
   PrototypeGeometryProject,
   PrototypeGeometryLayer,
 } from "./geometry";
-import input from "./default-project.json";
+import input from "../fixtures/default-project-2d.json";
 import { layerColor } from "../layerColors";
 import "../fonts.css";
 import "../styles.css";
@@ -254,7 +254,7 @@ function Prototype() {
   const stale = !same(project, original);
   useEffect(() => {
     let alive = true;
-    fetch("/prototype-2d-reference.json")
+    fetch("/reference-2d.json")
       .then((r) => {
         if (!r.ok) throw new Error("Reference unavailable");
         return r.json();

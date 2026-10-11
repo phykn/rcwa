@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 // Run with the local API (:8000), Vite dev (:5173), and a separately built
 // VITE_STATIC_PREVIEW=true preview (:4173) already running. No API mocks.
 // CHROMIUM_PATH=/usr/bin/chromium node scripts/snapshot-browser-qa.mjs
@@ -98,7 +99,7 @@ try {
   });
   page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.goto(appUrl);
+  await page.goto(legacyExampleUrl(appUrl));
   await expect(page.locator(".connection")).toHaveText("Solver connected");
   await openSaved();
   const item = page.locator(".saved-item").filter({ hasText: project.name });
@@ -202,7 +203,7 @@ try {
       if (new URL(request.url()).pathname.startsWith("/api/"))
         apiRequests.push(request.url());
     });
-    await preview.goto(previewUrl);
+    await preview.goto(legacyExampleUrl(previewUrl));
     await expect(preview.locator(".connection")).toHaveText("Static preview");
     await expect(preview.locator(".result-badge")).toHaveText(
       "Precomputed example",

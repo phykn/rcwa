@@ -4,6 +4,13 @@ import { totalThickness, stackSummary } from "./model";
 import { semanticEqual, comparisonConditionsDiffer } from "./workflow";
 import { materialColor } from "./structureGeometry";
 import { reviewInputChanges } from "./reviewChanges";
+import { stringify2DEnvelope } from "./project2d";
+
+function fullInputs(project: Project) {
+  return project.schema_version === "1.2"
+    ? stringify2DEnvelope(project)
+    : JSON.stringify(project, null, 2);
+}
 
 function Modal({
   title,
@@ -105,6 +112,7 @@ function GeometryCard({
   scale: number;
 }) {
   const { height, pitch } = geometry(project);
+  const is2D = project.schema_version === "1.2";
   let depth = 0;
   return (
     <section className="geometry-preview-card">
@@ -112,7 +120,7 @@ function GeometryCard({
       <svg
         viewBox="0 0 260 128"
         role="img"
-        aria-label={`${label}: ${stackSummary(project)}; pitch ${pitch} nm. Same geometric scale as the other preview.`}
+        aria-label={`${label}: ${stackSummary(project)}; ${is2D ? `pitch X ${pitch} nm, pitch Y ${project.period_y_nm} nm. X–Z cross-section through the cell center; Y extent is not shown` : `pitch ${pitch} nm`}. Same geometric scale as the other preview.`}
       >
         <rect
           x="15"
@@ -124,10 +132,19 @@ function GeometryCard({
         {project.layers.map((layer, index) => {
           const top = 99 - (height - depth) * scale;
           depth += layer.thickness_nm;
-          const width = layer.geometry === "rectangle_1d" ? layer.cd_nm : pitch;
+          // Centered rectangles intersect y = 0 only when their Y width is
+          // positive. A zero-Y inclusion must not appear as a finite ridge.
+          const width =
+            layer.geometry === "rectangle_1d"
+              ? layer.cd_nm
+              : layer.geometry === "rectangle_2d"
+                ? layer.cd_y_nm > 0
+                  ? layer.cd_x_nm
+                  : 0
+                : pitch;
           return (
             <g key={index}>
-              {layer.geometry === "rectangle_1d" && (
+              {layer.geometry !== "homogeneous" && (
                 <rect
                   x="15"
                   y={top}
@@ -136,7 +153,7 @@ function GeometryCard({
                   fill={materialColor(layer.background)}
                 />
               )}
-              {width > 0 && (
+              {width > 0 && layer.thickness_nm > 0 && (
                 <rect
                   x={15 + ((pitch - width) * scale) / 2}
                   y={top}
@@ -189,10 +206,21 @@ function GeometryCard({
           <dd>{height} nm</dd>
         </div>
         <div>
-          <dt>Pitch</dt>
+          <dt>{is2D ? "Pitch X" : "Pitch"}</dt>
           <dd>{pitch} nm</dd>
         </div>
+        {is2D && (
+          <div>
+            <dt>Pitch Y</dt>
+            <dd>{project.period_y_nm} nm</dd>
+          </div>
+        )}
       </dl>
+      {is2D && (
+        <p className="preview-scale-note">
+          X–Z section through the cell center. Y extent is not shown.
+        </p>
+      )}
     </section>
   );
 }
@@ -257,9 +285,9 @@ export function ReviewPanel({
       <details className="workflow-details">
         <summary>Full inputs</summary>
         <h3>Current</h3>
-        <pre>{JSON.stringify(baseProject, null, 2)}</pre>
+        <pre>{fullInputs(baseProject)}</pre>
         <h3>Proposed</h3>
-        <pre>{JSON.stringify(candidateProject, null, 2)}</pre>
+        <pre>{fullInputs(candidateProject)}</pre>
       </details>
       {warnings.length > 0 && (
         <div
@@ -391,20 +419,28 @@ export function ComparisonPanel({
                 : "Unverified import"}
             </span>
             <p>
-              Pitch {candidate.project.period_nm} nm ·{" "}
-              {stackSummary(candidate.project)}
+              {candidate.project.schema_version === "1.2"
+                ? `Schema 1.2 · Pitch X ${candidate.project.period_nm} nm · Pitch Y ${candidate.project.period_y_nm} nm`
+                : `Pitch ${candidate.project.period_nm} nm`}{" "}
+              · {stackSummary(candidate.project)}
             </p>
             <p>
               {candidate.project.illumination.angle_deg}° ·{" "}
+              {candidate.project.schema_version === "1.2" &&
+                `Azimuth ${candidate.project.illumination.azimuth_deg}° · `}
               {candidate.project.illumination.polarization === "both"
                 ? "s & p"
                 : candidate.project.illumination.polarization}{" "}
-              · N = {candidate.project.solver.harmonics} ·{" "}
-              {candidate.result?.wavelengths_nm.length} wavelengths
+              ·{" "}
+              {candidate.project.schema_version === "1.2"
+                ? `Hx = ${candidate.project.solver.harmonics_x} · Hy = ${candidate.project.solver.harmonics_y}`
+                : `N = ${candidate.project.solver.harmonics}`}{" "}
+              · {candidate.result?.wavelengths_nm.length} wavelengths
             </p>
             <details className="workflow-details">
               <summary>Run details</summary>
               <p>Snapshot {candidate.id}</p>
+              <p>Schema {candidate.project.schema_version}</p>
               <p>
                 Wavelengths: {candidate.result?.wavelengths_nm.join(", ")} nm
               </p>
@@ -415,7 +451,7 @@ export function ComparisonPanel({
                   ))}
                 </ul>
               ) : null}
-              <pre>{JSON.stringify(candidate.project, null, 2)}</pre>
+              <pre>{fullInputs(candidate.project)}</pre>
             </details>
             <button
               className="text-button"
@@ -460,8 +496,9 @@ export function ComparisonPanel({
       </div>
       {conditionsDiffer && (
         <p className="comparison-warning">
-          Incidence angle, Fourier order or optical materials differ. Check each
-          candidate’s run details when interpreting these curves.
+          Schema, geometry, illumination, Fourier orders or optical materials
+          differ. Check each candidate’s run details when interpreting these
+          curves.
         </p>
       )}
       <div ref={host} className="comparison-plot">

@@ -1,3 +1,4 @@
+import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 import {
   enableDragHandles,
   openMaterial,
@@ -64,7 +65,7 @@ async function shot(target, name, fullPage = false) {
 try {
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("http://127.0.0.1:5173");
+  await page.goto(legacyExampleUrl("http://127.0.0.1:5173"));
   await expect(page.locator(".connection")).toHaveText("Solver connected", {
     timeout: 20000,
   });
@@ -168,7 +169,7 @@ try {
     mobile.on("request", (r) => {
       if (new URL(r.url()).pathname.startsWith("/api/")) requests.push(r.url());
     });
-    await mobile.goto("http://127.0.0.1:4173");
+    await mobile.goto(legacyExampleUrl("http://127.0.0.1:4173"));
     await expect(mobile.locator(".result-badge")).toHaveText(
       "Precomputed example",
     );

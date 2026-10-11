@@ -27,3 +27,10 @@ export function dimensionLabel(kind) {
       ? "Shared pitch"
       : "Width";
 }
+
+// Preserve the original 1D fixtures while the product default is genuinely 2D.
+export function legacyExampleUrl(value) {
+  const url = new URL(value);
+  url.searchParams.set("example", "1d");
+  return url.href;
+}

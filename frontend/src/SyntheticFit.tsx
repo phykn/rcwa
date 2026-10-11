@@ -46,6 +46,32 @@ export function SyntheticFit({
   const [result, setResult] = useState<FitSummary | null>(null);
   const [resultInputs, setResultInputs] = useState("");
   const id = useRef<string | null>(null);
+  // Schema 1.2 does not expose either fitting route, even when the stack
+  // happens to contain just one invariant-Y ridge. Keep the unsupported
+  // controls out of the disclosure rather than presenting a runnable demo.
+  if (project.schema_version === "1.2")
+    return (
+      <details className="panel fit-panel" id="fit">
+        <summary>
+          <div>
+            <h2>
+              Fit width <span>· Synthetic demo</span>
+            </h2>
+          </div>
+          <span className="small-badge">
+            <span className="chevron" aria-hidden="true">
+              ⌄
+            </span>
+          </span>
+        </summary>
+        <div className="fit-body">
+          <p className="fit-explanation">
+            Synthetic width fitting is not supported for schema 1.2 projects,
+            including mixed stacks and single ridges.
+          </p>
+        </div>
+      </details>
+    );
   const fingerprint = JSON.stringify({ project, target, lower, upper });
   const supported = supportsSyntheticFit(project);
   const validation = validateProject(project);
