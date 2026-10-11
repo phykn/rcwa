@@ -56,7 +56,7 @@ export function PrototypeScene({
     const raycaster = new THREE.Raycaster();
     const point = new THREE.Vector2();
     const picks: THREE.Mesh[] = [];
-    const axisLabels = (["X", "Y"] as const).map((name) => {
+    const axisLabels = (["X", "Y", "Z"] as const).map((name) => {
       const label = document.createElement("span");
       label.textContent = name;
       label.className = "p2-projected-axis";
@@ -64,8 +64,28 @@ export function PrototypeScene({
       element.append(label);
       return { label, point: new THREE.Vector3() };
     });
+    let bounds = new THREE.Box3();
+    let boundsKey = "";
     const render = () => {
       renderer.render(scene, camera);
+      if (!bounds.isEmpty()) {
+        const pixels: { x: number; y: number }[] = [];
+        for (const x of [bounds.min.x, bounds.max.x])
+          for (const y of [bounds.min.y, bounds.max.y])
+            for (const z of [bounds.min.z, bounds.max.z]) {
+              const p = new THREE.Vector3(x, y, z).project(camera);
+              pixels.push({
+                x: ((p.x + 1) * element.clientWidth) / 2,
+                y: ((1 - p.y) * element.clientHeight) / 2,
+              });
+            }
+        canvas.dataset.projectedBounds = JSON.stringify({
+          left: Math.min(...pixels.map((p) => p.x)),
+          right: Math.max(...pixels.map((p) => p.x)),
+          top: Math.min(...pixels.map((p) => p.y)),
+          bottom: Math.max(...pixels.map((p) => p.y)),
+        });
+      }
       for (const { label, point } of axisLabels) {
         const projected = point.clone().project(camera);
         label.style.left = `${((projected.x + 1) * element.clientWidth) / 2}px`;
@@ -86,6 +106,55 @@ export function PrototypeScene({
       group.clear();
       picks.length = 0;
     };
+    function fit() {
+      if (
+        !element ||
+        bounds.isEmpty() ||
+        !element.clientWidth ||
+        !element.clientHeight
+      )
+        return;
+      const center = bounds.getCenter(new THREE.Vector3());
+      const direction = camera.position
+        .clone()
+        .sub(controls.target)
+        .normalize();
+      const corners: THREE.Vector3[] = [];
+      for (const x of [bounds.min.x, bounds.max.x])
+        for (const y of [bounds.min.y, bounds.max.y])
+          for (const z of [bounds.min.z, bounds.max.z])
+            corners.push(new THREE.Vector3(x, y, z));
+      const left = -1 + 36 / element.clientWidth;
+      const right = 1 - 36 / element.clientWidth;
+      const top = 1 - 100 / element.clientHeight;
+      const bottom = -1 + 64 / element.clientHeight;
+      function fits(distance: number) {
+        camera.position.copy(center).addScaledVector(direction, distance);
+        camera.lookAt(center);
+        camera.updateMatrixWorld();
+        return corners.every((corner) => {
+          const p = corner.clone().project(camera);
+          return (
+            p.x >= left &&
+            p.x <= right &&
+            p.y >= bottom &&
+            p.y <= top &&
+            p.z >= -1 &&
+            p.z <= 1
+          );
+        });
+      }
+      let low = 0.1,
+        high = 60;
+      for (let i = 0; i < 30; i++) {
+        const middle = (low + high) / 2;
+        if (fits(middle)) high = middle;
+        else low = middle;
+      }
+      fits(high * 1.015);
+      controls.target.copy(center);
+      controls.update();
+    }
     const rebuild = () => {
       dispose();
       const {
@@ -155,6 +224,50 @@ export function PrototypeScene({
           region.role === "background",
         );
       }
+      const selectedLayer = p.layers[active];
+      const selectedSlab = geometry.layers[active];
+      if (
+        clipped &&
+        selectedLayer.geometry !== "homogeneous" &&
+        selectedLayer.thickness_nm > 0
+      ) {
+        const mid = (selectedSlab.top + selectedSlab.bottom) / 2;
+        const selectedX =
+          selectedLayer.geometry === "rectangle_2d"
+            ? selectedLayer.cd_x_nm
+            : selectedLayer.cd_nm;
+        const selectedY =
+          selectedLayer.geometry === "rectangle_2d" ? selectedLayer.cd_y_nm : 0;
+        const drawRuler = (axis: "x" | "y", width: number, repeat: number) => {
+          if (width <= 0) return;
+          const physical = (v: number, dz = 0) =>
+            new THREE.Vector3(
+              (axis === "x" ? v : 0.6) * scale,
+              (mid + dz - total / 2) * scale,
+              -(axis === "y" ? v : 0.6) * scale,
+            );
+          const lo = repeat - width / 2,
+            hi = repeat + width / 2;
+          const tick = Math.min(5, selectedLayer.thickness_nm / 8);
+          const points = [
+            physical(lo),
+            physical(hi),
+            physical(lo, -tick),
+            physical(lo, tick),
+            physical(hi, -tick),
+            physical(hi, tick),
+          ];
+          group.add(
+            new THREE.LineSegments(
+              new THREE.BufferGeometry().setFromPoints(points),
+              new THREE.LineBasicMaterial({ color: 0x172f46 }),
+            ),
+          );
+        };
+        drawRuler("x", selectedX, p.period_nm);
+        if (selectedLayer.geometry === "rectangle_2d")
+          drawRuler("y", selectedY, p.period_y_nm);
+      }
       const theta = THREE.MathUtils.degToRad(p.illumination.angle_deg);
       const phi = THREE.MathUtils.degToRad(p.illumination.azimuth_deg);
       const direction = new THREE.Vector3(
@@ -201,8 +314,51 @@ export function PrototypeScene({
           0.04,
         ),
       );
+      group.add(
+        new THREE.ArrowHelper(
+          new THREE.Vector3(0, 1, 0),
+          axesOrigin,
+          0.5,
+          0x334155,
+          0.06,
+          0.04,
+        ),
+      );
+      // One actual repeat cell, on the uncut top surface; this is a ruler,
+      // not an additional physical slab or a change to the solver domain.
+      const cellPoints = [
+        [-1.5 * p.period_nm, -0.5 * p.period_y_nm],
+        [-0.5 * p.period_nm, -0.5 * p.period_y_nm],
+        [-0.5 * p.period_nm, 0.5 * p.period_y_nm],
+        [-1.5 * p.period_nm, 0.5 * p.period_y_nm],
+        [-1.5 * p.period_nm, -0.5 * p.period_y_nm],
+      ].map(
+        ([x, y]) =>
+          new THREE.Vector3(x * scale, (total * scale) / 2 + 0.012, -y * scale),
+      );
+      const cell = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(cellPoints),
+        new THREE.LineDashedMaterial({
+          color: 0x4f46e5,
+          dashSize: 0.045,
+          gapSize: 0.035,
+        }),
+      );
+      cell.computeLineDistances();
+      group.add(cell);
       axisLabels[0].point.copy(axesOrigin).add(new THREE.Vector3(0.62, 0, 0));
       axisLabels[1].point.copy(axesOrigin).add(new THREE.Vector3(0, 0, -0.62));
+      axisLabels[2].point.copy(axesOrigin).add(new THREE.Vector3(0, 0.62, 0));
+      bounds = new THREE.Box3().setFromObject(group);
+      axisLabels.forEach(({ point }) => bounds.expandByPoint(point));
+      const nextBoundsKey = JSON.stringify([
+        bounds.min.toArray(),
+        bounds.max.toArray(),
+      ]);
+      if (nextBoundsKey !== boundsKey) {
+        boundsKey = nextBoundsKey;
+        fit();
+      }
       canvas.dataset.coordinateConvention =
         "physical(x,y,z) maps to scene(x,z,-y)";
       canvas.dataset.ready = "true";
@@ -225,6 +381,7 @@ export function PrototypeScene({
       renderer.setSize(width, height);
       camera.aspect = width / Math.max(height, 1);
       camera.updateProjectionMatrix();
+      fit();
       render();
     };
     const observer = new ResizeObserver(resize);

@@ -42,17 +42,28 @@ for (const width of [360, 390, 1440]) {
     for (const chip of await page.locator(".p2-layers button").all()) {
       const box = await chip.boundingBox(); assert.ok(box && box.x >= 0 && box.x + box.width <= width && box.height >= 44);
     }
-    // Changing the inspection view never changes the physical input or history.
-    await page.locator(".p2-guide summary").click();
+    // Whole object and object-fixed axes fit outside overlay insets.
+    const scene = await page.locator(".p2-scene").boundingBox();
+    const projected = JSON.parse(await page.locator(".p2-webgl canvas").getAttribute("data-projected-bounds"));
+    assert.ok(scene && projected.left >= 17 && projected.right <= scene.width - 17 && projected.top >= 49 && projected.bottom <= scene.height - 31, JSON.stringify({scene,projected}));
+    for (const axis of await page.locator(".p2-projected-axis").all()) {
+      const box = await axis.boundingBox(); assert.ok(box && box.x > scene.x && box.x + box.width < scene.x + scene.width && box.y > scene.y + 44 && box.y + box.height < scene.y + scene.height - 24);
+    }
+    // Guide is an accessible bounded scroll region, never clipped by the scene.
+    await page.getByLabel("View guide", { exact: true }).click();
+    const guide = page.getByRole("region", { name: "View guide details" });
+    const guideBox = await guide.boundingBox(); assert.ok(guideBox && guideBox.y + guideBox.height <= scene.y + scene.height - 4);
     await shot("view-guide");
+    await guide.focus(); await page.keyboard.press("End");
+    await expect.poll(() => guide.evaluate(n => n.scrollTop + n.clientHeight >= n.scrollHeight - 1)).toBe(true);
+    await shot("view-guide-end");
+    await page.keyboard.press("Escape");
+    await expect(guide).toBeHidden();
     await page.getByRole("combobox", { name: "Structure view" }).selectOption("full");
-    await page.locator(".p2-guide summary").click();
     await expect(page.locator(".p2-webgl canvas")).toHaveAttribute("data-cutaway", "false");
     assert.deepEqual(await project(), original); assert.equal(await history(), "0");
     await shot("full-stack");
-    await page.locator(".p2-guide summary").click();
     await page.getByRole("combobox", { name: "Structure view" }).selectOption("cutaway");
-    await page.locator(".p2-guide summary").click();
     await page.getByRole("button", { name: /Select layer 3:/ }).click();
     await expect(page.locator(".p2-selection")).toContainText("Selected: Layer 3");
     assert.deepEqual(await project(), original); assert.equal(await history(), "0");
@@ -74,7 +85,7 @@ for (const width of [360, 390, 1440]) {
     assert.deepEqual(await project(), changed); assert.equal(await history(), "2");
     await page.getByRole("button", { name: /^Edit shared pitch:/ }).click();
     await pitchY.fill("89"); await expect(pitchY).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByRole("alert")).toHaveText("Pitch Y must be at least 90 nm because of Layer 3. Last valid value is kept.");
+    await expect(page.getByRole("alert")).toHaveText("Pitch Y must be at least 90 nm because of Layer 3. 89 is not applied. Keeping 160 nm.");
     await shot("invalid-pitch-y");
     await page.keyboard.press("Escape");
     assert.deepEqual(await project(), changed); assert.equal(await history(), "2");

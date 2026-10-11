@@ -97,8 +97,8 @@ function NumericField({
       />
       {!valid && (
         <p id={`${id}-error`} className="p2-error" role="alert">
-          {reason || `${label} must be ${min}–${max} nm.`} Last valid value is
-          kept.
+          {reason || `${label} must be ${min}–${max} nm.`}{" "}
+          {draft || "This value"} is not applied. Keeping {value} nm.
         </p>
       )}
     </div>
@@ -495,29 +495,44 @@ function Prototype() {
                 cutaway={cutaway}
                 onSelect={setSelected}
               />
-              <details className="p2-guide">
-                <summary>
-                  {cutaway ? "Cutaway · corner hidden" : "Full stack"} ⓘ
-                </summary>
-                <div>
+              <div className="p2-view-control">
+                <label>
+                  <span>View</span>
+                  <select
+                    aria-label="Structure view"
+                    value={cutaway ? "cutaway" : "full"}
+                    onChange={(e) => setCutaway(e.target.value === "cutaway")}
+                  >
+                    <option value="full">Full stack</option>
+                    <option value="cutaway">Cutaway</option>
+                  </select>
+                </label>
+                {cutaway && <span className="p2-cut-note">Corner hidden</span>}
+              </div>
+              <details
+                className="p2-guide"
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    e.currentTarget.open = false;
+                    e.currentTarget.querySelector("summary")?.focus();
+                  }
+                }}
+              >
+                <summary aria-label="View guide">ⓘ</summary>
+                <div tabIndex={0} role="region" aria-label="View guide details">
                   <p>
-                    A corner is hidden to show inner layers; your structure is
-                    unchanged.
+                    A corner is hidden in Cutaway to show inner layers; your
+                    structure is unchanged.
                   </p>
-                  <label>
-                    View
-                    <select
-                      aria-label="Structure view"
-                      value={cutaway ? "cutaway" : "full"}
-                      onChange={(e) => setCutaway(e.target.value === "cutaway")}
-                    >
-                      <option value="full">Full stack</option>
-                      <option value="cutaway">Cutaway</option>
-                    </select>
-                  </label>
                   <p>
-                    Drag to rotate; pinch to zoom. Colors identify layers, not
-                    optical properties. Substrate depth is schematic.
+                    X and Y stay fixed to the structure. Width is one pattern's
+                    size; pitch is its repeat spacing. The dashed outline marks
+                    one repeat cell.
+                  </p>
+                  <p>
+                    Colors identify layers from top to bottom; pale gray is
+                    background material. The gray base is the substrate, shown
+                    at a schematic depth.
                   </p>
                 </div>
               </details>
@@ -616,6 +631,9 @@ function Prototype() {
               <div>
                 <h2>{scope}</h2>
                 {sheet === "pitch" && <p>Repeat spacing for all layers.</p>}
+                {sheet === "width" && (
+                  <p>Size of one pattern within each repeat.</p>
+                )}
               </div>
               <button aria-label="Close settings" onClick={close}>
                 ×
