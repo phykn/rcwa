@@ -17,6 +17,7 @@ import sys
 from threading import Thread
 import time
 from types import SimpleNamespace
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -292,6 +293,8 @@ def raw_stdio(url):
     # non-daemon reader can appear to work merely because it has not started yet.
     script = """
 import anyio
+import faulthandler
+import os
 from threading import Event
 from mcp_adapter import server
 reading = Event()
@@ -316,11 +319,24 @@ async def delayed_rejection(self):
                 await anyio.sleep(0.001)
         raise
 server.BoundedProtocolIDs.receive = delayed_rejection
+dump_path = os.environ.get("RCWA_STDIO_DUMP")
+dump = open(dump_path, "w") if dump_path else None
+if dump is not None:
+    faulthandler.dump_traceback_later(3, file=dump)
 server.main()
+if dump is not None:
+    faulthandler.cancel_dump_traceback_later()
+    dump.close()
 """
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "backend"),
+           "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"}
+    diagnostic_dir = os.environ.get("RCWA_STDIO_DIAGNOSTIC_DIR")
+    if diagnostic_dir:
+        directory = Path(diagnostic_dir).resolve()
+        directory.mkdir(parents=True, exist_ok=True)
+        env["RCWA_STDIO_DUMP"] = str(directory / f"{uuid4()}.txt")
     process = subprocess.Popen([sys.executable, "-c", script, "--api-url", url], cwd=ROOT,
-                               env={**os.environ, "PYTHONPATH": str(ROOT / "backend"),
-                                    "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
+                               env=env,
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     received = Queue()
     def read_lines():

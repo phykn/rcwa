@@ -55,6 +55,8 @@ jobs:
       - name: Check real SDK stdio client and local HTTP validation
         run: python -m pytest backend/tests/test_mcp_protocol.py -q -k "stdio_discovery_and_validation or stdio_closes_on_eof or api_down"
       - name: Check explicit 2D contracts and bounded stdio recovery
+        env:
+          RCWA_STDIO_DIAGNOSTIC_DIR: artifacts/windows-stdio-stacks
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
           python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
@@ -64,7 +66,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-mcp-2d
-          path: artifacts/windows-mcp-2d.*
+          path: |
+            artifacts/windows-mcp-2d.*
+            artifacts/windows-stdio-stacks/*.txt
           retention-days: 7
           if-no-files-found: warn
 

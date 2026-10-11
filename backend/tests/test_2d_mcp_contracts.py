@@ -263,7 +263,8 @@ async def test_mcp_many_large_unknown_keys_have_bounded_escaped_unicode_location
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("tag", ["x" * 100_000, "\x00" * 100_000, '"' * 100_000,
-                                 "\\" * 100_000, "界" * 100_000, "🧪" * 100_000])
+                                 "\\" * 100_000, "界" * 100_000, "🧪" * 100_000],
+                         ids=["ascii", "nul", "quote", "backslash", "multibyte", "astral"])
 async def test_mcp_large_unknown_geometry_diagnostic_message_is_bounded(tag):
     requests = []
     def respond(request):
