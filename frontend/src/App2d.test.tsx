@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import circular from "./fixtures/default-project-circular.json";
 
+// App's environment is resolved by Vite before the SSR import. Exercise each
+// build mode through the ordinary and VITE_STATIC_PREVIEW=true test commands.
+const mode =
+  (import.meta as unknown as { env: Record<string, string> }).env
+    .VITE_STATIC_PREVIEW === "true"
+    ? "static"
+    : "local";
+
 async function renderExample(search: string) {
   vi.resetModules();
+  vi.stubEnv("VITE_STATIC_PREVIEW", mode === "static" ? "true" : "false");
   vi.stubGlobal("window", { location: { search } });
   const [{ createElement }, { renderToStaticMarkup }, { default: App }] =
     await Promise.all([
@@ -12,8 +21,11 @@ async function renderExample(search: string) {
     ]);
   return renderToStaticMarkup(createElement(App));
 }
-afterEach(() => vi.unstubAllGlobals());
-describe("ordinary production default versus explicit legacy fixture", () => {
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+describe(`${mode} production default versus explicit legacy fixture`, () => {
   it.each(["?example=rectangle", "?example=rectangular"])(
     "retains historical rectangular inputs explicitly at %s",
     async (search) => {
@@ -36,7 +48,7 @@ describe("ordinary production default versus explicit legacy fixture", () => {
     },
   );
   it.each(["", "?example=2d", "?unrelated=1d"])(
-    "uses the genuine circular-hole default at %s",
+    `uses the genuine circular-hole default and ${mode} primary action at %s`,
     async (search) => {
       const html = await renderExample(search);
       expect(html).toContain(`value="${circular.name}"`);
@@ -48,7 +60,25 @@ describe("ordinary production default versus explicit legacy fixture", () => {
       );
       expect(html).not.toContain('aria-label="Edit Layer 1 width:');
       expect(html).toContain('class="s2-scene"');
-      expect(html).toContain("Run simulation");
+      if (mode === "static") {
+        expect(html).toContain(
+          'class="preview-result-button" href="#spectrum"',
+        );
+        // SSR has not loaded the bundled reference yet; its initial action
+        // remains the spectrum link rather than a local computation button.
+        expect(html).toContain("View spectrum");
+        expect(html).toContain("Static preview");
+        expect(html).toContain(
+          "Preview only. Edits won&#x27;t calculate a new spectrum.",
+        );
+        expect(html).not.toContain('class="run-button"');
+        expect(html).not.toContain("Run simulation");
+      } else {
+        expect(html).toContain('class="run-button"');
+        expect(html).toContain("Run simulation");
+        expect(html).not.toContain('class="preview-result-button"');
+        expect(html).not.toContain("Preview only.");
+      }
       expect(html).not.toContain('class="three-canvas');
     },
   );
