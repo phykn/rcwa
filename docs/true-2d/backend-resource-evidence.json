@@ -1,27 +1,27 @@
 {
-  "implementation_checkpoint": "6ba8f0406a9e426434bc6a008104ab2fb7650882",
+  "implementation_checkpoint": "c55366d2f122ea34a768545ed39e0a939a969eee",
   "archive": "backend-resource-evidence.tar.gz",
-  "archive_sha256": "9a29ffa6da133fa3ae4d87694389e4c1fb908c73f6eba5075f452adadc4953e8",
-  "archive_bytes": 1730189,
+  "archive_sha256": "88cd6d103e1c0ac393c9d0e86c87088c94a809c21ae875ec374e9508f37cef40",
+  "archive_bytes": 1722778,
   "indexed_files": 10,
   "checks": {
     "name": "pytest",
     "errors": "0",
     "failures": "0",
     "skipped": "3",
-    "tests": "1427",
-    "time": "257.271",
-    "timestamp": "2026-10-11T08:58:03.431640+09:00",
+    "tests": "1430",
+    "time": "263.248",
+    "timestamp": "2026-10-11T09:31:42.261444+09:00",
     "hostname": "376d26fcb52d"
   },
   "watchdog": [
     {
       "classname": "backend.tests.test_2d_worker_integration",
       "name": "test_real_120_second_blocked_worker_watchdog",
-      "time": "120.354"
+      "time": "120.288"
     }
   ],
-  "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 RCWA_RUN_120S_WATCHDOG=1 .venv/bin/pytest backend/tests -q --junitxml=/tmp/rcwa-daemon-worker-validation/full-backend.xml --durations=10",
-  "supersedes_archive_sha256": "e21c0de28fc3b8cbe3eb1503320b1b699ff9831d5896ea5235d6a0298cc4cb23",
+  "command": "OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 RCWA_RUN_120S_WATCHDOG=1 .venv/bin/pytest backend/tests -q --junitxml=/tmp/rcwa-windows-fd-validation/full-backend.xml --durations=10",
+  "supersedes_archive_sha256": "9a29ffa6da133fa3ae4d87694389e4c1fb908c73f6eba5075f452adadc4953e8",
   "scope": "Fresh resource/transport/lifecycle evidence after the held-stdin shutdown fix; not numerical convergence of high-contrast resource inputs. Runtime/RSS observations are host-specific."
 }

@@ -6,13 +6,14 @@ import argparse
 from contextlib import asynccontextmanager
 import json
 from dataclasses import dataclass
+import os
 import sys
 from threading import Thread
 from typing import Annotated
 
 import anyio
 from mcp.server import Server
-from mcp.server.stdio import _claim_fd, _open_stdin_diversion, _UnownedTextWrapper, stdio_server
+from mcp.server.stdio import _claim_fd, _dup_above_std, _open_stdin_diversion, _UnownedTextWrapper, stdio_server
 from mcp.shared.exceptions import MCPError
 from mcp.types import (
     INVALID_PARAMS, CallToolResult, JSONRPCResponse,
@@ -73,10 +74,20 @@ class CancellableStdin(anyio.AsyncFile):
 async def cancellable_stdio_server():
     # Retain the pinned SDK's fd diversion/ownership protection and its entire
     # JSON/MCP parser and writer. Only input-read cancellation differs. These
-    # three private SDK helpers are covered by real-process Linux/Windows tests.
+    # four private SDK helpers are covered by real-process Linux/Windows tests.
     buffer, restore = _claim_fd(0, sys.stdin, "rb", _open_stdin_diversion)
-    stream = CancellableStdin(_UnownedTextWrapper(buffer, encoding="utf-8", errors="replace"))
     try:
+        # Windows CRT read holds a per-descriptor lock, including while blocked.
+        # Leave the SDK's restoration descriptor idle and read from a distinct
+        # duplicate, created before any read starts. Both remain owned by this
+        # standalone process; never recycle a descriptor under a blocked reader.
+        reader_fd = _dup_above_std(buffer.fileno())
+        try:
+            reader_buffer = os.fdopen(reader_fd, "rb", closefd=False)
+        except BaseException:
+            os.close(reader_fd)  # No reader exists yet; startup failed cleanly.
+            raise
+        stream = CancellableStdin(_UnownedTextWrapper(reader_buffer, encoding="utf-8", errors="replace"))
         async with stdio_server(stdin=stream) as streams:
             yield streams
     finally:

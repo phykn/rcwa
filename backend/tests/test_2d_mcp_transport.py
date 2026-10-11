@@ -4,7 +4,7 @@ The archived max-resource snapshot is transport/resource evidence only. It does
 not establish numerical convergence, and these tests never launch an H5 solve.
 """
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from copy import deepcopy
 import gzip
 import hashlib
@@ -14,6 +14,7 @@ from pathlib import Path
 from queue import Empty, Queue
 import subprocess
 import sys
+import tempfile
 from threading import Thread
 import time
 from types import SimpleNamespace
@@ -29,6 +30,7 @@ from mcp.types.methods import serialize_server_result
 
 from api.contracts import StoredServerSnapshot
 from mcp_adapter.client import LocalAPI
+from mcp_adapter import server as server_module
 from mcp_adapter.server import (
     BoundedProtocolIDs, MAX_PROTOCOL_ID_BYTES, MAX_STDIO_RESPONSE_BYTES, ProtocolIDTooLarge,
     create_server, result, stdio_response_bytes,
@@ -42,6 +44,61 @@ ROOT = protocol_tests.ROOT
 FIXTURE = Path(__file__).parent / "fixtures" / "true-2d" / "max-resource-snapshot.json.gz"
 RAW_SHA256 = "107d45e34f0dab7497ec12b5a2ee73c3a040ac2f7e7cb55a54384f2b4b2396cd"
 VERSIONS = ["2025-11-25", "2026-07-28"]
+
+
+@pytest.mark.anyio
+async def test_stdio_reader_descriptor_is_distinct_from_sdk_restoration_descriptor(monkeypatch):
+    restored = []
+    reader_fds = []
+    with tempfile.TemporaryFile("w+b") as restoration_buffer:
+        monkeypatch.setattr(server_module, "_claim_fd", lambda *args: (
+            restoration_buffer, lambda: restored.append(restoration_buffer.fileno()),
+        ))
+        @asynccontextmanager
+        async def sdk_transport(*, stdin):
+            reader_fd = stdin.wrapped.buffer.fileno()
+            reader_fds.append(reader_fd)
+            assert reader_fd > 2 and reader_fd != restoration_buffer.fileno()
+            yield ("read", "write")
+        monkeypatch.setattr(server_module, "stdio_server", sdk_transport)
+        try:
+            async with server_module.cancellable_stdio_server() as streams:
+                assert streams == ("read", "write")
+            assert restored == [restoration_buffer.fileno()]
+            os.fstat(restoration_buffer.fileno())
+        finally:
+            # This mock never starts a reader; closing its test-owned fd is safe.
+            for fd in reader_fds:
+                os.close(fd)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", ["duplicate", "fdopen"])
+async def test_stdio_reader_allocation_failure_restores_sdk_claim_without_fallback(monkeypatch, failure):
+    restored = []
+    allocated = []
+    duplicate = server_module._dup_above_std
+    with tempfile.TemporaryFile("w+b") as restoration_buffer:
+        monkeypatch.setattr(server_module, "_claim_fd", lambda *args: (
+            restoration_buffer, lambda: restored.append(restoration_buffer.fileno()),
+        ))
+        def fail(*args, **kwargs):
+            raise OSError("injected reader allocation failure")
+        def record_duplicate(fd):
+            result = duplicate(fd)
+            allocated.append(result)
+            return result
+        monkeypatch.setattr(server_module, "_dup_above_std", fail if failure == "duplicate" else record_duplicate)
+        if failure == "fdopen":
+            monkeypatch.setattr(server_module.os, "fdopen", fail)
+        with pytest.raises(OSError, match="injected reader allocation"):
+            async with server_module.cancellable_stdio_server():
+                pytest.fail("Failed allocation must not enter the transport or fall back")
+        assert restored == [restoration_buffer.fileno()]
+        os.fstat(restoration_buffer.fileno())
+        for fd in allocated:
+            with pytest.raises(OSError):
+                os.fstat(fd)
 
 
 @pytest.fixture(scope="module")

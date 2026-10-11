@@ -1,8 +1,8 @@
 # Backend-only schema 1.2 integration verification
 
 Status: numerical audit, initial live CI reference/browser checks and refreshed
-local resource/full-suite gates passed. The initial held-open-stdin shutdown race
-has a deterministic regression and correction. Corrected exact-candidate CI
+local resource/full-suite gates passed. The Linux and Windows held-open-stdin
+shutdown paths have deterministic regressions and corrections. Final exact-candidate CI
 acceptance remains pending. This document does not approve publication.
 
 ## Source identity and scope
@@ -12,7 +12,7 @@ acceptance remains pending. This document does not approve publication.
 - The separate integration branch starts from local `2d21140989655f97dc3bacb6e3021879f1ba8da2`,
   whose tree is identical to that release.
 - Shared numerical/core checkpoint: `d2c00e55a699e75b58cc20de69d0f148718dc0c2`.
-- Backend/transport checkpoint: `6ba8f0406a9e426434bc6a008104ab2fb7650882`.
+- Backend/transport checkpoint: `c55366d2f122ea34a768545ed39e0a939a969eee`.
 - All pre-existing `backend/rcwa_core` files and every frontend file remain
   byte-identical to the accepted first-use release. Core additions share one
   project parser, canonical hash and version dispatch; there is one JobManager,
@@ -104,17 +104,17 @@ terminal records can temporarily exceed it while owning resources. Unreaped
 children still consume slots; cleanup-pending records block further admission.
 This is not a total-RSS cap, nor a bound on concurrent serialization copies.
 
-Final-source maximum-table H5/31-wavelength/eight-layer cases succeeded in 34.01 s
-and 33.70 s. The first ran alongside a bounded legacy H12/41-wavelength fit,
-which succeeded in 5.58 s; their sampled API-plus-children peak was 400,260 KiB
-(390.88 MiB). Peak 2D-child RSS was 151,384 KiB and 153,080 KiB respectively.
+Final-source maximum-table H5/31-wavelength/eight-layer cases succeeded in 34.02 s
+and 34.12 s. The first ran alongside a bounded legacy H12/41-wavelength fit,
+which succeeded in 5.64 s; their sampled API-plus-children peak was 401,124 KiB
+(391.72 MiB). Peak 2D-child RSS was 153,552 KiB and 154,040 KiB respectively.
 Both verified output binding, SQLite idempotence/restart, all owned handles closed,
 outputs removed and temporary directories removed. These cases test resource and
 transport behavior; they are not independently converged physical fixtures.
 
 `backend-resource-evidence.tar.gz` retains both complete inputs/snapshots, all
 reports, source/dependency manifest and full-suite XML/log. Its SHA-256 is
-`9a29ffa6da133fa3ae4d87694389e4c1fb908c73f6eba5075f452adadc4953e8`;
+`88cd6d103e1c0ac393c9d0e86c87088c94a809c21ae875ec374e9508f37cef40`;
 `backend-resource-evidence.json` indexes the package and watchdog result.
 
 ## HTTP and MCP transport limits
@@ -146,6 +146,11 @@ readline wrapper now uses one daemon read while preserving the SDK's private
 descriptor ownership/diversion, parser and writer. The private descriptor is
 never closed or recycled under a blocked read. A cancelled read lasts only until
 this standalone adapter process exits; it does not alter the global thread pool.
+The blocking reader uses a separate duplicate allocated before any read begins;
+the SDK's restoration descriptor stays idle. This avoids Windows CRT descriptor
+lock contention during synchronous SDK restoration. Failed duplicate or wrapper
+allocation restores the SDK claim and fails startup, without a same-fd fallback.
+Both private descriptors remain bounded to the standalone adapter process.
 The real-process regression observes entry into the next blocking read before
 releasing the oversized-ID rejection, and checks empty stdout/stderr, clean exit,
 no API mutation and fresh-client recovery. Windows execution of the same cases
@@ -160,6 +165,18 @@ rerun away. The transport-only correction leaves numerical core and archives
 byte-identical. The original resource bundle remains in commit `0a7a317c`;
 the newly generated package above supersedes its transport acceptance.
 
+Remote `284849ad` passed Linux/PostgreSQL, frontend, S4 and browser, but Windows
+still blocked in restoration. Diagnostic-only `694b706c` (Checks `38098131367`)
+retained 12 thread dumps: each shows the daemon in `readline` and the main thread
+in SDK `_restore_fd` / `os.dup2`. Artifact ZIP SHA-256:
+`eac88babe5b4aa0f4bd7e75d0189bc6a37667543da7372e552c5f341456e6112`.
+The separate reader descriptor addresses this observed conflict without native
+I/O cancellation, skipped restoration or changed timeouts. Short explicit pytest
+IDs also eliminate the independent Windows environment-variable limit; all six
+100,000-character diagnostic inputs remain unchanged. The diagnostic run records
+107 passes and 12 exit failures, zero setup errors. None of these failed runs is
+release evidence.
+
 MCP local diagnostics now share the HTTP 50-diagnostic/512-byte message-and-location
 policy. The diagnostic payload stays below 64 KB; its duplicated MCP representation
 can be about 98 KB and is still subject to the complete wire cap.
@@ -168,10 +185,10 @@ can be about 98 KB and is still subject to the complete wire cap.
 
 These counts overlap and must not be added together.
 
-- Complete final local backend suite: **1,424 passed, three PostgreSQL-service
-  skips**, 257.30 s, with `RCWA_RUN_120S_WATCHDOG=1`. Actual watchdog passed in
-  120.35 s, actual spawned full-default H5 in 8.20 s and direct full-default H5 in
-  7.76 s. All fresh archive/core/dependency checks passed. Source hashes remained
+- Complete final local backend suite: **1,427 passed, three PostgreSQL-service
+  skips**, 263.27 s, with `RCWA_RUN_120S_WATCHDOG=1`. Actual watchdog passed in
+  120.29 s, actual spawned full-default H5 in 8.59 s and direct full-default H5 in
+  7.87 s. All fresh archive/core/dependency checks passed. Source hashes remained
   unchanged throughout probes and tests. JUnit is retained in the resource package.
 - Broad lightweight backend pass: 1,358 passed, three PostgreSQL-service skips,
   two heavy cases deselected; old numerical archive/default tests were held for
@@ -180,8 +197,8 @@ These counts overlap and must not be added together.
   two heavy cases deselected. All 48 transport boundary/recovery cases passed.
 - New shared dispatch/identity/API/MCP suites: 349 passed, one PostgreSQL skip;
   four subsequently added stored-record integrity cases also pass.
-- Corrected deterministic transport suite: 48 passed in 52.24 s. Independent
-  reviewer reran 20 forced-read ID tests, plus 30 private-wrapper cancellation
+- Final MCP contracts/transport suite: 122 passed in 60.04 s. Independent
+  reviewer reran 23 descriptor/forced-read ID tests, plus 30 private-wrapper cancellation
   stress subprocesses. The old reader fails the same forced-read negative control
   until the parent closes stdin. No timeout or numerical threshold was relaxed.
 - Unchanged frontend: 205 tests passed, ESLint passed, production/static builds
