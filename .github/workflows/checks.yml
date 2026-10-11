@@ -180,6 +180,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python scripts/build_2d_ui_reference.py --check
           PYTHONPATH=backend python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 > /tmp/rcwa-api.log 2>&1 &
           api_pid=$!
           (cd frontend && npm run dev -- --strictPort) > /tmp/rcwa-vite.log 2>&1 &
@@ -203,6 +204,7 @@ jobs:
           status=0
           (cd frontend && timeout 180s node scripts/first-use-browser-qa.mjs) || status=1
           (cd frontend && timeout 120s node scripts/first-use-touch-qa.mjs) || status=1
+          (cd frontend && timeout 180s node scripts/prototype-2d-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
@@ -228,6 +230,7 @@ jobs:
             artifacts/first-use-*-ax.json
             artifacts/first-use-browser-qa.json
             artifacts/first-use-touch-qa.json
+            artifacts/prototype-2d-browser-qa.json
             artifacts/browser-qa.json
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json

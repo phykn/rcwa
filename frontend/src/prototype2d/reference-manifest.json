@@ -1,0 +1,9 @@
+{
+  "project_fixture_sha256": "8dbe8260fa61ba3ec8f82ffefc5a5749ea75587b035d9f381edf66b695755294",
+  "result_fixture_gzip_sha256": "8a978f155cdbeb5a74e258253b1aae52bf8bc0f6513e934564d725d7715cd36c",
+  "input_hash": "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7",
+  "bundle_sha256": "43e6c615ed19b7ea2e2f4ae90c1c58737c8c86c41785f0086f29dfde33e7e93a",
+  "bundle_bytes": 1196961,
+  "public_shared_result_binding": "passed",
+  "origin": "precomputed synthetic example; not a new job or server snapshot"
+}
