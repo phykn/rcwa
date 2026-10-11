@@ -310,7 +310,7 @@ describe("schema 1.2 saved spectrum comparison", () => {
     next.project.layers[2].cd_y_nm += 1;
     const html = compare([first, next]);
     expect(html).toContain(
-      "Schema, geometry, illumination, Fourier orders or optical materials differ.",
+      "Incidence angle, azimuth, polarization, geometry, Fourier orders, optical materials or schema differ.",
     );
     expect(html).toContain('aria-label="Compare exact wavelength sample"');
   });

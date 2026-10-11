@@ -496,9 +496,9 @@ export function ComparisonPanel({
       </div>
       {conditionsDiffer && (
         <p className="comparison-warning">
-          Schema, geometry, illumination, Fourier orders or optical materials
-          differ. Check each candidate’s run details when interpreting these
-          curves.
+          Incidence angle, azimuth, polarization, geometry, Fourier orders,
+          optical materials or schema differ. Check each candidate’s run details
+          when interpreting these curves.
         </p>
       )}
       <div ref={host} className="comparison-plot">

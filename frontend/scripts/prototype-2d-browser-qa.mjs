@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, { recursive: true });
-const original = JSON.parse(await fs.readFile(new URL("../src/prototype2d/default-project.json", import.meta.url), "utf8"));
+const original = JSON.parse(await fs.readFile(new URL("../src/fixtures/default-project-2d.json", import.meta.url), "utf8"));
 const report = { status: "running", checks: [], screenshots: [], captures: [], pageErrors: [], issues: [], limitation: "Isolated interactive prototype with the exact approved geometry and stored result. Full lifecycle wiring and real-phone keyboard use are not tested here." };
 const url = process.env.RCWA_PROTOTYPE_URL || "http://127.0.0.1:5173/prototype-2d.html";
 for (const width of [360, 390, 1440]) {

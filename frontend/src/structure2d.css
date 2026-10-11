@@ -47,6 +47,10 @@
 .s2-guide p {
   margin: 0 0 10px;
 }
+.s2-guide button {
+  min-height: 44px;
+  margin-bottom: 8px;
+}
 .s2-guide label {
   display: flex;
   gap: 12px;
@@ -90,6 +94,12 @@
   justify-content: space-between;
   margin: 8px 0 4px;
   font-size: 14px;
+}
+.s2-context h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.3;
+  letter-spacing: 0;
 }
 .s2-context button {
   padding: 8px 0 8px 12px;

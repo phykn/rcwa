@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { RefObject } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
@@ -19,12 +20,14 @@ function StructureCanvas2D({
   cutaway,
   onSelect,
   disabled,
+  resetView,
 }: {
   project: StructureViewProject2D;
   selected: number;
   cutaway: boolean;
   onSelect: (layer: number) => void;
   disabled: boolean;
+  resetView: RefObject<(() => void) | null>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const current = useRef({ project, selected, cutaway, onSelect, disabled });
@@ -437,6 +440,15 @@ function StructureCanvas2D({
       render();
     };
     controls.addEventListener("change", changed);
+    const reset = () => {
+      if (failedRef.current) return;
+      camera.position
+        .copy(controls.target)
+        .add(new THREE.Vector3(6.6, 5.8, -7.7));
+      fit();
+      render();
+    };
+    resetView.current = reset;
     const down = (event: PointerEvent) => {
       gesture.down(
         event.pointerId,
@@ -479,11 +491,7 @@ function StructureCanvas2D({
         return;
       event.preventDefault();
       if (event.key === "0") {
-        camera.position
-          .copy(controls.target)
-          .add(new THREE.Vector3(6.6, 5.8, -7.7));
-        fit();
-        render();
+        reset();
         return;
       }
       const spherical = new THREE.Spherical().setFromVector3(
@@ -546,6 +554,7 @@ function StructureCanvas2D({
     rebuild();
     resize();
     return () => {
+      resetView.current = null;
       update.current = null;
       observer.disconnect();
       controls.removeEventListener("change", changed);
@@ -563,7 +572,7 @@ function StructureCanvas2D({
       canvas.remove();
       axisLabels.forEach(({ label }) => label.remove());
     };
-  }, []);
+  }, [resetView]);
   useEffect(() => {
     update.current?.();
   }, [project, selected, cutaway]);
@@ -604,6 +613,7 @@ export function ThreeStructure2D({
   disabled = false,
 }: ThreeStructure2DProps) {
   const [cutaway, setCutaway] = useState(true);
+  const resetView = useRef<(() => void) | null>(null);
   return (
     <div className="s2-scene" aria-label="Structure view">
       <StructureCanvas2D
@@ -612,6 +622,7 @@ export function ThreeStructure2D({
         cutaway={cutaway}
         onSelect={onSelectLayer}
         disabled={disabled}
+        resetView={resetView}
       />
       <div className="s2-view-control">
         <label>
@@ -638,6 +649,21 @@ export function ThreeStructure2D({
       >
         <summary aria-label="View guide">ⓘ</summary>
         <div tabIndex={0} role="region" aria-label="View guide details">
+          <button
+            className="text-button"
+            onClick={(event) => {
+              resetView.current?.();
+              const guide = event.currentTarget.closest("details");
+              if (guide) guide.open = false;
+              const canvas = event.currentTarget
+                .closest(".s2-scene")
+                ?.querySelector("canvas");
+              if (canvas?.dataset.ready === "true") canvas.focus();
+              else guide?.querySelector("summary")?.focus();
+            }}
+          >
+            Reset view
+          </button>
           <p>
             A corner is hidden in Cutaway to show inner layers; your structure
             is unchanged.

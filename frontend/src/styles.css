@@ -2347,6 +2347,11 @@ input[type="range"]:focus-visible {
   font-size: 12px;
   max-width: 230px;
 }
+.project-name-2d input {
+  width: 480px;
+  max-width: calc(100vw - 100px);
+  text-overflow: ellipsis;
+}
 .layer-stack {
   border: 0;
   margin-bottom: 12px;

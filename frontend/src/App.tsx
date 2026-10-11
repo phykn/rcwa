@@ -1745,12 +1745,15 @@ export default function App() {
         <div className="page-heading">
           <div>
             <h1>Build your structure</h1>
-            <label className="project-name-label">
+            <label
+              className={`project-name-label${is2D ? " project-name-2d" : ""}`}
+            >
               Project
               <input
                 aria-label="Project name"
                 id="project-name"
                 value={project.name}
+                title={project.name}
                 maxLength={is2D ? 200 : 100}
                 disabled={busy}
                 onFocus={beginEdit}
@@ -2015,14 +2018,18 @@ export default function App() {
                 <div className="stale-note">
                   {staticPreview
                     ? "This stored spectrum no longer matches your inputs."
-                    : "Run again to update this spectrum."}
+                    : forwardBusy
+                      ? "Showing the previous spectrum while your calculation runs."
+                      : "Run again to update this spectrum."}
                 </div>
               )}
               {resultOrigin === "reference" && result && !stale && (
                 <div className="reference-note">
                   {staticPreview
                     ? "Edits don't recalculate this spectrum. "
-                    : "Stored meent example. No new calculation was run."}
+                    : forwardBusy
+                      ? "Showing the stored example while your calculation runs."
+                      : "Stored meent example. No new calculation was run."}
                   {staticPreview && (
                     <a
                       href="https://github.com/phykn/rcwa#quickstart"

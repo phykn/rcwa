@@ -48,7 +48,30 @@ export async function editY(page, value, layer = 3) {
     .fill(String(value));
   await closeSheet(page);
 }
-export async function capture(
+const capturesInFlight = new WeakMap();
+export function activeCapture(page) {
+  return capturesInFlight.get(page) || null;
+}
+export async function capture(...args) {
+  const page = args[0];
+  assert.equal(
+    capturesInFlight.has(page),
+    false,
+    "Page captures are serialized",
+  );
+  let finish;
+  const done = new Promise((resolve) => {
+    finish = resolve;
+  });
+  capturesInFlight.set(page, done);
+  try {
+    return await collectCapture(...args);
+  } finally {
+    capturesInFlight.delete(page);
+    finish();
+  }
+}
+async function collectCapture(
   page,
   report,
   output,
@@ -59,20 +82,76 @@ export async function capture(
   const failures = [];
   for (const fullPage of full ? [false, true] : [false]) {
     const filename = `true-2d-${name}${fullPage ? "-full" : "-viewport"}.png`;
-    const item = { filename, attempts: [] };
+    const minimum = fullPage
+      ? await page.evaluate(() => ({
+          width: Math.max(innerWidth, document.documentElement.scrollWidth),
+          height: Math.max(innerHeight, document.documentElement.scrollHeight),
+        }))
+      : page.viewportSize();
+    const item = { filename, minimum, attempts: [] };
     report.captures.push(item);
     for (let attempt = 1; attempt <= 2; attempt++) {
+      const method = attempt === 1 ? "playwright" : "cdp";
+      const path = `${output}/${filename}`;
       try {
-        await page.screenshot({
-          path: `${output}/${filename}`,
-          fullPage,
-          timeout: 7000,
-        });
-        item.attempts.push({ attempt, status: "passed" });
+        // Never let an old/partially written capture count as this attempt.
+        await fs.rm(path, { force: true });
+        if (method === "playwright") {
+          await page.screenshot({ path, fullPage, timeout: 7000 });
+        } else {
+          // A bounded same-page Chromium capture is a genuine pixel fallback
+          // if Playwright's screenshot preparation stalls. No page reload,
+          // geometry substitution, viewport mutation or result fabrication.
+          const session = await page.context().newCDPSession(page);
+          let timer;
+          try {
+            const pending = (async () => {
+              const metrics = await session.send("Page.getLayoutMetrics");
+              const bounds = metrics.cssContentSize;
+              return session.send("Page.captureScreenshot", {
+                format: "png",
+                fromSurface: true,
+                captureBeyondViewport: fullPage,
+                ...(fullPage
+                  ? {
+                      clip: {
+                        x: 0,
+                        y: 0,
+                        width: bounds.width,
+                        height: bounds.height,
+                        scale: 1,
+                      },
+                    }
+                  : {}),
+              });
+            })();
+            pending.catch(() => {});
+            const result = await Promise.race([
+              pending,
+              new Promise((_, reject) => {
+                timer = setTimeout(
+                  () => reject(new Error("CDP screenshot exceeded 10000 ms")),
+                  10000,
+                );
+              }),
+            ]);
+            await fs.writeFile(path, Buffer.from(result.data, "base64"));
+          } finally {
+            clearTimeout(timer);
+            await session.detach().catch(() => {});
+          }
+        }
+        const image = await verifyCaptureFile(path, minimum);
+        item.attempts.push({ attempt, method, status: "passed", ...image });
         report.screenshots.push(filename);
         break;
       } catch (error) {
-        item.attempts.push({ attempt, status: "failed", error: String(error) });
+        item.attempts.push({
+          attempt,
+          method,
+          status: "failed",
+          error: String(error),
+        });
         if (attempt === 2) failures.push(`${filename}: ${error}`);
       }
     }
@@ -82,6 +161,30 @@ export async function capture(
     [],
     "Every required screenshot must be captured; retries remain in the report",
   );
+}
+export async function verifyCaptureFile(path, minimum = null) {
+  const bytes = await fs.readFile(path);
+  assert.ok(bytes.length > 24, "Screenshot file must contain a PNG image");
+  assert.deepEqual(
+    bytes.subarray(0, 8),
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    "Screenshot must have the PNG signature",
+  );
+  assert.equal(bytes.toString("ascii", 12, 16), "IHDR");
+  assert.equal(
+    bytes.toString("ascii", bytes.length - 8, bytes.length - 4),
+    "IEND",
+    "Screenshot file must include its final PNG chunk",
+  );
+  const width = bytes.readUInt32BE(16),
+    height = bytes.readUInt32BE(20);
+  assert.ok(width > 0 && height > 0, "Screenshot has nonzero pixel dimensions");
+  if (minimum)
+    assert.ok(
+      width >= minimum.width && height >= minimum.height,
+      `Screenshot covers its requested viewport: ${width}×${height}`,
+    );
+  return { bytes: bytes.length, width, height };
 }
 function near(actual, expected, message, tolerance = 1e-8) {
   assert.ok(

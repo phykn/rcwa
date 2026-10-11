@@ -268,6 +268,7 @@ describe("accepted 2D first-use controls", () => {
     expect(html).toContain("Corner hidden");
     expect(html.indexOf("<select")).toBeLessThan(html.indexOf("<details"));
     expect(html).toContain('aria-label="View guide"');
+    expect(html).toContain(">Reset view</button>");
     expect(html).toContain(
       'tabindex="0" role="region" aria-label="View guide details"',
     );

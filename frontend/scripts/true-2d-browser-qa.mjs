@@ -16,6 +16,8 @@ import {
   importText,
   editY,
   capture,
+  activeCapture,
+  verifyCaptureFile,
   assertScene,
   assertFullResult,
   replayTouch,
@@ -51,6 +53,12 @@ const report = {
   startedAt: new Date(started).toISOString(),
   source:
     "Production entry point, ordinary default URLs; exact approved 1.2 fixture/reference",
+  screenshotPolicy: {
+    serialPageGroups: true,
+    playwrightTimeoutMs: 7000,
+    cdpRetryTimeoutMs: 10000,
+    groupTimeoutWaitsForActiveCapture: true,
+  },
   limitations: [
     "Chromium mobile/touch replay is not a real-phone onscreen keyboard or spoken screen-reader test.",
     "Real backend exposes running, succeeded, failed and cancelled; transported queued is an explicitly adversarial invalid-contract case.",
@@ -132,6 +140,7 @@ async function group(
     name,
     status: "running",
     startedMs: Date.now() - started,
+    timeoutMs: timeout,
     checks: [],
   };
   report.groups.push(record);
@@ -164,7 +173,11 @@ async function group(
     });
     timer = setTimeout(() => {
       record.timeout = true;
-      void context.close().catch(() => {});
+      const captureFinished = activeCapture(page);
+      if (captureFinished) {
+        record.timeoutDeferredForCapture = true;
+        void captureFinished.then(() => context.close().catch(() => {}));
+      } else void context.close().catch(() => {});
     }, timeout);
     await run(page, record);
     assert.equal(
@@ -178,7 +191,7 @@ async function group(
     record.status = "failed";
     record.error = String(error);
     report.issues.push({ group: name, error: String(error) });
-    if (page && !page.isClosed()) {
+    if (page && !page.isClosed() && !record.timeout) {
       try {
         await capture(page, report, output, `${name}-failure`, { top: false });
       } catch (failure) {
@@ -477,6 +490,60 @@ async function touchAndLayers(width) {
         .not.toBe(orbitCamera);
       await expect(canvas).toHaveAttribute("data-selected-layer", "0");
       const pinchCamera = await canvas.getAttribute("data-camera-state");
+      await capture(page, report, output, `${width}-touch-zoom-before-reset`);
+      await page.getByLabel("View guide", { exact: true }).click();
+      await page
+        .getByRole("button", { name: "Reset view", exact: true })
+        .click();
+      await expect(
+        page.getByRole("region", { name: "View guide details", exact: true }),
+      ).not.toBeVisible();
+      await expect(canvas).toBeFocused();
+      await expect(canvas).toHaveAttribute("data-selected-layer", "0");
+      const initialCamera = JSON.parse(beforeCamera);
+      await expect
+        .poll(async () => {
+          const current = JSON.parse(
+            await canvas.getAttribute("data-camera-state"),
+          );
+          return ["position", "target"].every((key) =>
+            current[key].every(
+              (value, axis) =>
+                Math.abs(value - initialCamera[key][axis]) < 1e-7,
+            ),
+          );
+        })
+        .toBe(true);
+      const resetCamera = JSON.parse(
+        await canvas.getAttribute("data-camera-state"),
+      );
+      for (const key of ["position", "target"])
+        resetCamera[key].forEach((value, axis) =>
+          assert.ok(
+            Math.abs(value - initialCamera[key][axis]) < 1e-7,
+            `Reset restores initial ${key} axis ${axis}`,
+          ),
+        );
+      const fit = JSON.parse(
+        await canvas.getAttribute("data-projected-bounds"),
+      );
+      const fittedCanvas = await canvas.boundingBox();
+      assert.ok(
+        fittedCanvas &&
+          fit.left >= 17 &&
+          fit.right <= fittedCanvas.width - 17 &&
+          fit.top >= 49 &&
+          fit.bottom <= fittedCanvas.height - 31,
+        `Reset fits the complete geometry inside overlay insets: ${JSON.stringify({ fit, fittedCanvas })}`,
+      );
+      await projectEquals(page, original, `${width}-reset-view-only`);
+      const projectMenu = page.locator(".project-menu");
+      await projectMenu.locator("summary").click();
+      await expect(
+        page.getByRole("button", { name: "↶ Undo", exact: true }),
+      ).toBeDisabled();
+      await projectMenu.locator("summary").click();
+      await capture(page, report, output, `${width}-touch-reset-fit`);
       await replayTouch(
         page,
         [{ x, y, id: 1 }],
@@ -493,10 +560,15 @@ async function touchAndLayers(width) {
         orbitChanged: orbitCamera !== beforeCamera,
         pinchChanged: pinchCamera !== orbitCamera,
         scrollY: scrolledY,
+        resetRestoredCamera: true,
+        resetProjectedBounds: fit,
         selection: 0,
       });
       await page.evaluate(() => window.scrollTo(0, 0));
-      await capture(page, report, output, `${width}-touch-orbit-pinch`);
+      // Add inserts immediately after the selected layer. Select the bottom
+      // first so the bounded eight-layer exercise intentionally appends.
+      await page.getByRole("button", { name: /^Select layer 3:/ }).click();
+      await expect(canvas).toHaveAttribute("data-selected-layer", "2");
       for (let count = 4; count <= 8; count++) {
         await page.getByLabel("Add layer", { exact: true }).click();
         await page
@@ -511,6 +583,7 @@ async function touchAndLayers(width) {
         .project;
       assert.equal(eight.schema_version, "1.2");
       assert.equal(eight.layers.length, 8);
+      assert.deepEqual(eight.layers.slice(0, 3), original.layers);
       assert.ok(
         eight.layers
           .slice(3)
@@ -553,7 +626,7 @@ async function touchAndLayers(width) {
         "Bounded real CDP touch orbit/pinch/pan-y without edits or accidental picks; eight-layer selected visibility and add limit",
       );
     },
-    { width, timeout: 22000 },
+    { width, timeout: 40000 },
   );
 }
 async function fallback(kind, width) {
@@ -593,6 +666,17 @@ async function fallback(kind, width) {
         "data-fallback",
         "true",
       );
+      const guide = page.getByLabel("View guide", { exact: true });
+      await guide.focus();
+      await page.keyboard.press("Enter");
+      await page
+        .getByRole("button", { name: "Reset view", exact: true })
+        .focus();
+      await page.keyboard.press("Enter");
+      await expect(
+        page.getByRole("region", { name: "View guide details", exact: true }),
+      ).not.toBeVisible();
+      await expect(guide).toBeFocused();
       await editY(page, 90);
       const changed = clone(original);
       changed.layers[2].cd_y_nm = 90;
@@ -616,7 +700,7 @@ async function fallback(kind, width) {
         0,
       );
     },
-    { width, timeout: 18000 },
+    { width, timeout: 30000 },
   );
 }
 async function importsAndEdges() {
@@ -645,7 +729,13 @@ async function importsAndEdges() {
         mismatched,
         "unbound-y-result",
         baseline,
-        /hash|match|bound/i,
+        /Invalid 1\.2 result: Order ky is inconsistent\./,
+      );
+      await expect(page.locator(".message.error")).toContainText(
+        "Import the project only to recover its inputs.",
+      );
+      await expect(page.locator(".result-badge")).toHaveText(
+        "Precomputed example",
       );
       for (const schema of [
         "rcwa-change-proposal/1.0",
@@ -709,7 +799,7 @@ async function importsAndEdges() {
         "Malformed/read-failed/raw-integer/unbound-result/proposal imports preserve exact workspace; imported source claims never become server provenance",
       );
     },
-    { timeout: 26000 },
+    { timeout: 35000 },
   );
   await group(
     "mixed-boundary-signed-zero",
@@ -773,7 +863,7 @@ async function importsAndEdges() {
       });
       await capture(page, report, output, "mixed-boundary-zero-width");
     },
-    { timeout: 20000 },
+    { timeout: 30000 },
   );
 }
 async function startupRace() {
@@ -830,7 +920,7 @@ async function startupRace() {
         release();
       }
     },
-    { width: 390, timeout: 18000 },
+    { width: 390, timeout: 25000 },
   );
 }
 async function realForward() {
@@ -898,6 +988,9 @@ async function realForward() {
       assert.equal(initial.input_hash, expectedHash);
       await expect(page.locator(".job-progress")).toContainText(
         "RCWA solver running",
+      );
+      await expect(page.locator(".reference-note")).toHaveText(
+        "Showing the stored example while your calculation runs.",
       );
       await expect(
         page.getByLabel("Project name", { exact: true }),
@@ -992,6 +1085,22 @@ async function realForward() {
             );
         }
       }
+      const projectMenu = page.locator(".project-menu");
+      if (!(await projectMenu.evaluate((node) => node.open)))
+        await projectMenu.locator("summary").click();
+      await expect(
+        page.getByRole("button", {
+          name: "Save project to local server",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await capture(
+        page,
+        report,
+        output,
+        "local-save-menu-before-genuine-save",
+        { full: false },
+      );
       const saving = responseFor(page, (r) =>
         isResponse(r, "/snapshots", "POST"),
       );
@@ -1439,7 +1548,7 @@ async function transportCases() {
           release();
         }
       },
-      { timeout: 17000 },
+      { timeout: 25000 },
     );
   }
 }
@@ -1497,7 +1606,7 @@ async function regressions() {
         release();
       }
     },
-    { width: 390, timeout: 17000 },
+    { width: 390, timeout: 25000 },
   );
   await group(
     "invalid-name-valid-dimension",
@@ -1523,7 +1632,7 @@ async function regressions() {
       await projectEquals(page, changed, "invalid-name-dimension-retained");
       await capture(page, report, output, "valid-dimension-after-name-repair");
     },
-    { timeout: 17000 },
+    { timeout: 25000 },
   );
   for (const newest of ["success", "failure"]) {
     await group(
@@ -1625,25 +1734,28 @@ async function comparisonRegression() {
       const baseline = stable(
         (await exported(page, "comparison-baseline")).data,
       );
-      const listing = responseFor(page, (r) => isResponse(r, "/projects"));
-      await menuAction(page, "Open");
-      const list = await (await listing).json();
-      for (const snapshot of liveSnapshots) {
-        const index = list.findIndex((item) => item.id === snapshot.id);
-        assert.ok(index >= 0);
-        await page
-          .locator(".saved-choice input[type=checkbox]")
-          .nth(index)
-          .check();
-      }
-      await page
-        .getByRole("button", { name: "Compare (2)", exact: true })
-        .click();
       const comparison = page.getByRole("dialog", {
         name: "Compare candidates",
         exact: true,
       });
-      await expect(comparison).toBeVisible();
+      async function openComparison() {
+        const listing = responseFor(page, (r) => isResponse(r, "/projects"));
+        await menuAction(page, "Open");
+        const list = await (await listing).json();
+        for (const snapshot of liveSnapshots) {
+          const index = list.findIndex((item) => item.id === snapshot.id);
+          assert.ok(index >= 0);
+          await page
+            .locator(".saved-choice input[type=checkbox]")
+            .nth(index)
+            .check();
+        }
+        await page
+          .getByRole("button", { name: "Compare (2)", exact: true })
+          .click();
+        await expect(comparison).toBeVisible();
+      }
+      await openComparison();
       await expect(comparison).toContainText("Wavelength grids differ.");
       await expect(comparison).toContainText("no interpolation is applied");
       await expect(comparison.locator(".comparison-plot svg")).toHaveCount(0);
@@ -1651,7 +1763,6 @@ async function comparisonRegression() {
         "Server-computed",
         "Server-computed",
       ]);
-      await capture(page, report, output, "genuine-comparison-grid-mismatch");
       await page.evaluate(() => {
         const digest = crypto.subtle.digest.bind(crypto.subtle);
         window.__qaDigestCalls = 0;
@@ -1727,8 +1838,14 @@ async function comparisonRegression() {
       record.checks.push(
         "Two genuine different-grid results remain non-overlaid; newest async review wins; Cancel/Escape/Comparison Close never reopen old review; bound identities avoid repeat hashing",
       );
+      // All ownership races run before screenshot collection. Reopen the same
+      // exact genuine snapshot pair for its required mismatch evidence image.
+      await openComparison();
+      await expect(comparison).toContainText("Wavelength grids differ.");
+      await expect(comparison.locator(".comparison-plot svg")).toHaveCount(0);
+      await capture(page, report, output, "genuine-comparison-grid-mismatch");
     },
-    { timeout: 23000 },
+    { timeout: 50000 },
   );
 }
 let watchdog;
@@ -1764,22 +1881,19 @@ try {
     });
     void browser.close().catch(() => {});
   }, 280000);
-  await Promise.all([
-    (async () => {
-      await realForward();
-      await comparisonRegression();
-    })(),
-    (async () => {
-      for (const width of [360, 390, 1440]) await staticTasks(width);
-      for (const width of [360, 390]) await touchAndLayers(width);
-      await fallback("context-loss", 390);
-      await fallback("unavailable", 360);
-      await importsAndEdges();
-      await startupRace();
-      await regressions();
-      await transportCases();
-    })(),
-  ]);
+  // Capture stalls overlapped across two SwiftShader contexts in the first
+  // combined CI run. Isolate rendering with one live page group at a time;
+  // retain both genuine solves and every required semantic/screenshot gate.
+  await realForward();
+  await comparisonRegression();
+  for (const width of [360, 390, 1440]) await staticTasks(width);
+  for (const width of [360, 390]) await touchAndLayers(width);
+  await fallback("context-loss", 390);
+  await fallback("unavailable", 360);
+  await importsAndEdges();
+  await startupRace();
+  await regressions();
+  await transportCases();
 } catch (error) {
   report.issues.push({
     group: "initialization-or-orchestration",
@@ -1803,6 +1917,23 @@ try {
     }
   }
   await browser?.close().catch(() => {});
+  // Final acceptance requires every requested capture to have a verified file,
+  // including captures that succeeded only after an explicitly logged retry.
+  for (const item of report.captures) {
+    try {
+      assert.ok(item.attempts.some((attempt) => attempt.status === "passed"));
+      item.finalFile = await verifyCaptureFile(
+        `${output}/${item.filename}`,
+        item.minimum,
+      );
+    } catch (error) {
+      report.issues.push({
+        group: "final-capture-verification",
+        filename: item.filename,
+        error: String(error),
+      });
+    }
+  }
   report.requiredGroups = required;
   report.elapsedMs = Date.now() - started;
   report.status =
