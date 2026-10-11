@@ -76,12 +76,12 @@ async function collectCapture(
   report,
   output,
   name,
-  { top = true, full = true, diagnostics } = {},
+  { top = true, full = true, diagnostics, prefix = "true-2d" } = {},
 ) {
   if (top) await page.evaluate(() => window.scrollTo(0, 0));
   const failures = [];
   for (const fullPage of full ? [false, true] : [false]) {
-    const filename = `true-2d-${name}${fullPage ? "-full" : "-viewport"}.png`;
+    const filename = `${prefix}-${name}${fullPage ? "-full" : "-viewport"}.png`;
     const minimum = fullPage
       ? await page.evaluate(() => ({
           width: Math.max(innerWidth, document.documentElement.scrollWidth),

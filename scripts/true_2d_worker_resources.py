@@ -43,7 +43,7 @@ def materials(project):
             yield layer["background"]
 
 
-def bounded_project(case, tables=False):
+def bounded_project(case, tables=False, circles=False):
     project = {
         "schema_version": "1.2", "name": f"Bounded spawned worker resource {case}",
         "period_nm": 460.0, "period_y_nm": 420.0, "ambient": {"n": 1.0},
@@ -60,6 +60,10 @@ def bounded_project(case, tables=False):
                          "k": 10.0 if case == "extreme" else 0.03 + 0.01 * i},
             "background": {"n": 1 + 0.07 * i, "k": 0.01 + 0.003 * i},
         })
+    if circles:
+        for layer in project["layers"]:
+            layer["geometry"] = "circular_hole_2d"
+            layer["diameter_nm"] = min(layer.pop("cd_x_nm"), layer.pop("cd_y_nm"))
     _, project, _ = normalized_project_and_hash(project)
     if tables:
         wavelengths = [200.0 + i * (2300.0 / 1999) for i in range(2000)]
@@ -161,6 +165,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case", choices=["high_contrast", "extreme"])
     parser.add_argument("--tables", action="store_true")
+    parser.add_argument("--circles", action="store_true", help="Use genuine circular holes at the public geometry cap")
     parser.add_argument("--mixed-fit", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--snapshot-file", type=Path, help="Re-measure an existing snapshot without spawning or solving")
@@ -174,7 +179,7 @@ def main():
     if isinstance(request_id, bool) or not isinstance(request_id, (str, int)):
         parser.error("Request ID must be a JSON string or integer")
     if args.snapshot_file:
-        if args.case or args.tables or args.mixed_fit:
+        if args.case or args.tables or args.mixed_fit or args.circles:
             parser.error("Snapshot re-measurement does not accept computation options")
         snapshot = json.loads(args.snapshot_file.read_text())
         report = snapshot_measurements(snapshot, request_id, supplied_request_id=args.request_id_json is not None)
@@ -188,10 +193,11 @@ def main():
     for suffix in (".snapshot.json", ".project.json"):
         if args.output.with_suffix(suffix).exists() and not args.overwrite:
             parser.error("Output sidecar exists; choose a new report path")
-    project = bounded_project(args.case, args.tables)
+    project = bounded_project(args.case, args.tables, args.circles)
     manager = JobManager()
     started = time.monotonic()
     report = {"case": args.case, "tables": args.tables, "mixed_fit": args.mixed_fit,
+              "geometry": "circular_hole_2d" if args.circles else "rectangle_2d",
               "input_hash": normalized_project_and_hash(project)[2],
               "request_bytes": len(encoded({"kind": "forward", "project": project})),
               "table_count": sum(m["kind"] == "tabulated" for m in materials(project)),

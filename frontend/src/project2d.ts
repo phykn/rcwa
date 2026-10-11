@@ -10,7 +10,17 @@ export interface Rectangle2DLayer {
   material: Material;
   background: Material;
 }
-export type Layer2D = Rectangle2DLayer | RectangleLayer | HomogeneousLayer;
+export interface CircularHole2DLayer {
+  name: string;
+  geometry: "circular_hole_2d";
+  thickness_nm: number;
+  diameter_nm: number;
+  /** Material inside the hole; background is the surrounding host. */
+  material: Material;
+  background: Material;
+}
+export type Layer2D =
+  Rectangle2DLayer | CircularHole2DLayer | RectangleLayer | HomogeneousLayer;
 export interface Project2D {
   schema_version: "1.2";
   name: string;
@@ -209,35 +219,50 @@ export function normalizeProject2D(value: unknown): Project2D {
       fail(path, "expected a layer object.");
     const tag = (value as RecordValue).geometry;
     if (
-      !["rectangle_2d", "rectangle_1d", "homogeneous"].includes(tag as string)
+      ![
+        "circular_hole_2d",
+        "rectangle_2d",
+        "rectangle_1d",
+        "homogeneous",
+      ].includes(tag as string)
     )
       fail(
         `${path}.geometry`,
-        "an explicit rectangle_2d, rectangle_1d or homogeneous tag is required.",
+        "an explicit circular_hole_2d, rectangle_2d, rectangle_1d or homogeneous tag is required.",
       );
     const keys = ["geometry", "name", "thickness_nm", "material"];
     if (tag !== "homogeneous")
       keys.push(
         "background",
-        ...(tag === "rectangle_2d" ? ["cd_x_nm", "cd_y_nm"] : ["cd_nm"]),
+        ...(tag === "circular_hole_2d"
+          ? ["diameter_nm"]
+          : tag === "rectangle_2d"
+            ? ["cd_x_nm", "cd_y_nm"]
+            : ["cd_nm"]),
       );
     const l = record(value, path, keys);
     const name = str(
       field(
         l,
         "name",
-        tag === "rectangle_2d"
-          ? "Synthetic rectangular pattern"
-          : tag === "rectangle_1d"
-            ? "Patterned layer"
-            : "Homogeneous layer",
+        tag === "circular_hole_2d"
+          ? "Synthetic circular hole"
+          : tag === "rectangle_2d"
+            ? "Synthetic rectangular pattern"
+            : tag === "rectangle_1d"
+              ? "Patterned layer"
+              : "Homogeneous layer",
       ),
       `${path}.name`,
       1,
       100,
     );
     const thickness_nm = num(
-      field(l, "thickness_nm", tag === "rectangle_2d" ? 90 : 160),
+      field(
+        l,
+        "thickness_nm",
+        tag === "rectangle_2d" || tag === "circular_hole_2d" ? 90 : 160,
+      ),
       `${path}.thickness_nm`,
       0,
       2000,
@@ -246,7 +271,7 @@ export function normalizeProject2D(value: unknown): Project2D {
       field(
         l,
         "material",
-        tag === "rectangle_2d"
+        tag === "rectangle_2d" || tag === "circular_hole_2d"
           ? undefined
           : { name: "Synthetic dielectric", n: 2.1 },
       ),
@@ -258,10 +283,26 @@ export function normalizeProject2D(value: unknown): Project2D {
       field(
         l,
         "background",
-        tag === "rectangle_2d" ? undefined : { name: "Air", n: 1 },
+        tag === "rectangle_2d" || tag === "circular_hole_2d"
+          ? undefined
+          : { name: "Air", n: 1 },
       ),
       `${path}.background`,
     );
+    if (tag === "circular_hole_2d")
+      return {
+        geometry: tag,
+        name,
+        thickness_nm,
+        material: mat,
+        background,
+        diameter_nm: num(
+          l.diameter_nm,
+          `${path}.diameter_nm`,
+          0,
+          Math.min(px, py),
+        ),
+      };
     if (tag === "rectangle_1d")
       return {
         geometry: tag,
@@ -550,6 +591,20 @@ function isIntegerPath(path: JsonPath): boolean {
         "layer_count",
         "active_slab_count",
       ].includes(String(path[1]));
+    if (
+      path.length === 3 &&
+      path[1] === "circular_geometry" &&
+      path[2] === "strips"
+    )
+      return true;
+    if (
+      path.length === 5 &&
+      path[1] === "circular_geometry" &&
+      path[2] === "layers" &&
+      typeof path[3] === "number" &&
+      path[4] === "layer_index"
+    )
+      return true;
     return (
       path.length === 4 &&
       path[1] === "retained_orders" &&

@@ -45,7 +45,7 @@ class Metadata2D(ResultModel):
     stage: Literal["bounded_forward"]
     engine: Literal["meent"]
     version: Literal["0.13.2"]
-    adapter_version: Literal["1.2.0"]
+    adapter_version: Literal["1.2.0", "1.3.0"]
     precision: Literal["complex128"]
     backend: Literal["numpy"]
     input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -71,12 +71,32 @@ class Metadata2D(ResultModel):
     elapsed_seconds: float = Field(ge=0)
 
 
+class CircleLayerApproximation(ResultModel):
+    layer_index: int = Field(ge=0, le=7)
+    exact_area_nm2: float = Field(ge=0)
+    approximate_area_nm2: float = Field(ge=0)
+    symmetric_difference_area_bound_nm2: float = Field(ge=0)
+
+
+class CircularGeometryMetadata(ResultModel):
+    method: Literal["centered_midpoint_strips"]
+    strips: int = Field(ge=8, le=512, multiple_of=2)
+    offline_spatial_override: bool
+    area_bound_is_optical_error_bound: Literal[False]
+    layers: list[CircleLayerApproximation] = Field(min_length=1, max_length=8)
+
+
+class CircularMetadata2D(Metadata2D):
+    adapter_version: Literal["1.3.0"]
+    circular_geometry: CircularGeometryMetadata
+
+
 class ForwardResult2D(ResultModel):
     result_type: Literal["forward"]
     schema_version: Literal["1.2"]
     wavelengths_nm: list[float] = Field(min_length=1, max_length=31)
     spectra: dict[Literal["s", "p"], Spectrum2D] = Field(min_length=1, max_length=2)
-    metadata: Metadata2D
+    metadata: CircularMetadata2D | Metadata2D
     warnings: list[str]
 
     @model_validator(mode="after")
@@ -143,14 +163,26 @@ class PublicMetadata2D(Metadata2D):
     factorization: Literal["directional_inverse_rule"]
 
 
+class PublicCircularGeometryMetadata(CircularGeometryMetadata):
+    strips: Literal[64]
+    offline_spatial_override: Literal[False]
+
+
+class PublicCircularMetadata2D(PublicMetadata2D):
+    adapter_version: Literal["1.3.0"]
+    circular_geometry: PublicCircularGeometryMetadata
+
+
 class PublicForwardResult2D(ForwardResult2D):
     """Normal jobs cannot expose offline refinements or diagnostic factorization."""
 
     spectra: dict[Literal["s", "p"], PublicSpectrum2D] = Field(min_length=1, max_length=2)
-    metadata: PublicMetadata2D
+    metadata: PublicCircularMetadata2D | PublicMetadata2D
 
 
-def validate_result_2d(result, project, *, reference_basis=None, laurent_diagnostic=False):
+def validate_result_2d(
+    result, project, *, reference_basis=None, laurent_diagnostic=False, reference_circle_strips=None
+):
     parsed = ForwardResult2D.model_validate(result)
     metadata = parsed.metadata
     hx, hy = reference_basis or (project.solver.harmonics_x, project.solver.harmonics_y)
@@ -162,7 +194,20 @@ def validate_result_2d(result, project, *, reference_basis=None, laurent_diagnos
         raise ValueError("2D result input hash mismatch")
     if metadata.factorization != ("diagnostic_laurent" if laurent_diagnostic else "directional_inverse_rule"):
         raise ValueError("Production and diagnostic factorization results must not be exchanged")
-    if metadata.adapter_version != ADAPTER_VERSION_2D or parsed.wavelengths_nm != project.illumination.wavelengths_nm:
+    circular = any(layer.geometry == "circular_hole_2d" for layer in project.layers)
+    from .circular_geometry import CIRCLE_STRIPS, circle_approximation_metadata, validate_circle_strips
+
+    circle_metadata = getattr(metadata, "circular_geometry", None)
+    if circular:
+        strips = CIRCLE_STRIPS if reference_circle_strips is None else validate_circle_strips(reference_circle_strips)
+        expected = circle_approximation_metadata(project, strips, reference_circle_strips is not None)
+        if circle_metadata is None or circle_metadata.model_dump() != expected:
+            raise ValueError("Circular geometry approximation differs from requested spatial resolution or input")
+        if metadata.adapter_version != ADAPTER_VERSION_2D:
+            raise ValueError("Historical adapters did not support circular holes")
+    elif circle_metadata is not None or reference_circle_strips is not None:
+        raise ValueError("Circular spatial metadata requires circular geometry")
+    if metadata.adapter_version not in {"1.2.0", ADAPTER_VERSION_2D} or parsed.wavelengths_nm != project.illumination.wavelengths_nm:
         raise ValueError("Result engine or wavelengths differ from request")
     pols = {"s", "p"} if project.illumination.polarization == "both" else {project.illumination.polarization}
     if set(parsed.spectra) != pols:

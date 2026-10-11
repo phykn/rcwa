@@ -20,6 +20,8 @@ def widths(project, layer):
         return project.period_nm, project.period_y_nm
     if layer.geometry == "rectangle_1d":
         return layer.cd_nm, project.period_y_nm
+    if layer.geometry == "circular_hole_2d":
+        return layer.diameter_nm, layer.diameter_nm
     return layer.cd_x_nm, layer.cd_y_nm
 
 
@@ -54,7 +56,9 @@ def active_materials_2d(project):
         wx, wy = widths(project, layer)
         if wx > 0 and wy > 0:
             yield layer.material
-        if layer.geometry != "homogeneous" and (wx < project.period_nm or wy < project.period_y_nm):
+        if layer.geometry == "circular_hole_2d" or (
+            layer.geometry != "homogeneous" and (wx < project.period_nm or wy < project.period_y_nm)
+        ):
             yield layer.background
 
 

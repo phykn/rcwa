@@ -52,13 +52,15 @@ export function dimensionFields2D(
       const bound = project.layers.reduce(
         (largest, layer, index) => {
           const width =
-            layer.geometry === "rectangle_2d"
-              ? axis === "x"
-                ? layer.cd_x_nm
-                : layer.cd_y_nm
-              : layer.geometry === "rectangle_1d" && axis === "x"
-                ? layer.cd_nm
-                : 0;
+            layer.geometry === "circular_hole_2d"
+              ? layer.diameter_nm
+              : layer.geometry === "rectangle_2d"
+                ? axis === "x"
+                  ? layer.cd_x_nm
+                  : layer.cd_y_nm
+                : layer.geometry === "rectangle_1d" && axis === "x"
+                  ? layer.cd_nm
+                  : 0;
           return width > largest.value ? { value: width, index } : largest;
         },
         { value: 20, index: -1 },
@@ -75,6 +77,16 @@ export function dimensionFields2D(
     });
   const layer = project.layers[selectedLayer];
   if (!layer || layer.geometry === "homogeneous") return [];
+  if (layer.geometry === "circular_hole_2d")
+    return [
+      {
+        axis: "x",
+        label: "Diameter",
+        value: layer.diameter_nm,
+        min: 0,
+        max: Math.min(project.period_nm, project.period_y_nm),
+      },
+    ];
   const fields: DimensionField2D[] = [
     {
       axis: "x",
@@ -224,7 +236,9 @@ export function DimensionEditor2D({
       <p className="s2-sheet-help">
         {kind === "pitch"
           ? "Repeat spacing for all layers."
-          : "Size of one pattern within each repeat."}
+          : project.layers[selectedLayer]?.geometry === "circular_hole_2d"
+            ? "Circular hole size. The diameter fits within both shared pitches; depth is set by this layer’s thickness."
+            : "Size of one pattern within each repeat."}
       </p>
       {fields.map((field) => (
         <NumericDimensionField2D

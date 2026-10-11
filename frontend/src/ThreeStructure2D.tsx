@@ -13,6 +13,7 @@ import { StructurePickGesture } from "./structureGeometry";
 import { formatDimension2D, exactDimensionText2D } from "./DimensionEditor2D";
 import "./structure2d.css";
 import { layerColor } from "./layerColors";
+import { meshRegionGeometry2D } from "./circularHoleGeometry2d";
 
 function StructureCanvas2D({
   project,
@@ -54,7 +55,7 @@ function StructureCanvas2D({
     canvas.setAttribute("role", "img");
     canvas.setAttribute(
       "aria-label",
-      "3D structure. Drag to rotate, pinch to zoom. Vertical swipes scroll the page. Tap a layer to select it. Keyboard arrows rotate, plus and minus zoom, and 0 resets. Width, Thickness, and Shared pitch controls follow below.",
+      "3D structure. Drag to rotate, pinch to zoom. Vertical swipes scroll the page. Tap a layer to select it. Keyboard arrows rotate, plus and minus zoom, and 0 resets. Diameter or Width, Thickness, and Shared pitch controls follow below.",
     );
     element.append(canvas);
     const scene = new THREE.Scene();
@@ -244,11 +245,46 @@ function StructureCanvas2D({
         box(
           region.size,
           region.center,
-          region.role === "background"
+          region.role === "background" &&
+            p.layers[region.layerIndex].geometry !== "circular_hole_2d"
             ? "#dde4ec"
             : layerColor(region.layerIndex),
           region.layerIndex,
           region.role === "background",
+        );
+      }
+      for (const region of geometry.meshRegions) {
+        const air =
+          region.material.kind === "constant" &&
+          region.material.n === 1 &&
+          region.material.k === 0;
+        if (air) continue;
+        const host = region.role === "background";
+        const mesh = new THREE.Mesh(
+          meshRegionGeometry2D(region, scale, total),
+          new THREE.MeshBasicMaterial({
+            color: host ? layerColor(region.layerIndex) : "#e2e8f0",
+          }),
+        );
+        mesh.userData.layerIndex = region.layerIndex;
+        mesh.userData.role = region.role;
+        mesh.userData.circular = {
+          diameterNm: region.diameterNm,
+          analyticVolumeNm3: region.analyticVolumeNm3,
+          meshVolumeNm3: region.meshVolumeNm3,
+          radialSegments: region.radialSegments,
+        };
+        group.add(mesh);
+        picks.push(mesh);
+        group.add(
+          new THREE.LineSegments(
+            new THREE.EdgesGeometry(mesh.geometry, 3),
+            new THREE.LineBasicMaterial({
+              color: region.layerIndex === active ? "#173b50" : "#728296",
+              transparent: true,
+              opacity: region.layerIndex === active ? 0.94 : 0.48,
+            }),
+          ),
         );
       }
       const selectedLayer = p.layers[active];
@@ -263,7 +299,9 @@ function StructureCanvas2D({
         const selectedX =
           selectedLayer.geometry === "rectangle_2d"
             ? selectedLayer.cd_x_nm
-            : selectedLayer.cd_nm;
+            : selectedLayer.geometry === "circular_hole_2d"
+              ? selectedLayer.diameter_nm
+              : selectedLayer.cd_nm;
         const selectedY =
           selectedLayer.geometry === "rectangle_2d" ? selectedLayer.cd_y_nm : 0;
         const drawRuler = (axis: "x" | "y", width: number, repeat: number) => {
@@ -390,12 +428,15 @@ function StructureCanvas2D({
         "physical(x,y,z) maps to scene(x,z,-y)";
       canvas.dataset.ready = "true";
       canvas.dataset.selectedLayer = String(active);
-      canvas.dataset.regionCount = String(geometry.regions.length);
+      canvas.dataset.regionCount = String(
+        geometry.regions.length + geometry.meshRegions.length,
+      );
       canvas.dataset.renderedRegionCount = String(picks.length);
       canvas.dataset.renderedMeshes = JSON.stringify(
         picks.map((mesh) => ({
           layerIndex: mesh.userData.layerIndex,
           role: mesh.userData.role,
+          circular: mesh.userData.circular,
           position: mesh.position.toArray(),
           size:
             mesh.geometry instanceof THREE.BoxGeometry
@@ -406,6 +447,27 @@ function StructureCanvas2D({
                 ]
               : null,
         })),
+      );
+      canvas.dataset.circularGeometry = JSON.stringify(
+        geometry.meshRegions.map(
+          ({
+            layerIndex,
+            role,
+            bounds,
+            diameterNm,
+            analyticVolumeNm3,
+            meshVolumeNm3,
+            radialSegments,
+          }) => ({
+            layerIndex,
+            role,
+            bounds,
+            diameterNm,
+            analyticVolumeNm3,
+            meshVolumeNm3,
+            radialSegments,
+          }),
+        ),
       );
       canvas.dataset.physicalScale = String(scale);
       canvas.dataset.physicalBounds = JSON.stringify(geometry.bounds);
@@ -583,8 +645,8 @@ function StructureCanvas2D({
         <div className="s2-fallback" role="status">
           <strong>3D view is unavailable.</strong>
           <p>
-            Choose a layer above. Width, Thickness, and Shared pitch remain
-            editable below.
+            Choose a layer above. Diameter or Width, Thickness, and Shared pitch
+            remain editable below.
           </p>
         </div>
       )}
@@ -669,14 +731,15 @@ export function ThreeStructure2D({
             is unchanged.
           </p>
           <p>
-            X and Y stay fixed to the structure. Width is one pattern's size;
-            pitch is its repeat spacing. The dashed outline marks one repeat
-            cell.
+            X and Y stay fixed to the structure. Diameter is the circular hole
+            size; width describes rectangular patterns. Pitch is repeat spacing.
+            The dashed outline marks one repeat cell.
           </p>
           <p>
-            Colors identify layers from top to bottom; pale gray is background
-            material. The gray base is the substrate, shown at a schematic
-            depth.
+            Colors identify layers from top to bottom. Circular layers show
+            their host with round openings; non-air hole fills remain visible.
+            Pale gray is rectangular background material. The gray base is the
+            substrate, shown at a schematic depth.
           </p>
         </div>
       </details>
@@ -729,14 +792,19 @@ export function DimensionCards2D({
 }: DimensionCards2DProps) {
   const layer = project.layers[selectedLayer];
   if (!layer) return null;
+  const circular = layer.geometry === "circular_hole_2d";
   const widthX =
-    layer.geometry === "rectangle_2d"
-      ? layer.cd_x_nm
-      : layer.geometry === "rectangle_1d"
-        ? layer.cd_nm
-        : 0;
+    layer.geometry === "circular_hole_2d"
+      ? layer.diameter_nm
+      : layer.geometry === "rectangle_2d"
+        ? layer.cd_x_nm
+        : layer.geometry === "rectangle_1d"
+          ? layer.cd_nm
+          : 0;
   const widthY = layer.geometry === "rectangle_2d" ? layer.cd_y_nm : null;
-  const widthLabel = `Edit Layer ${selectedLayer + 1} width: X ${exactDimensionText2D(widthX)} nanometers${widthY !== null ? `, Y ${exactDimensionText2D(widthY)} nanometers` : ""}`;
+  const widthLabel = circular
+    ? `Edit Layer ${selectedLayer + 1} diameter: ${exactDimensionText2D(widthX)} nanometers`
+    : `Edit Layer ${selectedLayer + 1} width: X ${exactDimensionText2D(widthX)} nanometers${widthY !== null ? `, Y ${exactDimensionText2D(widthY)} nanometers` : ""}`;
   return (
     <>
       <div
@@ -751,8 +819,11 @@ export function DimensionCards2D({
             aria-label={widthLabel}
             onClick={() => onEdit("width")}
           >
-            <span>Width</span>
-            <DimensionValue2D axis="X" value={widthX} />
+            <span>{circular ? "Diameter" : "Width"}</span>
+            <DimensionValue2D
+              axis={circular ? undefined : "X"}
+              value={widthX}
+            />
             {widthY !== null && <DimensionValue2D axis="Y" value={widthY} />}
             <em>Edit ↗</em>
           </button>
@@ -788,8 +859,9 @@ export function DimensionCards2D({
         layer.geometry !== "homogeneous" &&
         (widthX === 0 || widthY === 0) && (
           <p className="s2-model-note" role="status">
-            Layer {selectedLayer + 1} has zero pattern width; its background
-            fills the layer.
+            {circular
+              ? `Layer ${selectedLayer + 1} has zero hole diameter; its host fills the layer.`
+              : `Layer ${selectedLayer + 1} has zero pattern width; its background fills the layer.`}
           </p>
         )}
     </>

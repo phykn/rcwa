@@ -43,6 +43,26 @@ describe("version-specific local solver support", () => {
     expect(solverSupportError(capabilities(), project)).toBeNull();
     expect(solverSupportError(capabilities(), defaultProject)).toBeNull();
   });
+  it("requires explicit circular geometry capability without downgrading legacy profiles", () => {
+    const p = normalizeProject2D({
+      ...fixture,
+      layers: [
+        {
+          geometry: "circular_hole_2d",
+          diameter_nm: 70,
+          material: fixture.ambient,
+          background: fixture.substrate,
+        },
+      ],
+    });
+    const cap = capabilities();
+    expect(solverSupportError(cap, p)).toMatch(/circular-hole/);
+    cap.project_profiles["1.2"].adapter_version = "1.3.0";
+    expect(solverSupportError(cap, p)).toMatch(/circular-hole/);
+    cap.project_profiles["1.2"].geometry.push("circular_hole_2d");
+    expect(solverSupportError(cap, p)).toBeNull();
+    expect(solverSupportError(cap, project)).toBeNull();
+  });
   it.each([null, {}, { engine: { available: true } }])(
     "rejects malformed capability envelopes",
     (cap) => {

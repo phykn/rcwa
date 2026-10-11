@@ -137,11 +137,13 @@ function GeometryCard({
           const width =
             layer.geometry === "rectangle_1d"
               ? layer.cd_nm
-              : layer.geometry === "rectangle_2d"
-                ? layer.cd_y_nm > 0
-                  ? layer.cd_x_nm
-                  : 0
-                : pitch;
+              : layer.geometry === "circular_hole_2d"
+                ? layer.diameter_nm
+                : layer.geometry === "rectangle_2d"
+                  ? layer.cd_y_nm > 0
+                    ? layer.cd_x_nm
+                    : 0
+                  : pitch;
           return (
             <g key={index}>
               {layer.geometry !== "homogeneous" && (

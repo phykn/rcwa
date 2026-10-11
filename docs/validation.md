@@ -33,14 +33,19 @@ npm run build
 
 Local PostgreSQL integration tests are explicitly skipped without `TEST_POSTGRES_URL`; the backend CI job supplies a PostgreSQL 17 service. Current pinned Python dependencies use meent 0.13.2, NumPy 2.5.3 and SciPy 1.17.1. An upstream Starlette/AnyIO deprecation warning is not a test failure.
 
+The new circular example has separate [spatial/harmonic and off-grid evidence](true-2d/circular-geometry.md). Historical rectangular evidence retains its original source binding; it is not transferred to circles. The `circular-reference` CI job reruns the complete default circle grid against independently constructed exact S4 circles.
+
 The independent-reference CI job builds official S4 at the exact source commit described in [the reference guide](independent-reference.md), runs the application's normal forward adapter and retains the comparison JSON/build log. S4 is a test-only reference; it is not bundled in the application runtime.
 
 ## Browser and visual acceptance
 
-The browser CI job runs real local API jobs and the separately built static preview through all seven scripts:
+The browser CI job runs real local API jobs and the separately built static preview through all ten scripts:
 
 - `first-use-browser-qa.mjs`: discoverable layer selection, exact dimension edits, other-layer isolation, static-result honesty and viewport/full-page screenshots
 - `first-use-touch-qa.mjs`: 360/390px mobile touch replay, layer-strip overflow/limits, isolated drag edits and page scrolling (not a real-phone keyboard test)
+- `prototype-2d-browser-qa.mjs`: retained isolated prototype geometry and interaction checks
+- `true-2d-browser-qa.mjs`: retained rectangular 2D reference, real jobs, exact identities and full legacy 2D lifecycle via `?example=rectangle`
+- `circular-browser-qa.mjs`: ordinary circular default, actual cutouts, Diameter/Hole/Host controls, mobile first-screen action, history, material/shape changes, fallback editing and real run/cancel behavior
 - `browser-qa.mjs`: existing editor, illumination, real forward/fitting and mobile interaction checks
 - `snapshot-browser-qa.mjs`: server-owned snapshots, stale results and imported provenance
 - `contract-browser-qa.mjs`: geometry, exact controls, interrupted gestures, fallback behavior and delayed material-import ownership
@@ -55,6 +60,6 @@ The isolated development container cannot launch Chromium because its socket ope
 
 ## Publication policy and remaining limits
 
-Publish changes to a test branch first. All five CI jobs, independent reference checks, exact input/result/provenance regressions and inspection of the candidate commit's actual screenshots must pass before that exact commit reaches main. A running or failed test branch is not a release. Main's successful checks then gate the static Pages workflow.
+Publish changes to a test branch first. All six CI jobs, independent reference checks, exact input/result/provenance regressions and inspection of the candidate commit's actual screenshots must pass before that exact commit reaches main. A running or failed test branch is not a release. Main's successful checks then gate the static Pages workflow.
 
-Pages contains a genuinely precomputed example and local editing/review functionality, not a live numerical service. Production authentication, multiuser isolation, instrument response, measured-sample validation, uncertainty estimates, 2D periodicity, conical incidence, phase and general inverse design remain outside this stage.
+Pages contains a genuinely precomputed example and local editing/review functionality, not a live numerical service. Production authentication, multiuser isolation, instrument response, measured-sample validation, uncertainty estimates, phase and general inverse design remain outside this stage.

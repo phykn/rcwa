@@ -1,3 +1,5 @@
+import { buildCircularHoleMeshRegions2D } from "./circularHoleGeometry2d";
+
 /** Read-only geometry inputs. This module never normalizes or changes solver input. */
 export interface StructureMaterial2D {
   readonly name: string;
@@ -18,6 +20,11 @@ interface StructureLayerBase2D {
 
 export type StructureGeometryLayer2D = StructureLayerBase2D &
   (
+    | {
+        readonly geometry: "circular_hole_2d";
+        readonly diameter_nm: number;
+        readonly background: StructureMaterial2D;
+      }
     | {
         readonly geometry: "rectangle_2d";
         readonly cd_x_nm: number;
@@ -61,6 +68,22 @@ export interface PhysicalRegion {
   readonly bounds: PhysicalBounds;
 }
 
+/** Closed, outward-wound triangle mesh, in unscaled physical xyz nanometers. */
+export interface PhysicalMeshRegion {
+  readonly geometry: "circular_hole_2d";
+  readonly layerIndex: number;
+  readonly role: PhysicalRegion["role"];
+  readonly material: StructureMaterial2D;
+  readonly bounds: PhysicalBounds;
+  readonly positions: readonly number[];
+  readonly indices: readonly number[];
+  readonly diameterNm: number;
+  readonly radialSegments: number;
+  /** Exact circle-based volume; the renderer uses the disclosed polygon mesh. */
+  readonly analyticVolumeNm3: number;
+  readonly meshVolumeNm3: number;
+}
+
 export interface StructureLayerSlab2D {
   readonly layerIndex: number;
   readonly geometry: StructureGeometryLayer2D["geometry"];
@@ -73,6 +96,7 @@ export interface StructureLayerSlab2D {
 
 export interface StructureGeometry2D {
   readonly regions: readonly PhysicalRegion[];
+  readonly meshRegions: readonly PhysicalMeshRegion[];
   /** Uncut 3-by-3 display bounds, never rescaled for the inspection view. */
   readonly bounds: PhysicalBounds;
   /** Top-to-bottom shared interfaces; the last entry is exactly zero. */
@@ -193,7 +217,7 @@ function region(
  * ambient are deliberately excluded because neither has a finite input depth.
  *
  * The optional inspection cut removes x>0 AND y>0 through every layer, including
- * a quarter of each center-cell inclusion. It changes only returned view boxes;
+ * a quarter of each center-cell inclusion. It changes only returned view geometry;
  * the input, uncut bounds, material identities and layer interfaces are intact.
  * This checks geometric limits only, not the full project/solver schema.
  */
@@ -209,6 +233,14 @@ export function buildStructureGeometry2D(
   for (const [index, layer] of project.layers.entries()) {
     dimension(layer.thickness_nm, 0, 2000, `Layer ${index + 1} thickness`);
     switch (layer.geometry) {
+      case "circular_hole_2d":
+        dimension(
+          layer.diameter_nm,
+          0,
+          Math.min(project.period_nm, project.period_y_nm),
+          `Layer ${index + 1} diameter`,
+        );
+        break;
       case "rectangle_2d":
         dimension(layer.cd_x_nm, 0, project.period_nm, `Layer ${index + 1} X`);
         dimension(
@@ -247,6 +279,7 @@ export function buildStructureGeometry2D(
     : null;
   const layers: StructureLayerSlab2D[] = [];
   const regions: PhysicalRegion[] = [];
+  const meshRegions: PhysicalMeshRegion[] = [];
 
   const addRegion = (
     box: PhysicalBounds,
@@ -280,6 +313,25 @@ export function buildStructureGeometry2D(
       addRegion(slabBounds, layerIndex, "material", layer.material);
       continue;
     }
+    if (layer.geometry === "circular_hole_2d") {
+      if (layer.diameter_nm === 0)
+        addRegion(slabBounds, layerIndex, "background", layer.background);
+      else
+        meshRegions.push(
+          ...buildCircularHoleMeshRegions2D({
+            periodX: project.period_nm,
+            periodY: project.period_y_nm,
+            diameter: layer.diameter_nm,
+            bottom,
+            top,
+            layerIndex,
+            material: layer.material,
+            background: layer.background,
+            cutaway: Boolean(cutawayBounds),
+          }),
+        );
+      continue;
+    }
 
     const widthX =
       layer.geometry === "rectangle_2d" ? layer.cd_x_nm : layer.cd_nm;
@@ -310,7 +362,14 @@ export function buildStructureGeometry2D(
       }
     }
   }
-  return { regions, bounds, layerInterfaces, layers, cutawayBounds };
+  return {
+    regions,
+    meshRegions,
+    bounds,
+    layerInterfaces,
+    layers,
+    cutawayBounds,
+  };
 }
 
 /** One shared physical-to-view scale for all axes; never exaggerate a thin layer. */

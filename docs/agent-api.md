@@ -270,10 +270,14 @@ substitute for those acceptance gates.
 
 ## Explicit schema 1.2
 
-Schema 1.2 adds centered rectangular two-dimensional multilayers to the existing
+Schema 1.2 supports centered rectangular and circular-hole two-dimensional multilayers through the existing
 validate/jobs/snapshot/import routes. It requires explicit `schema_version: "1.2"`,
 `period_nm` (x), `period_y_nm` (y), every layer's geometry tag, and separate
 `harmonics_x` / `harmonics_y`. Rectangle widths are `cd_x_nm` / `cd_y_nm`;
+`circular_hole_2d` uses `diameter_nm`, `material` for hole fill and `background`
+for the host. Its diameter cannot exceed either shared period. Diameter zero
+is all host; the maximum diameter still retains host in the cell corners.
+New clients must check the version-specific geometry capabilities;
 illumination adds `azimuth_deg`. Per-order results retain integer `(m,n)` and
 outgoing local `R_s`, `R_p`, `T_s`, `T_p` powers. All ordinary results still state
 that convergence is not assessed. The synthetic numerical fixture is not a
@@ -295,7 +299,11 @@ request to those legacy-only operations fails before worker allocation. See the
 
 Job inputs are copied and normalized. A validated 2D result, its job and saved
 snapshot share one UTF-8 canonical input hash. Snapshot provenance uses the actual
-result adapter version. Imported files remain unverified even when their powers
+result adapter version. Current 1.2 computations emit adapter `1.3.0`; known
+rectangular results from adapter `1.2.0` remain readable. Circles require `1.3.0`
+and explicit `circular_geometry` metadata for the fixed 64-strip production
+resolution. Offline spatial or Fourier refinements cannot be presented as
+ordinary public jobs. Imported files remain unverified even when their powers
 and identities are internally consistent. Save by succeeded job ID remains
 idempotent; cancelled/failed work cannot be saved as a computed snapshot.
 

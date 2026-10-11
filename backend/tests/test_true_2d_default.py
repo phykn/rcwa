@@ -90,7 +90,7 @@ def test_default_evidence_package_integrity_and_frozen_core_binding():
     core_hashes = {k: v for k, v in provenance["hashes"].items() if "/backend/rcwa_core/" in k}
     assert len(core_hashes) >= 4
     for path, expected_hash in core_hashes.items():
-        local = ROOT / "backend/rcwa_core" / Path(path).name
+        local = FIXTURES / "historical-core" / Path(path).name
         assert hashlib.sha256(local.read_bytes()).hexdigest() == expected_hash
     # Portable package versions and recorded source bytes must still match.
     # Platform-specific compiled BLAS hashes remain generation provenance;

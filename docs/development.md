@@ -58,8 +58,8 @@ The API is an unauthenticated local-development prototype. Do not expose it on t
 
 ### Pages reference preview
 
-The ordinary URL opens the accepted synthetic 2D multilayer and its complete
-stored spectrum. The explicit `?example=1d` URL retains the original fixture for
+The ordinary URL opens the synthetic circular-hole 2D multilayer and its complete
+stored spectrum. `?example=rectangle` retains the earlier rectangular 2D example. The explicit `?example=1d` URL retains the original fixture for
 legacy exploration and regression checks. Neither route computes on Pages.
 See [the 2D editor](ui/2d-editor.md) for controls and exact input/result binding.
 
@@ -106,13 +106,17 @@ saving the same completed forward job again returns its existing snapshot ID.
 
 ## Direct structure editing
 
-Choose a visible layer chip or tap a layer in the 3D view, then tap Width,
+Choose a visible layer chip or tap a layer in the 3D view, then tap Diameter (a
+circular hole), Width (a rectangular pattern),
 Thickness or Shared pitch for exact entry. Layer settings opens the selected
 layer’s name, type, dimensions and materials. The material tabs also expose
 groove, ambient and substrate properties; constant and tabulated n/k inputs
 remain available. Optional drag handles live under View guide. Calculation
 settings are under the closed Advanced settings section. The canonical Project
 still feeds the viewport, forms, JSON files and solver.
+
+The following display conventions describe the retained 1D editor. The current
+2D/circular editor is documented in [the 2D guide](ui/2d-editor.md).
 
 Colors identify layer positions and do not simulate optical appearance. Ridge
 regions use the layer color, non-air gaps use neutral gray and the substrate is

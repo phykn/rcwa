@@ -1,0 +1,9 @@
+{
+  "project_fixture_sha256": "98e7bd338022579f086c8c82732e53356f42994ec66b37ece42f40cc5ab7eaf8",
+  "result_fixture_gzip_sha256": "c82053dabe7dfe1f8b9b49b6ef5bb82d361dfca5d6cf9bfd62b512a4a7ae0703",
+  "input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+  "bundle_sha256": "5ece75cd4b4015adb153477201f84d0c6dc0ba325b0680b9d40a16da3139fa58",
+  "bundle_bytes": 1197951,
+  "public_shared_result_binding": "passed",
+  "origin": "precomputed synthetic circular-hole example; not a new job or server snapshot"
+}

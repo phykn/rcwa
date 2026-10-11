@@ -1,28 +1,34 @@
 # 2D editor and exact result identity
 
-The ordinary editor opens the accepted synthetic three-layer 2D dielectric
-example. Choose a layer, edit its Width X/Y or Thickness, then run the local
-solver. Shared Pitch X/Y applies to the whole stack and never silently resizes a
+The ordinary editor opens the synthetic three-layer circular-hole 2D
+example. Choose a layer, edit its Diameter or Thickness, then run the local
+solver. Rectangular layers retain Width X/Y. Shared Pitch X/Y applies to the whole stack and never silently resizes a
 layer. A value smaller than an existing feature is rejected while the last valid
 value remains. A uniform film has no width control; a 1D ridge in a 1.2 stack is
 uniform along Y. Layer settings retain names, materials, type and ordering.
 
-The centered rectangular pattern repeats along both X and Y. The 3×3 scene uses
+Centered circular holes or rectangular patterns repeat along both X and Y. The 3×3 scene uses
 one common physical scale. Cutaway hides a corner for inspection without moving
 layers or changing any input. Use View → Full stack to restore it. Colors identify
-layers, pale gray denotes background material, and the substrate's displayed
+layers. Circular holes expose the surrounding host and their actual fill
+material; rectangular backgrounds remain pale gray. The substrate's displayed
 depth is schematic. A low-index inclusion is still material, not automatically
 air. The image is an inspection view, not a precision measurement surface.
 
 ## Stored example versus a new calculation
 
-Both local and static builds initially show the complete stored H5 result for
-exact input hash
+Both local and static builds initially show the complete input-bound circular
+example result. Its geometry, material semantics and spatial approximation are
+explained in [the circular-hole guide](circular-hole-example.md). Numerical
+evidence applies only to the recorded synthetic inputs and sampled wavelengths.
+It does not certify edits, continuous spectra, experimental accuracy, or actual
+HBM structures. Ordinary result metadata keeps `convergence_checked=false`.
+
+The retained rectangular example is available at `?example=rectangle`, with
+original input hash
 `eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7`.
-The [input-specific offline evidence](../true-2d/default-acceptance.txt) applies to
-those exact synthetic inputs and sampled wavelengths. It does not certify edits,
-continuous spectra, experimental accuracy, or actual HBM structures. Ordinary
-result metadata keeps `convergence_checked=false`.
+Its [historical input-specific evidence](../true-2d/default-acceptance.txt)
+remains separate from the circular example.
 
 Pages makes no API requests and cannot calculate. Editing marks the stored
 spectrum as stale. A compatible local server is discovered through its
@@ -36,7 +42,7 @@ preserve the previous result. Fitting and change proposals are not supported for
 
 - Imported schema 1.0/1.1 projects retain their original 1D behavior and identity.
   Nothing is silently migrated or downgraded. The explicit `?example=1d` URL opens
-  the retained original 1D fixture; the ordinary URL remains 2D.
+  the retained original 1D fixture; the ordinary URL remains the circular-hole 2D example.
 - 1.2 file and API boundaries check raw integer tokens, exact schema defaults,
   Unicode, signed zero, the complete order basis and channel powers. Local
   canonical bytes and hashes are checked against unchanged Python-generated
@@ -50,8 +56,8 @@ preserve the previous result. Fitting and change proposals are not supported for
 - A server-computed snapshot binds actual job ID, input hash, project/result
   versions, engine and adapter. Origin alone is not a convergence certificate.
 
-`build_2d_ui_reference.py --check` verifies fixture hashes and the unchanged
-public/shared Python binder without solving. `generate_frontend_2d_conformance.py
+`build_circular_ui_reference.py --check` and `build_2d_ui_reference.py --check`
+verify each fixture’s hashes and the public/shared Python binder without solving. `generate_frontend_2d_conformance.py
 --check` verifies deterministic normalization/hash/binder vectors without solving.
 The production 2D browser suite supplements the retained 1D suites. CI mobile
 contexts and accessibility-tree evidence do not claim real-phone onscreen-keyboard

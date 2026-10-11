@@ -20,7 +20,9 @@ const geometryName = (value: Layer["geometry"] | undefined) =>
       ? "Patterned grating"
       : value === "rectangle_2d"
         ? "2D rectangular pattern"
-        : "Not present";
+        : value === "circular_hole_2d"
+          ? "2D circular hole"
+          : "Not present";
 const valueText = (value: unknown, unit = "", preserveSignedZero = false) =>
   value === undefined
     ? "Not set"
@@ -182,10 +184,24 @@ export function reviewInputChanges(
         b?.geometry === "rectangle_2d" ? b[property] : undefined,
         (value) => inputText(value, " nm"),
       );
-    material(`${key}.material`, label, a?.material, b?.material);
+    field(
+      `${key}.diameter_nm`,
+      `${label} · Diameter`,
+      a?.geometry === "circular_hole_2d" ? a.diameter_nm : undefined,
+      b?.geometry === "circular_hole_2d" ? b.diameter_nm : undefined,
+      (value) => inputText(value, " nm"),
+    );
+    const circular =
+      a?.geometry === "circular_hole_2d" || b?.geometry === "circular_hole_2d";
+    material(
+      `${key}.material`,
+      circular ? `${label} · Hole` : label,
+      a?.material,
+      b?.material,
+    );
     material(
       `${key}.background`,
-      `${label} · ${has2D ? "Background" : "Groove"}`,
+      `${label} · ${circular ? "Host" : has2D ? "Background" : "Groove"}`,
       a && a.geometry !== "homogeneous" ? a.background : undefined,
       b && b.geometry !== "homogeneous" ? b.background : undefined,
     );

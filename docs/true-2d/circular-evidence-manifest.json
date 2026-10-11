@@ -1,0 +1,252 @@
+{
+  "scope": "Exact synthetic circular default plus predeclared sampled off-grid checks. No accuracy claim for arbitrary edits, real materials or unresolved between-sample features.",
+  "input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+  "default_wavelength_count": 21,
+  "discovery_wavelength_count": 201,
+  "additional_verified_wavelengths_nm": [
+    451,
+    452,
+    453,
+    587,
+    588,
+    589
+  ],
+  "harmonic_bases": [
+    [
+      5,
+      5
+    ],
+    [
+      7,
+      7
+    ],
+    [
+      9,
+      9
+    ]
+  ],
+  "spatial_strips": [
+    64,
+    128,
+    256
+  ],
+  "full_grid_passed": true,
+  "offgrid_passed": true,
+  "full_grid_comparisons": {
+    "production_shipped_to_first_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 6.272547360192116e-05
+    },
+    "production_first_to_second_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 3.893408921527147e-05
+    },
+    "reference_shipped_to_first_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 0.00010694631722285575
+    },
+    "reference_first_to_second_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 4.7238527415727205e-05
+    },
+    "production_shipped_to_highest": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 0.00010165956281719263
+    },
+    "production_shipped_to_converged_reference": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 0.00046134976150960516
+    },
+    "production_highest_to_converged_reference": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 0.00035969019869241253
+    }
+  },
+  "spatial_comparisons": {
+    "strips_64_to_128": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 1.8842980029409873e-05
+    },
+    "strips_128_to_256": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 6.291347201536901e-06
+    },
+    "strips_64_to_256": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 2.5134327230946774e-05
+    }
+  },
+  "offgrid_comparisons": {
+    "production_shipped_to_first_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 3.128365139937889e-05
+    },
+    "production_first_to_second_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 1.67739157038993e-05
+    },
+    "reference_shipped_to_first_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 5.6060332741192376e-05
+    },
+    "reference_first_to_second_refinement": {
+      "tolerance": 0.0005,
+      "max_absolute_including_added_order_tails": 3.221445269940837e-05
+    },
+    "production_shipped_to_highest": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 4.805756710327819e-05
+    },
+    "production_shipped_to_converged_reference": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 0.0002387404474887278
+    },
+    "production_highest_to_converged_reference": {
+      "tolerance": 0.002,
+      "max_absolute_including_added_order_tails": 0.00019068288038544962
+    }
+  },
+  "resource_status": "succeeded",
+  "resource_caveat": "Maximum-size tabulated snapshot needs bounded MCP fallback/HTTP recovery; full unbounded SDK serialization exceeds 8 MB. No deployment SLA inferred.",
+  "production_source_sha256": {
+    "backend/rcwa_core/circular_geometry.py": "ee1ec0c8c723b9812bf5b3c56d12729d637e2d018241552dede12bec2e18063a",
+    "backend/rcwa_core/contracts.py": "241696a6015a35811d13b60906c4062a748fc4452b799e7f100ba3d7e5e7e3a9",
+    "backend/rcwa_core/contracts_2d.py": "5bf0cf57452e27657116d1d83d6449d3d4f0ceb953c2356e42361e0815583dcb",
+    "backend/rcwa_core/fitting.py": "559ba728e0147ee61e97f5418264e6b5aeaade72a4b7aa7c86e214665307e45b",
+    "backend/rcwa_core/identity.py": "32099c88687fb1e57ef5a160f4e8d77f5d0019b33c187ffb680b3db29d95dfcf",
+    "backend/rcwa_core/preflight.py": "c4c02f2831a99cd7d25bba669142e550d6465a507b03d4379c5c88e0ec66e3bb",
+    "backend/rcwa_core/preflight_2d.py": "3d7a4b41c934d4cec32196b598844ec6b60026b294608af10b635e71d7ab5b74",
+    "backend/rcwa_core/project_io.py": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde",
+    "backend/rcwa_core/schemas.py": "756e3afd5dae7e27acaea2ef39979b48b5cc5448c2de35c0b48ee7e4390e49f1",
+    "backend/rcwa_core/schemas_2d.py": "b23dbea3beebef3e5a875f1110d8b1123681b9fe2ae46559302d952e95e11037",
+    "backend/rcwa_core/solver.py": "bdc954b6d6ce53ec8449b1bd05f16f9439a712acf5d5427ae090d510cbf18f2f",
+    "backend/rcwa_core/solver_2d.py": "0b3296f56bff66c11e643e5d82180cf5ad8383c9515d8bf191a9ef8e08ea7d5c"
+  },
+  "historical_rectangular_evidence": "Original archives and fixture bytes retained; original recorded source hashes bind immutable historical-core snapshot. Current exact rectangular replay and CI independent gates remain required.",
+  "files": {
+    "backend/tests/fixtures/true-2d/circular-max-resource-snapshot.json.gz": {
+      "sha256": "d2c67b6959b8ad89c9c9d8dcde17447d155df8150dc25e6225242f610d32bbe4",
+      "bytes": 582597
+    },
+    "backend/tests/fixtures/true-2d/circular-project.json": {
+      "sha256": "98e7bd338022579f086c8c82732e53356f42994ec66b37ece42f40cc5ab7eaf8",
+      "bytes": 3185
+    },
+    "backend/tests/fixtures/true-2d/circular-result-H5.json.gz": {
+      "sha256": "c82053dabe7dfe1f8b9b49b6ef5bb82d361dfca5d6cf9bfd62b512a4a7ae0703",
+      "bytes": 43095
+    },
+    "backend/tests/fixtures/true-2d/historical-core/contracts.py": {
+      "sha256": "241696a6015a35811d13b60906c4062a748fc4452b799e7f100ba3d7e5e7e3a9",
+      "bytes": 16497
+    },
+    "backend/tests/fixtures/true-2d/historical-core/contracts_2d.py": {
+      "sha256": "9c1652044e6ac58f7af8c6f2814307d5a54e96ddb299337fc56e73d369237028",
+      "bytes": 9201
+    },
+    "backend/tests/fixtures/true-2d/historical-core/fitting.py": {
+      "sha256": "559ba728e0147ee61e97f5418264e6b5aeaade72a4b7aa7c86e214665307e45b",
+      "bytes": 5361
+    },
+    "backend/tests/fixtures/true-2d/historical-core/identity.py": {
+      "sha256": "32099c88687fb1e57ef5a160f4e8d77f5d0019b33c187ffb680b3db29d95dfcf",
+      "bytes": 414
+    },
+    "backend/tests/fixtures/true-2d/historical-core/manifest.json": {
+      "sha256": "3ca9d39793ef29e8fbc86b92a444abf81ab5643c1289184e614ddefe3454cdc0",
+      "bytes": 1373
+    },
+    "backend/tests/fixtures/true-2d/historical-core/preflight.py": {
+      "sha256": "c4c02f2831a99cd7d25bba669142e550d6465a507b03d4379c5c88e0ec66e3bb",
+      "bytes": 8540
+    },
+    "backend/tests/fixtures/true-2d/historical-core/preflight_2d.py": {
+      "sha256": "bc6a6779aecf3587a7f99e47c0da6b3f44f7ff223c9c69adbca983aab8db7a9d",
+      "bytes": 5238
+    },
+    "backend/tests/fixtures/true-2d/historical-core/project_io.py": {
+      "sha256": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde",
+      "bytes": 3011
+    },
+    "backend/tests/fixtures/true-2d/historical-core/schemas.py": {
+      "sha256": "756e3afd5dae7e27acaea2ef39979b48b5cc5448c2de35c0b48ee7e4390e49f1",
+      "bytes": 8424
+    },
+    "backend/tests/fixtures/true-2d/historical-core/schemas_2d.py": {
+      "sha256": "3b908bd35c922de57d78d9126cf26e1575c5d1777f4eba30dd2f38b8f585f5f4",
+      "bytes": 3241
+    },
+    "backend/tests/fixtures/true-2d/historical-core/solver.py": {
+      "sha256": "bdc954b6d6ce53ec8449b1bd05f16f9439a712acf5d5427ae090d510cbf18f2f",
+      "bytes": 11684
+    },
+    "backend/tests/fixtures/true-2d/historical-core/solver_2d.py": {
+      "sha256": "bd27c6aab4678aeeacf654e2d9c04b9dba2a375a2f844658e6e44e1a4bcf1bd7",
+      "bytes": 12340
+    },
+    "docs/true-2d/circular-convergence.json.gz": {
+      "sha256": "d3bdacb0e4eb75a928b1be34f6b2615ed41e096bd870e10ff7cee447b95ab9fc",
+      "bytes": 2477598
+    },
+    "docs/true-2d/circular-discovery.json.gz": {
+      "sha256": "f819431a4a7718a1fb962fd8f440e7ca21143a89e97f61d301b05c59f486ccbc",
+      "bytes": 217344
+    },
+    "docs/true-2d/circular-environment.json": {
+      "sha256": "4ed866c0f627d0c37edcedbd14722bb0acdfa434c85201e4a7bd8831a317bdee",
+      "bytes": 12629
+    },
+    "docs/true-2d/circular-geometry.md": {
+      "sha256": "eadbc63c5bb24082b3bd5cc5ba43c19776901bd47c4180450022e8c87a86b5b6",
+      "bytes": 7485
+    },
+    "docs/true-2d/circular-offgrid.json.gz": {
+      "sha256": "42b6423700001f045961172c6083a71ed10dc3d5006008c8cc309f3b2fbe3e02",
+      "bytes": 925789
+    },
+    "docs/true-2d/circular-reference-provenance.json": {
+      "sha256": "d1404f41573498d39d94cf1ccf636d46ab5deb2894d7c4154e3fc4a9c7abd70f",
+      "bytes": 1450
+    },
+    "docs/true-2d/circular-worker-resources.json": {
+      "sha256": "20cdc81d349eca55d81c0ba31de33db105eba0942a281a24e7f980ccdcb294fa",
+      "bytes": 3360
+    },
+    "frontend/public/reference-circular.json": {
+      "sha256": "5ece75cd4b4015adb153477201f84d0c6dc0ba325b0680b9d40a16da3139fa58",
+      "bytes": 1197951
+    },
+    "frontend/src/fixtures/default-project-circular.json": {
+      "sha256": "98e7bd338022579f086c8c82732e53356f42994ec66b37ece42f40cc5ab7eaf8",
+      "bytes": 3185
+    },
+    "frontend/src/fixtures/reference-circular-manifest.json": {
+      "sha256": "11dccce7f6f3a7db7ad956e82ac615e48ad4cff6f171b971b59a185622c411b6",
+      "bytes": 534
+    },
+    "scripts/build_circular_ui_reference.py": {
+      "sha256": "69082a0b58dd0e4c1cafa9c991c08bbc0aef314b163604c92ec36b7f42917398",
+      "bytes": 2948
+    },
+    "scripts/circular_gate.py": {
+      "sha256": "eb8dcc7f2f900d9a0d494d036c86058ee16a76d4be95a4eb8fa1a477c3f9b263",
+      "bytes": 4258
+    },
+    "scripts/circular_offgrid.py": {
+      "sha256": "f9a336c6d03ac923b489d7a233565654288463e74b451ddf5c187deccca8ae29",
+      "bytes": 8153
+    },
+    "scripts/true_2d/s4_driver.cpp": {
+      "sha256": "dd3f07f8a8bd02b8718abfed0088b377a422af0bdc8c8733f0f6b1492f1f18da",
+      "bytes": 3429
+    },
+    "scripts/true_2d_reference.py": {
+      "sha256": "f2ba3de8d7c69d5c29418c7377f3eaa99107c8bc16268f69efa196acc3f5c34d",
+      "bytes": 10984
+    },
+    "scripts/true_2d_worker_resources.py": {
+      "sha256": "716ef4eee5214952ad92410cb30ab5e840687c6fdcc09c28901fb41bd47ebf63",
+      "bytes": 15562
+    }
+  }
+}

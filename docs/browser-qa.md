@@ -18,3 +18,20 @@ This is an unauthenticated local development app. Do not make the Python API pub
 The `browser` job in `.github/workflows/checks.yml` runs this same check on a standard Ubuntu runner. It binds all three servers to localhost, limits the browser script to four minutes, and retains only PNG screenshots and `browser-qa.json` for one day. A successful build or job setup alone is not a browser-test pass.
 
 The visual-builder check also captures 390 × 844 and 360 × 800 initial viewports, selected dimensions, the spectrum viewport, edited/stale output, Materials, Light, fit demo, and model assumptions. It asserts dimension-button touch sizes, tap/keyboard focus and highlighted geometry, first-screen numeric inputs, a 260 CSS-pixel chart with at least 12 CSS-pixel rendered tick labels, and no horizontal overflow. These browser assertions complement, rather than replace, independent screenshot review.
+
+## Ordinary circular-hole example
+
+The current ordinary URL opens the circular-hole example. Run
+`node scripts/circular-browser-qa.mjs` against the same live/static servers for
+its dedicated 360×800, 390×844 and desktop checks. The script records
+`circular-*` screenshots, exported files and a JSON report in `artifacts/`. It
+covers genuine host cutouts, one Diameter control, independent layer thickness
+and X/Y pitch, Hole/Host material roles, zero/max diameter, non-air fills,
+cutaway/full stack, history, imports, fallback editing and real run/cancel
+lifecycle. Successful numerical responses are never mocked.
+
+The older `true-2d-browser-qa.mjs` retains the full rectangular regression suite
+through `?example=rectangle`; the retained 1D suites use their explicit legacy
+route. All suites run in the browser CI job, and the exact candidate's screenshots
+need independent inspection before release. Existing screenshots from another
+commit do not establish acceptance.

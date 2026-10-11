@@ -172,7 +172,7 @@ async def test_real_stdio_2d_compute_snapshot_and_reload(real_api, mode):
         assert len(tools) == 10
         caps = await call(client, "rcwa_capabilities")
         Draft202012Validator(tools["rcwa_capabilities"].output_schema).validate(caps)
-        assert caps["project_profiles"]["1.2"]["adapter_version"] == "1.2.0"
+        assert caps["project_profiles"]["1.2"]["adapter_version"] == "1.3.0"
         assert (await call(client, "rcwa_example"))["schema_version"] in {"1.0", "1.1"}
         project = integral_float_fields(small_2d_project())
         valid = await call(client, "rcwa_validate", {"project": project})
@@ -191,7 +191,7 @@ async def test_real_stdio_2d_compute_snapshot_and_reload(real_api, mode):
         assert finished["status"] == "succeeded", finished
         Draft202012Validator(tools["rcwa_get_job"].output_schema).validate(finished)
         assert finished["input_hash"] == finished["result"]["metadata"]["input_hash"] == expected_hash
-        assert finished["result"]["metadata"]["adapter_version"] == "1.2.0"
+        assert finished["result"]["metadata"]["adapter_version"] == "1.3.0"
         assert finished["result"]["metadata"]["stage"] == "bounded_forward"
         assert finished["result"]["metadata"]["basis_size"] == 9
         saved = await call(client, "rcwa_save_snapshot", {"job_id": started["id"]})
@@ -201,7 +201,7 @@ async def test_real_stdio_2d_compute_snapshot_and_reload(real_api, mode):
         assert saved["provenance"]["input_hash"] == expected_hash
         assert saved["provenance"]["project_schema_version"] == "1.2"
         assert saved["provenance"]["result_schema_version"] == "1.2"
-        assert saved["provenance"]["adapter_version"] == "1.2.0"
+        assert saved["provenance"]["adapter_version"] == "1.3.0"
         assert await call(client, "rcwa_save_snapshot", {"job_id": started["id"]}) == saved
         reloaded = await call(client, "rcwa_get_snapshot", {"snapshot_id": saved["id"]})
         assert reloaded == saved

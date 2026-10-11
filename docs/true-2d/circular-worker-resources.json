@@ -1,0 +1,101 @@
+{
+  "case": "high_contrast",
+  "tables": true,
+  "mixed_fit": false,
+  "geometry": "circular_hole_2d",
+  "input_hash": "7829a339640c3fe8287f3b03bdc98aec8ca0141db3cf2bdafd6a44b01d6c7286",
+  "request_bytes": 1993346,
+  "table_count": 18,
+  "rows_per_table": 2000,
+  "blas_threads": {
+    "OPENBLAS_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "worker_timeout_seconds": 120,
+  "processes": {
+    "74d42f3f-9e3d-4168-8f6b-bc8a62455a34": {
+      "pid": 7,
+      "peak_RSS_KiB": 155156,
+      "peak_HWM_KiB": 155824,
+      "status": "succeeded",
+      "error_code": null,
+      "seconds": 33.97731538799417
+    }
+  },
+  "peak_combined_rss_KiB": 262148,
+  "status": "succeeded",
+  "error": null,
+  "measurement_kind": "offline full per-version SDK serialization before bounded-response fallback",
+  "request_id": 1,
+  "request_id_source": "synthetic default",
+  "sdk_version": "2.3.0",
+  "wire_versions": {
+    "2024-11-05": {
+      "jsonrpc_line_bytes": 8987417,
+      "under_8MB": false,
+      "sha256": "3132148e34c8b0bf8c097000dd875319c3b5060d7d02bd581180939df2fca5d8",
+      "server_info_stamp": null,
+      "result_type": null
+    },
+    "2025-03-26": {
+      "jsonrpc_line_bytes": 8987417,
+      "under_8MB": false,
+      "sha256": "3132148e34c8b0bf8c097000dd875319c3b5060d7d02bd581180939df2fca5d8",
+      "server_info_stamp": null,
+      "result_type": null
+    },
+    "2025-06-18": {
+      "jsonrpc_line_bytes": 8987417,
+      "under_8MB": false,
+      "sha256": "3132148e34c8b0bf8c097000dd875319c3b5060d7d02bd581180939df2fca5d8",
+      "server_info_stamp": null,
+      "result_type": null
+    },
+    "2025-11-25": {
+      "jsonrpc_line_bytes": 8987417,
+      "under_8MB": false,
+      "sha256": "3132148e34c8b0bf8c097000dd875319c3b5060d7d02bd581180939df2fca5d8",
+      "server_info_stamp": null,
+      "result_type": null
+    },
+    "2026-07-28": {
+      "jsonrpc_line_bytes": 8987532,
+      "under_8MB": false,
+      "sha256": "1bdddf28e93d5809a14c723528ceac8509fe5031c005bc44c2974278e8ac6e7d",
+      "server_info_stamp": {
+        "io.modelcontextprotocol/serverInfo": {
+          "name": "RCWA Workbench",
+          "version": "0.1.0"
+        }
+      },
+      "result_type": "complete"
+    }
+  },
+  "result_bytes": 2242218,
+  "full_snapshot_bytes": 4236262,
+  "snapshot_under_8MB": true,
+  "full_result_post_bytes": 4235557,
+  "project_only_post_bytes": 1993343,
+  "snapshot_sha256": "cd8203a1c9a9ea0d45a91e2ad2d7e9356b82676e965d1018667ed68fa00f5acf",
+  "estimated_project_object_bytes": 3547666,
+  "estimated_result_object_bytes": 5480004,
+  "estimated_completed_job_input_bytes": 9029008,
+  "source_sha256": {
+    "scripts/true_2d_worker_resources.py": "716ef4eee5214952ad92410cb30ab5e840687c6fdcc09c28901fb41bd47ebf63",
+    "backend/api/jobs.py": "2b213ec9327676249a13b9b93286984e9639a047d8a0f6a1d735797c5a682e6d",
+    "backend/mcp_adapter/server.py": "7bb63b148f2a4df7c65c57ea76fdf9f60064622d46933e73ea3d4817a039a544",
+    "backend/rcwa_core/project_io.py": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde"
+  },
+  "worker_output_bytes": 2438052,
+  "sqlite_restart_verified": true,
+  "cleanup": {
+    "running": [],
+    "pending": [],
+    "errors": {},
+    "all_process_handles_closed": true,
+    "all_outputs_removed": true
+  },
+  "wall_seconds": 36.47072644298896,
+  "directory_removed": true
+}

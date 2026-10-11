@@ -1,6 +1,6 @@
-// Genuine production-default 2D acceptance. Run only in the supported CI browser
+// Retained rectangular 2D acceptance via the explicit historical example route. Run only in the supported CI browser
 // environment with local API/dev (:8000/:5173) and static preview (:4173) ready.
-// No ?example=1d, prototype page, React state injection, or mocked numerical proof.
+// No prototype page, React state injection, or mocked numerical proof.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -23,8 +23,17 @@ import {
   replayTouch,
 } from "./browser-2d-controls.mjs";
 const expect = baseExpect.configure({ timeout: 5000 });
-const appUrl = process.env.RCWA_APP_URL || "http://127.0.0.1:5173";
-const previewUrl = process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173";
+const rectangleUrl = (value) => {
+  const url = new URL(value);
+  url.searchParams.set("example", "rectangle");
+  return url.href;
+};
+const appUrl = rectangleUrl(
+  process.env.RCWA_APP_URL || "http://127.0.0.1:5173",
+);
+const previewUrl = rectangleUrl(
+  process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173",
+);
 const apiUrl = process.env.RCWA_API_URL || "http://127.0.0.1:8000";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, { recursive: true });
@@ -52,7 +61,7 @@ const report = {
   status: "running",
   startedAt: new Date(started).toISOString(),
   source:
-    "Production entry point, ordinary default URLs; exact approved 1.2 fixture/reference",
+    "Production entry point, explicit rectangular example URL; exact historical 1.2 fixture/reference",
   screenshotPolicy: {
     serialPageGroups: true,
     playwrightTimeoutMs: 7000,

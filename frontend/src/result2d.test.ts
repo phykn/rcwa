@@ -1,4 +1,7 @@
 import reference from "../public/reference-2d.json";
+import circleReference from "../public/reference-circular.json";
+import circleManifest from "./fixtures/reference-circular-manifest.json";
+import { parseJSONWith2DNumberGate } from "./project2d";
 import { describe, expect, it, vi } from "vitest";
 import type { Material } from "./model";
 import type { Project2D } from "./project2d";
@@ -661,5 +664,126 @@ describe("exact project/result binding", () => {
       resume();
       spy.mockRestore();
     }
+  });
+});
+
+describe("circle public result identity and active-material limits", () => {
+  it("binds the genuine new stored circular result to its own exact input hash", async () => {
+    const p = normalizeProject2D(circleReference.project);
+    expect(await hashProject2D(p)).toBe(circleManifest.input_hash);
+    const result = await bindResult2D(p, circleReference.result);
+    expect(result).toBeDefined();
+    expect(circleReference.result.metadata.adapter_version).toBe("1.3.0");
+    expect(circleReference.result.metadata.convergence_checked).toBe(false);
+    expect(circleReference.result.metadata.input_hash).not.toBe(
+      fixture.result.metadata.input_hash,
+    );
+    const raw = JSON.stringify(circleReference);
+    expect(() =>
+      parseJSONWith2DNumberGate(raw.replace('"strips":64', '"strips":64.0')),
+    ).toThrow(/integer JSON token/);
+    expect(() =>
+      parseJSONWith2DNumberGate(
+        raw.replace('"layer_index":0', '"layer_index":0.0'),
+      ),
+    ).toThrow(/integer JSON token/);
+  });
+  async function circularVector(
+    diameter = 70,
+    thickness = 90,
+    holeK = 0,
+    hostK = 0,
+  ) {
+    const pair = await vector((p) => {
+      p.layers = [
+        {
+          geometry: "circular_hole_2d",
+          name: "Circle contract-only fixture",
+          diameter_nm: diameter,
+          thickness_nm: thickness,
+          material: constant(1, holeK),
+          background: constant(2, hostK),
+        },
+      ];
+    });
+    let sum = 0;
+    for (let i = 0; i < 64; i++) {
+      const y = (i + 0.5) / 64 - 0.5;
+      sum += diameter * Math.sqrt(1 - 4 * y * y);
+    }
+    pair.result.metadata.adapter_version = "1.3.0";
+    pair.result.metadata.circular_geometry = {
+      method: "centered_midpoint_strips",
+      strips: 64,
+      offline_spatial_override: false,
+      area_bound_is_optical_error_bound: false,
+      layers: [
+        {
+          layer_index: 0,
+          exact_area_nm2: Math.PI * (diameter / 2) ** 2,
+          approximate_area_nm2: (sum * diameter) / 64,
+          symmetric_difference_area_bound_nm2:
+            diameter ** 2 / 64 +
+            64 *
+              Number.EPSILON *
+              pair.project.period_nm *
+              pair.project.period_y_nm,
+        },
+      ],
+    };
+    return pair;
+  }
+  it("binds disclosed circle metadata, and refuses historical adapter or missing/mismatched circle metadata", async () => {
+    const { project, result } = await circularVector();
+    await expect(bindResult2D(project, result)).resolves.toBeDefined();
+    const old = structuredClone(result);
+    old.metadata.adapter_version = "1.2.0";
+    await expect(bindResult2D(project, old)).rejects.toThrow(/adapter/);
+    const missing = structuredClone(result);
+    delete missing.metadata.circular_geometry;
+    await expect(bindResult2D(project, missing)).rejects.toThrow(
+      /Circular geometry metadata/,
+    );
+    const wrong = structuredClone(result);
+    wrong.metadata.circular_geometry!.layers[0].approximate_area_nm2 += 1;
+    await expect(bindResult2D(project, wrong)).rejects.toThrow(
+      /Circular approximate area/,
+    );
+  });
+  it("rejects offline spatial refinements and optical-error claims in public results", async () => {
+    const { result } = await circularVector();
+    for (const patch of [
+      { strips: 128 },
+      { offline_spatial_override: true },
+      { area_bound_is_optical_error_bound: true },
+    ]) {
+      const candidate = structuredClone(result);
+      Object.assign(candidate.metadata.circular_geometry!, patch);
+      expect(() => validateForwardResult2D(candidate)).toThrow(
+        /discretization|convergence/,
+      );
+    }
+  });
+  it("retains absorbing host corners at maximum diameter, even with square pitch", async () => {
+    const { project, result } = await circularVector(140, 90, 0, 0.01);
+    project.period_nm = 140;
+    result.metadata.input_hash = await hashProject2D(project);
+    result.metadata.circular_geometry!.layers[0].symmetric_difference_area_bound_nm2 =
+      140 ** 2 / 64 + 64 * Number.EPSILON * 140 * 140;
+    // Rebuild expected order vectors for the changed pitch, retaining artificial contract powers.
+    for (const order of result.spectra.s!.orders[0])
+      order.kx_over_k0 = (order.m * 600) / 140;
+    await expect(bindResult2D(project, result)).rejects.toThrow(/lossless/);
+    result.metadata.max_lossless_flux_error = null;
+    await expect(bindResult2D(project, result)).resolves.toBeDefined();
+  });
+  it("ignores zero-diameter hole loss and zero-thickness layer loss", async () => {
+    for (const pair of [
+      await circularVector(0, 90, 0.1, 0),
+      await circularVector(70, 0, 0.1, 0.1),
+    ])
+      await expect(
+        bindResult2D(pair.project, pair.result),
+      ).resolves.toBeDefined();
   });
 });

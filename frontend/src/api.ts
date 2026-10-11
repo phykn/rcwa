@@ -72,7 +72,7 @@ export function solverSupportError(
     return `This server does not support forward calculations for schema ${project.schema_version}.`;
   if (
     project.schema_version === "1.2" &&
-    (profile.adapter_version !== "1.2.0" ||
+    (!["1.2.0", "1.3.0"].includes(profile.adapter_version) ||
       profile.wavelength_count !== 31 ||
       profile.basis_size_max !== 121 ||
       !Array.isArray(profile.geometry) ||
@@ -83,6 +83,13 @@ export function solverSupportError(
       JSON.stringify(profile.harmonics?.y) !== "[1,5]")
   )
     return "The local server's 2D profile is missing or incompatible. Update it and reconnect; these inputs will not be downgraded.";
+  if (
+    project.schema_version === "1.2" &&
+    project.layers.some((layer) => layer.geometry === "circular_hole_2d") &&
+    (profile.adapter_version !== "1.3.0" ||
+      !profile.geometry.includes("circular_hole_2d"))
+  )
+    return "This local server does not support circular-hole geometry. Update it and reconnect; these inputs will not be converted.";
   return null;
 }
 

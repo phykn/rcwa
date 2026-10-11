@@ -83,12 +83,15 @@ def s4_solve(executable, project, wavelength, hx, hy):
             wx, wy, bg = project.period_nm, project.period_y_nm, inclusion
         elif layer.geometry == "rectangle_1d":
             wx, wy, bg = layer.cd_nm, project.period_y_nm, optical_index(layer.background, wavelength)
+        elif layer.geometry == "circular_hole_2d":
+            wx, wy, bg = layer.diameter_nm, layer.diameter_nm, optical_index(layer.background, wavelength)
         else:
             wx, wy, bg = layer.cd_x_nm, layer.cd_y_nm, optical_index(layer.background, wavelength)
-        layers.append([layer.thickness_nm, wx, wy, inclusion.real, inclusion.imag, bg.real, bg.imag])
+        layers.append([layer.thickness_nm, wx, wy, inclusion.real, inclusion.imag, bg.real, bg.imag,
+                       int(layer.geometry == "circular_hole_2d")])
     # Explicit neutral zero-thickness film avoids upstream no-finite-layer quirk.
     if not layers:
-        layers = [[0, project.period_nm, project.period_y_nm, n0.real, 0, n0.real, 0]]
+        layers = [[0, project.period_nm, project.period_y_nm, n0.real, 0, n0.real, 0, 0]]
     header = [
         project.period_nm,
         project.period_y_nm,

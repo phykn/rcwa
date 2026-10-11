@@ -8,8 +8,10 @@ import {
   solverSupportError,
 } from "./api";
 import { hashProject2D, normalizeProject2D } from "./project2d";
-import default2DInput from "./fixtures/default-project-2d.json";
-import reference2DManifest from "./fixtures/reference-2d-manifest.json";
+import rectangular2DInput from "./fixtures/default-project-2d.json";
+import circular2DInput from "./fixtures/default-project-circular.json";
+import rectangular2DManifest from "./fixtures/reference-2d-manifest.json";
+import circular2DManifest from "./fixtures/reference-circular-manifest.json";
 import { ThreeStructure2D, DimensionCards2D } from "./ThreeStructure2D";
 import { DimensionEditor2D, dimensionFields2D } from "./DimensionEditor2D";
 import {
@@ -450,7 +452,17 @@ function MaterialEditor({
 const staticPreview =
   (import.meta as unknown as { env: Record<string, string> }).env
     .VITE_STATIC_PREVIEW === "true";
-const default2DProject = normalizeProject2D(default2DInput);
+const example =
+  typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("example")
+    : null;
+const rectangularExample = example === "rectangle" || example === "rectangular";
+const default2DProject = normalizeProject2D(
+  rectangularExample ? rectangular2DInput : circular2DInput,
+);
+const reference2DManifest = rectangularExample
+  ? rectangular2DManifest
+  : circular2DManifest;
 // An explicit legacy example URL keeps the original fixture accessible unchanged.
 const legacyExample =
   typeof window !== "undefined" &&
@@ -945,7 +957,11 @@ export default function App() {
       workspace === historyRef.current.present;
   }
   function updateLayer(
-    values: Partial<RectangleLayer> & { cd_x_nm?: number; cd_y_nm?: number },
+    values: Partial<RectangleLayer> & {
+      cd_x_nm?: number;
+      cd_y_nm?: number;
+      diameter_nm?: number;
+    },
   ) {
     const current = historyRef.current.present;
     const currentProject = current.project;
@@ -955,6 +971,7 @@ export default function App() {
       ("cd_nm" in values ||
         "cd_x_nm" in values ||
         "cd_y_nm" in values ||
+        "diameter_nm" in values ||
         "background" in values)
     )
       return;
@@ -1319,7 +1336,11 @@ export default function App() {
   async function readReference() {
     const response = await fetch(
       new URL(
-        legacyExample ? "./reference-example.json" : "./reference-2d.json",
+        legacyExample
+          ? "./reference-example.json"
+          : rectangularExample
+            ? "./reference-2d.json"
+            : "./reference-circular.json",
         document.baseURI,
       ),
     );
@@ -1559,7 +1580,9 @@ export default function App() {
         next.layers[
           validLayerIndex(next, historyRef.current.present.selectedLayer)
         ];
-      if (target.geometry === "rectangle_2d") {
+      if (target.geometry === "circular_hole_2d" && axis === "x")
+        target.diameter_nm = value;
+      else if (target.geometry === "rectangle_2d") {
         if (axis === "x") target.cd_x_nm = value;
         else target.cd_y_nm = value;
       } else if (target.geometry === "rectangle_1d" && axis === "x")
@@ -1576,7 +1599,7 @@ export default function App() {
   const titles: Record<Sheet, string> = {
     width:
       is2D || project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · Width`
+        ? `Layer ${selectedLayer + 1} · ${layer.geometry === "circular_hole_2d" ? "Diameter" : "Width"}`
         : "Ridge width",
     height:
       is2D || project.layers.length > 1
@@ -1585,13 +1608,13 @@ export default function App() {
     pitch: is2D ? "Shared pitch" : "Pattern pitch",
     ridge:
       is2D || project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · Material`
+        ? `Layer ${selectedLayer + 1} · ${layer.geometry === "circular_hole_2d" ? "Hole material" : "Material"}`
         : layer.geometry === "homogeneous"
           ? "Layer material"
           : "Ridge material",
     groove:
       is2D || project.layers.length > 1
-        ? `Layer ${selectedLayer + 1} · ${is2D ? "Background" : "Groove"}`
+        ? `Layer ${selectedLayer + 1} · ${layer.geometry === "circular_hole_2d" ? "Host material" : is2D ? "Background" : "Groove"}`
         : "Groove material",
     ambient: "Ambient material",
     substrate: "Substrate material",
@@ -2293,7 +2316,14 @@ export default function App() {
                     }
                   >
                     {is2D && (
-                      <option value="rectangle_2d">Pattern · X and Y</option>
+                      <>
+                        <option value="circular_hole_2d">
+                          Circular hole · X and Y
+                        </option>
+                        <option value="rectangle_2d">
+                          Rectangle · X and Y
+                        </option>
+                      </>
                     )}
                     <option value="rectangle_1d">
                       {is2D ? "Ridge · repeats in X" : "Patterned"}
@@ -2321,6 +2351,18 @@ export default function App() {
                     onChange={(cd_nm) => updateLayer({ cd_nm })}
                   />
                 )}
+                {layer.geometry === "circular_hole_2d" &&
+                  project.schema_version === "1.2" && (
+                    <Field
+                      label="Diameter"
+                      unit="nm"
+                      value={layer.diameter_nm}
+                      min={0}
+                      max={Math.min(project.period_nm, project.period_y_nm)}
+                      step={0.1}
+                      onChange={(diameter_nm) => updateLayer({ diameter_nm })}
+                    />
+                  )}
                 {layer.geometry === "rectangle_2d" && (
                   <div className="field-grid">
                     <Field
@@ -2432,11 +2474,17 @@ export default function App() {
                         >
                           {key === "ridge" && layer.geometry === "homogeneous"
                             ? "Layer"
-                            : is2D && key === "ridge"
-                              ? "Pattern"
-                              : is2D && key === "groove"
-                                ? "Background"
-                                : key[0].toUpperCase() + key.slice(1)}
+                            : layer.geometry === "circular_hole_2d" &&
+                                key === "ridge"
+                              ? "Hole material"
+                              : layer.geometry === "circular_hole_2d" &&
+                                  key === "groove"
+                                ? "Host material"
+                                : is2D && key === "ridge"
+                                  ? "Pattern"
+                                  : is2D && key === "groove"
+                                    ? "Background"
+                                    : key[0].toUpperCase() + key.slice(1)}
                         </button>
                       ))}
                   </div>
@@ -2446,9 +2494,11 @@ export default function App() {
                       label={
                         layer.geometry === "homogeneous"
                           ? "Layer"
-                          : is2D
-                            ? "Pattern"
-                            : "Ridge"
+                          : layer.geometry === "circular_hole_2d"
+                            ? "Hole"
+                            : is2D
+                              ? "Pattern"
+                              : "Ridge"
                       }
                       material={layer.material}
                       onChange={(material) => updateLayer({ material })}
@@ -2458,7 +2508,13 @@ export default function App() {
                     (sheet === "groove" || sheet === "materials") && (
                       <MaterialEditor
                         getImportGuard={materialImportGuard}
-                        label={is2D ? "Background" : "Groove"}
+                        label={
+                          layer.geometry === "circular_hole_2d"
+                            ? "Host"
+                            : is2D
+                              ? "Background"
+                              : "Groove"
+                        }
                         material={layer.background}
                         onChange={(background) => updateLayer({ background })}
                       />
@@ -2638,7 +2694,7 @@ export default function App() {
                   <span>Geometry</span>
                   <strong>
                     {is2D
-                      ? "2D rectangular finite-layer stack"
+                      ? "2D periodic finite-layer stack"
                       : "1D finite-layer stack"}
                   </strong>
                 </div>

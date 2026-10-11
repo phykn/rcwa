@@ -1,10 +1,10 @@
-# Versioned 1D stack physical contract
+# Versioned optical-stack physical contract
 
-This is a numerical RCWA prototype for infinite, one-dimensional lamellar stacks containing centered rectangular gratings and homogeneous films. The default optical constants are synthetic examples. They are not calibrated silicon, silica, or process-specific material data.
+This is a numerical RCWA prototype for infinite periodic optical stacks. Explicit schema 1.2 supports centered circular holes, rectangular two-dimensional patterns, one-dimensional ridges and uniform films. The legacy 1.0/1.1 contracts below remain unchanged. The default optical constants are synthetic examples. They are not calibrated silicon, silica, or process-specific material data.
 
-## Supported sample and illumination
+## Legacy 1.0/1.1 sample and illumination
 
-- Input schema `1.0` retains exactly one finite rectangular layer and its original defaults and normalized serialization. Explicit schema `1.1` supports 1–8 finite layers in physical **top-to-bottom** order, sharing one `period_nm`. The default project remains schema `1.0`; merely reading or normalizing it does not upgrade it.
+- Input schema `1.0` retains exactly one finite rectangular layer and its original defaults and normalized serialization. Explicit schema `1.1` supports 1–8 finite layers in physical **top-to-bottom** order, sharing one `period_nm`. The legacy constructor default remains schema `1.0`; merely reading or normalizing it does not upgrade it. The browser’s ordinary example is explicit schema `1.2`.
 - Each nonzero-thickness layer is one computational slab. Zero-thickness layers remain in the project but are omitted from Fourier compilation and layer recursion. If all layers have zero thickness, the solve is the ambient/substrate interface.
 - Periodic along x, invariant along y, with a centered rectangular ridge. Its full width is `cd_nm`; interfaces are at `(period-CD)/2` and `(period+CD)/2`. CD=0 and CD=period are explicit homogeneous limits.
 - A `rectangle_1d` layer retains the original name, thickness, CD, ridge material, and background fields. A `homogeneous` layer has only the geometry tag, name, thickness, and material; CD/background fields are rejected. There are no persistent layer IDs, lateral offsets, or independent per-layer periods.
@@ -14,6 +14,14 @@ This is a numerical RCWA prototype for infinite, one-dimensional lamellar stacks
 - No conical illumination, 2D patterns, trapezoids, roughness, anisotropy, finite-NA integration, depolarization, or phase observables.
 
 The input resource limits are 200–2500 nm vacuum wavelengths (at most 81 strictly increasing samples), 0–75° incidence, period 20–5000 nm, thickness 0–2000 nm per finite layer (at most 16000 nm in total), and harmonics 1–20. These are resource/scope limits, not a claim that every parameter combination has converged or been verified. The finite tests in `validation-physics.md` and `multilayer-physics.md` describe the numerical evidence. Exact sampled Rayleigh cutoffs are rejected, and near-cutoff samples are flagged. All propagating channels of lossless ports must fit inside the retained basis. Absorbing-port high-order flux instead needs harmonic refinement.
+
+## Explicit 1.2 two-dimensional stacks
+
+Schema 1.2 has shared X/Y periods and separate Hx/Hy Fourier half-widths. Its basis contains every `(m,n)` pair, ordered with m varying fastest. Incidence includes azimuth, and outgoing s/p channel powers are resolved in each order’s local basis. Public limits are eight layers, 31 wavelengths and Hx/Hy 1–5. Admissibility and passive flux balance do not establish convergence.
+
+A `circular_hole_2d` layer has `diameter_nm`, `material` (the hole fill), `background` (the host), and its own `thickness_nm`. The centered circular boundary is repeated along both X and Y. Diameter must be between zero and the smaller period. Zero diameter leaves the host. At diameter equal to the smaller period, corner host regions still remain; this is never a full-cell homogeneous limit. Holes extend through their own layer only. A uniform intervening layer remains a film. Zero thickness contributes no finite volume.
+
+The circular solver uses a deterministic, explicitly reported spatial approximation to the circular boundary, separate from Fourier truncation. Refining the spatial approximation is a different check from increasing Hx/Hy. Independent S4 checks use S4’s actual circle primitive. The circular example has its own input-bound numerical evidence; the earlier rectangular evidence remains historical and cannot certify the circular path. No ordinary call automatically establishes convergence. See [the circular-hole example](ui/circular-hole-example.md).
 
 ## Materials and signs
 

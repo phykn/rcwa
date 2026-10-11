@@ -35,7 +35,7 @@ export interface PublicMetadata2D extends Record<string, unknown> {
   stage: "bounded_forward";
   engine: "meent";
   version: "0.13.2";
-  adapter_version: "1.2.0";
+  adapter_version: "1.2.0" | "1.3.0";
   precision: "complex128";
   backend: "numpy";
   input_hash: string;
@@ -59,6 +59,18 @@ export interface PublicMetadata2D extends Record<string, unknown> {
   max_lossless_flux_error: number | null;
   regularization: string;
   elapsed_seconds: number;
+  circular_geometry?: {
+    method: "centered_midpoint_strips";
+    strips: 64;
+    offline_spatial_override: false;
+    area_bound_is_optical_error_bound: false;
+    layers: {
+      layer_index: number;
+      exact_area_nm2: number;
+      approximate_area_nm2: number;
+      symmetric_difference_area_bound_nm2: number;
+    }[];
+  };
 }
 
 export interface PublicForwardResult2D {
@@ -82,7 +94,6 @@ const metadataLiterals = {
   stage: "bounded_forward",
   engine: "meent",
   version: "0.13.2",
-  adapter_version: "1.2.0",
   precision: "complex128",
   backend: "numpy",
   offline_reference_override: false,
@@ -101,6 +112,7 @@ const metadataStrings = [
 ];
 const metadataKeys = [
   ...Object.keys(metadataLiterals),
+  "adapter_version",
   ...metadataStrings,
   "input_hash",
   "harmonics_x",
@@ -245,9 +257,71 @@ export function validateForwardResult2D(value: unknown): PublicForwardResult2D {
       invalid("Wavelengths must be strictly increasing.");
     previous = wavelength;
   }
-  const meta = object(result.metadata, metadataKeys, "metadata");
+  const hasCircular =
+    !!result.metadata &&
+    typeof result.metadata === "object" &&
+    Object.prototype.hasOwnProperty.call(result.metadata, "circular_geometry");
+  const meta = object(
+    result.metadata,
+    hasCircular ? [...metadataKeys, "circular_geometry"] : metadataKeys,
+    "metadata",
+  );
+  if (hasCircular) {
+    if (meta.adapter_version !== "1.3.0")
+      invalid("Circular geometry requires adapter 1.3.0.");
+    const circle = object(
+      meta.circular_geometry,
+      [
+        "method",
+        "strips",
+        "offline_spatial_override",
+        "area_bound_is_optical_error_bound",
+        "layers",
+      ],
+      "metadata.circular_geometry",
+    );
+    if (
+      circle.method !== "centered_midpoint_strips" ||
+      circle.strips !== 64 ||
+      circle.offline_spatial_override !== false ||
+      circle.area_bound_is_optical_error_bound !== false
+    )
+      invalid(
+        "Unsupported circular geometry discretization or convergence claim.",
+      );
+    let prior = -1;
+    for (const entry of array(
+      circle.layers,
+      1,
+      8,
+      "circular geometry layers",
+    )) {
+      const item = object(
+        entry,
+        [
+          "layer_index",
+          "exact_area_nm2",
+          "approximate_area_nm2",
+          "symmetric_difference_area_bound_nm2",
+        ],
+        "circular geometry layer",
+      );
+      const index = integer(item.layer_index, "circular layer_index", 0, 7);
+      if (index <= prior)
+        invalid("Circular geometry layers must be unique and ordered.");
+      prior = index;
+      for (const key of [
+        "exact_area_nm2",
+        "approximate_area_nm2",
+        "symmetric_difference_area_bound_nm2",
+      ])
+        number(item[key], `circular geometry ${key}`, 0);
+    }
+  }
   for (const [key, value] of Object.entries(metadataLiterals))
     if (meta[key] !== value) invalid(`metadata.${key} is unsupported.`);
+  if (meta.adapter_version !== "1.2.0" && meta.adapter_version !== "1.3.0")
+    invalid("metadata.adapter_version is unsupported.");
   for (const key of metadataStrings) string(meta[key], `metadata.${key}`);
   const hash = string(meta.input_hash, "metadata.input_hash");
   if (!/^[0-9a-f]{64}$/.test(hash))
@@ -434,6 +508,13 @@ function finiteStackHasLoss(project: Project2D, wavelength: number): boolean {
       if (index(layer.material, wavelength)[1] !== 0) return true;
       continue;
     }
+    if (layer.geometry === "circular_hole_2d") {
+      if (layer.diameter_nm > 0 && index(layer.material, wavelength)[1] !== 0)
+        return true;
+      // Even a circle tangent to both cell edges leaves host-filled corners.
+      if (index(layer.background, wavelength)[1] !== 0) return true;
+      continue;
+    }
     const wx = layer.geometry === "rectangle_1d" ? layer.cd_nm : layer.cd_x_nm;
     const wy =
       layer.geometry === "rectangle_1d" ? project.period_y_nm : layer.cd_y_nm;
@@ -451,10 +532,75 @@ function finiteStackHasLoss(project: Project2D, wavelength: number): boolean {
 function matchProject(project: Project2D, result: PublicForwardResult2D): void {
   const meta = result.metadata;
   if (
+    project.layers.some((layer) => layer.geometry === "circular_hole_2d") &&
+    meta.adapter_version !== "1.3.0"
+  )
+    invalid("Circular-hole results require adapter 1.3.0.");
+  if (
     meta.harmonics_x !== project.solver.harmonics_x ||
     meta.harmonics_y !== project.solver.harmonics_y
   )
     invalid("Result basis differs from the requested basis.");
+  const circles = project.layers.flatMap((layer, layer_index) =>
+    layer.geometry === "circular_hole_2d" ? [{ layer, layer_index }] : [],
+  );
+  if (circles.length > 0 !== !!meta.circular_geometry)
+    invalid("Circular geometry metadata differs from the request.");
+  if (meta.circular_geometry) {
+    if (meta.circular_geometry.layers.length !== circles.length)
+      invalid("Circular layer count differs from the request.");
+    circles.forEach(({ layer, layer_index }, i) => {
+      const item = meta.circular_geometry!.layers[i];
+      if (item.layer_index !== layer_index)
+        invalid("Circular layer index differs from the request.");
+      const d = layer.diameter_nm,
+        radius = d / 2;
+      // Match the documented symmetric midpoint construction without squaring
+      // tiny radii before sqrt; allow only binary64 summation roundoff below.
+      const widths = Array.from({ length: 32 }, (_, j) => {
+        const y = (j + 0.5) / 64 - 0.5;
+        return d * Math.sqrt(1 - (2 * y) ** 2);
+      });
+      const approximate =
+        ([...widths, ...[...widths].reverse()].reduce(
+          (sum, width) => sum + width,
+          0,
+        ) *
+          d) /
+        64;
+      function circleAreaClose(
+        actual: number,
+        expected: number,
+        label: string,
+      ) {
+        const tolerance = Math.max(
+          64 * Number.MIN_VALUE,
+          64 * Number.EPSILON * Math.max(Math.abs(actual), Math.abs(expected)),
+        );
+        if (
+          !Number.isFinite(expected) ||
+          Math.abs(actual - expected) > tolerance
+        )
+          invalid(`${label} is inconsistent.`);
+      }
+      circleAreaClose(
+        item.exact_area_nm2,
+        Math.PI * radius * radius,
+        "Circular exact area",
+      );
+      circleAreaClose(
+        item.approximate_area_nm2,
+        approximate,
+        "Circular approximate area",
+      );
+      circleAreaClose(
+        item.symmetric_difference_area_bound_nm2,
+        (d * d) / 64 +
+          64 * Number.EPSILON * project.period_nm * project.period_y_nm,
+        "Circular area bound",
+      );
+    });
+  }
   const wavelengths = project.illumination.wavelengths_nm;
   if (
     wavelengths.length !== result.wavelengths_nm.length ||

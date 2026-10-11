@@ -15,7 +15,7 @@ from .preflight import SolverError, ensure_engine_available, refractive_index
 from .preflight_2d import ensure_preflight_2d, stack_has_loss_2d, wavevectors, widths
 from .schemas_2d import Project2D
 
-ADAPTER_VERSION_2D = "1.2.0"
+ADAPTER_VERSION_2D = "1.3.0"
 CHANNELS = ("R_s", "R_p", "T_s", "T_p")
 RAW_CHANNELS = ("de_ri_s", "de_ri_p", "de_ti_s", "de_ti_p")
 
@@ -47,7 +47,7 @@ def rectangle_cell_2d(px, py, wx, wy, inclusion, background):
     ]
 
 
-def stack_cells_2d(project, wavelength):
+def stack_cells_2d(project, wavelength, *, circle_strips=None):
     cells, thicknesses = [], []
     for layer in project.layers:
         if layer.thickness_nm == 0:
@@ -57,7 +57,15 @@ def stack_cells_2d(project, wavelength):
             inclusion if layer.geometry == "homogeneous" else refractive_index(layer.background, wavelength).conjugate()
         )
         wx, wy = widths(project, layer)
-        cells.append(rectangle_cell_2d(project.period_nm, project.period_y_nm, wx, wy, inclusion, background))
+        if layer.geometry == "circular_hole_2d":
+            from .circular_geometry import CIRCLE_STRIPS, circular_cell_2d
+
+            cells.append(circular_cell_2d(
+                project.period_nm, project.period_y_nm, layer.diameter_nm, inclusion, background,
+                strips=CIRCLE_STRIPS if circle_strips is None else circle_strips,
+            ))
+        else:
+            cells.append(rectangle_cell_2d(project.period_nm, project.period_y_nm, wx, wy, inclusion, background))
         thicknesses.append(layer.thickness_nm)
     return cells, thicknesses
 
@@ -111,14 +119,18 @@ def _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, ep
     return result
 
 
-def forward_2d(project: Project2D, *, reference_basis: tuple[int, int] | None = None) -> dict:
+def forward_2d(
+    project: Project2D, *, reference_basis: tuple[int, int] | None = None, reference_circle_strips: int | None = None
+) -> dict:
     """Offline production formulation. Higher bases are an explicit test override.
 
     Public worker/API dispatch must not call this until its separate admission,
     result/storage and UI integration gates pass. The override cannot alter the
     input hash silently: actual basis and offline override are explicit metadata.
     """
-    return _forward_2d(project, reference_basis=reference_basis, laurent_diagnostic=False)
+    return _forward_2d(
+        project, reference_basis=reference_basis, laurent_diagnostic=False, reference_circle_strips=reference_circle_strips
+    )
 
 
 def laurent_diagnostic_2d(project: Project2D, *, reference_basis=None):
@@ -126,8 +138,14 @@ def laurent_diagnostic_2d(project: Project2D, *, reference_basis=None):
     return _forward_2d(project, reference_basis=reference_basis, laurent_diagnostic=True)
 
 
-def _forward_2d(project, *, reference_basis, laurent_diagnostic):
+def _forward_2d(project, *, reference_basis, laurent_diagnostic, reference_circle_strips=None):
     project = Project2D.model_validate(project.model_dump())
+    from .circular_geometry import CIRCLE_STRIPS, circle_approximation_metadata, validate_circle_strips
+
+    circle_strips = CIRCLE_STRIPS if reference_circle_strips is None else validate_circle_strips(reference_circle_strips)
+    circular = any(layer.geometry == "circular_hole_2d" for layer in project.layers)
+    if reference_circle_strips is not None and not circular:
+        raise ValueError("Circle spatial refinement requires at least one circular-hole layer")
     basis = reference_basis or (project.solver.harmonics_x, project.solver.harmonics_y)
     if not isinstance(basis, tuple) or len(basis) != 2 or any(type(h) is not int or not 0 <= h <= 15 for h in basis):
         raise ValueError("Offline reference basis must contain two integer half-widths from 0 through 15")
@@ -151,7 +169,7 @@ def _forward_2d(project, *, reference_basis, laurent_diagnostic):
         kx, ky = wavevectors(project, wavelength, hx, hy)
         xx, yy = np.meshgrid(kx, ky)
         q_top, q_bottom = n0**2 - xx**2 - yy**2, ns**2 - xx**2 - yy**2
-        cells, thicknesses = stack_cells_2d(project, wavelength)
+        cells, thicknesses = stack_cells_2d(project, wavelength, circle_strips=circle_strips)
         try:
             with np.errstate(divide="raise", invalid="raise", over="raise"):
                 if cells:
@@ -212,6 +230,11 @@ def _forward_2d(project, *, reference_basis, laurent_diagnostic):
             series["orders"].append(rows)
     warnings = ["Convergence not assessed for this input. A single run and flux balance do not certify accuracy."]
     warnings.extend(dict.fromkeys(d.message for d in diagnostics if d.severity == "warning"))
+    if circular:
+        warnings.append(
+            f"Circular boundaries use {circle_strips} midpoint strips; spatial and harmonic convergence are separate. "
+            "Geometry area bounds are not optical-error bounds."
+        )
     if absorbing_port:
         warnings.append("T is entrance-plane flux into an absorbing half-space, not backside transmission.")
     if any_loss:
@@ -242,7 +265,12 @@ def _forward_2d(project, *, reference_basis, laurent_diagnostic):
             "total_thickness_nm": sum(layer.thickness_nm for layer in project.layers),
             "stack_order": "top_to_bottom",
             "units": "nm; vacuum wavelength",
-            "geometry": "Centered axis-aligned rectangles; common x/y periods",
+            "geometry": (
+                "Centered circles (midpoint-strip approximation), axis-aligned rectangles and uniform films; common x/y periods"
+                if circular else "Centered axis-aligned rectangles; common x/y periods"
+            ),
+            **({"circular_geometry": circle_approximation_metadata(project, circle_strips, reference_circle_strips is not None)}
+               if circular else {}),
             "polarization_convention": "Incident s=(-sin(phi),cos(phi),0); each outgoing order uses local s/p; zero transverse vector uses incident azimuth",
             "port_adapter": "q=conj(sqrt(N_public^2-kx^2-ky^2)); TM admittance q/conj(N_public)^2",
             "power_normalization": "Unit incident normal Poynting flux; semi-infinite substrate entrance-plane T",

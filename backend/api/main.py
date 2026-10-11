@@ -237,7 +237,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             ],
             "geometry": ["1–8 top-to-bottom isotropic rectangle_1d or homogeneous finite layers; common period; invariant y; classical mounting",
                          "rectangle_1d: centered ridge with material/background; homogeneous: material only",
-                         "1.2: centered axis-aligned rectangle_2d inclusions/holes, rectangle_1d or homogeneous; common orthogonal x/y periods"],
+                         "1.2: centered circular_hole_2d (64 midpoint strips), rectangle_2d, rectangle_1d or homogeneous; common orthogonal x/y periods"],
             "polarizations": ["s", "p", "both"],
             "materials": ["constant", "tabulated: linear n/k interpolation, no extrapolation; lossless ambient"],
             "observables": ["R", "T", "R_specular", "T_specular", "A_balance", "order-resolved R/T",
@@ -282,14 +282,14 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 version: {
                     "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project"]
                     + ([] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
-                    "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d"] if version == "1.2" else (
+                    "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d", "circular_hole_2d"] if version == "1.2" else (
                         ["rectangle_1d"] if version == "1.0" else ["rectangle_1d", "homogeneous"]
                     ),
                     "wavelength_count": 31 if version == "1.2" else 81,
                     "harmonics": {"x": [1, 5], "y": [1, 5]} if version == "1.2" else {"x": [1, 20]},
                     "basis_size_max": 121 if version == "1.2" else 41,
                     "simultaneous_profile_jobs": 1 if version == "1.2" else app.state.jobs.max_workers,
-                    "adapter_version": "1.2.0" if version == "1.2" else engine_info().adapter_version,
+                    "adapter_version": "1.3.0" if version == "1.2" else engine_info().adapter_version,
                     "integer_representation": "Harmonics require integer JSON tokens; runtime rejects 3.0 although JSON Schema integer accepts it.",
                 }
                 for version in ("1.0", "1.1", "1.2")

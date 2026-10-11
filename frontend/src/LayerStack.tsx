@@ -9,6 +9,9 @@ const canonicalExampleNames = new Set([
   "Synthetic high-index rectangular inclusion",
   "Synthetic interference film",
   "Synthetic low-index rectangular inclusion",
+  "Circular air hole in synthetic host A",
+  "Circular air hole in synthetic host B",
+  "Circular air hole in synthetic host C",
 ]);
 function chipName(project: Project, index: number) {
   const layer = project.layers[index];
@@ -17,11 +20,13 @@ function chipName(project: Project, index: number) {
     !canonicalExampleNames.has(layer.name)
   )
     return layer.name;
-  return layer.geometry === "rectangle_2d"
-    ? "Pattern"
-    : layer.geometry === "rectangle_1d"
-      ? "Ridge"
-      : "Film";
+  return layer.geometry === "circular_hole_2d"
+    ? "Hole"
+    : layer.geometry === "rectangle_2d"
+      ? "Pattern"
+      : layer.geometry === "rectangle_1d"
+        ? "Ridge"
+        : "Film";
 }
 
 function collapse(disclosure: HTMLDetailsElement | null, focus = true) {
@@ -119,6 +124,19 @@ export function LayerStack({
             )}
           </summary>
           <div>
+            {project.schema_version === "1.2" && (
+              <button
+                disabled={disabled || project.layers.length >= 8}
+                aria-label="Add circular-hole layer"
+                onClick={() => {
+                  onChange({ type: "add", geometry: "circular_hole_2d" });
+                  collapse(add.current);
+                }}
+              >
+                <strong>Circular hole</strong>
+                <span>A round hole in a host material</span>
+              </button>
+            )}
             <button
               disabled={disabled || project.layers.length >= 8}
               aria-label="Add patterned layer"

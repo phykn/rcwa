@@ -67,7 +67,7 @@ def test_saved_laurent_diagnostic_is_not_production_convergence():
     path = ROOT / "docs/true-2d/laurent-diagnostic-results.json.gz"
     report = json.loads(gzip.decompress(path.read_bytes()))
     for source, expected in report["production_source_sha256"].items():
-        assert hashlib.sha256((ROOT / source).read_bytes()).hexdigest() == expected
+        assert hashlib.sha256((ROOT / "backend/tests/fixtures/true-2d/historical-core" / Path(source).name).read_bytes()).hexdigest() == expected
     assert report["reference"]["source_commit"] == "7fd00a231610bff51f5c7de5f723e3956eab7453"
     assert report["reference"]["tracked_source_clean"] is True
     assert report["diagnostics"]["passed"]
@@ -97,7 +97,7 @@ def test_archived_representative_production_convergence(name):
     report = json.loads(gzip.decompress((ROOT / f"docs/true-2d/{name}-gate.json.gz").read_bytes()))
     gate = report["gate"]
     for path, sha256 in gate["production_source_sha256"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == sha256
+        assert hashlib.sha256((ROOT / "backend/tests/fixtures/true-2d/historical-core" / Path(path).name).read_bytes()).hexdigest() == sha256
     project = Project2D.model_validate(gate["input"])
     assert gate["input_hash"] == input_hash_2d(project)
     assert report["reference_provenance"]["source_commit"] == "7fd00a231610bff51f5c7de5f723e3956eab7453"

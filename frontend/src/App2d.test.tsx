@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import circular from "./fixtures/default-project-circular.json";
 
 async function renderExample(search: string) {
   vi.resetModules();
@@ -13,8 +14,8 @@ async function renderExample(search: string) {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("ordinary production default versus explicit legacy fixture", () => {
-  it.each(["", "?example=2d", "?unrelated=1d"])(
-    "uses genuine 2D inputs at %s",
+  it.each(["?example=rectangle", "?example=rectangular"])(
+    "retains historical rectangular inputs explicitly at %s",
     async (search) => {
       const html = await renderExample(search);
       expect(html).toContain(
@@ -32,6 +33,23 @@ describe("ordinary production default versus explicit legacy fixture", () => {
       expect(html).toContain(
         "Synthetic width fitting is not supported for schema 1.2",
       );
+    },
+  );
+  it.each(["", "?example=2d", "?unrelated=1d"])(
+    "uses the genuine circular-hole default at %s",
+    async (search) => {
+      const html = await renderExample(search);
+      expect(html).toContain(`value="${circular.name}"`);
+      expect(html.match(/class="stack-row(?: |")/g)).toHaveLength(
+        circular.layers.length,
+      );
+      expect(html).toContain(
+        `aria-label="Edit Layer 1 diameter: ${circular.layers[0].diameter_nm} nanometers"`,
+      );
+      expect(html).not.toContain('aria-label="Edit Layer 1 width:');
+      expect(html).toContain('class="s2-scene"');
+      expect(html).toContain("Run simulation");
+      expect(html).not.toContain('class="three-canvas');
     },
   );
   it("keeps the original 1D fixture explicit without changing ordinary URLs", async () => {

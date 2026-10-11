@@ -1,0 +1,32 @@
+{
+  "source_commit": "7fd00a231610bff51f5c7de5f723e3956eab7453",
+  "source_url": "https://github.com/victorliu/S4",
+  "tracked_source_clean": true,
+  "source_tree": "307ebf1f8b545a4b8d2fcae1c89af60705da06aa",
+  "driver_sha256": "dd3f07f8a8bd02b8718abfed0088b377a422af0bdc8c8733f0f6b1492f1f18da",
+  "binary_sha256": "d2210b3195b18209d374ed802a6eceba028edabfe28decfe936991af05cec1b9",
+  "static_library_sha256": "233bb53ea243ed0550594bf842a89ce67d721cbe4318b50316453ce332a2ac04",
+  "link_command": [
+    "/usr/bin/g++",
+    "-O2",
+    "-I",
+    "/workspace/scratch/b1c48fa28a3c/rcwa-s4-circular/S4",
+    "/workspace/scratch/b1c48fa28a3c/rcwa-circular-hole-work/scripts/true_2d/s4_driver.cpp",
+    "/workspace/scratch/b1c48fa28a3c/rcwa-s4-circular/build/libS4.a",
+    "-Wl,-l:liblapack.so.3",
+    "-Wl,-l:libblas.so.3",
+    "-o",
+    "/workspace/scratch/b1c48fa28a3c/rcwa-s4-circular/build/rcwa_reference_2d/reference_driver_2d"
+  ],
+  "fresh_library_build": true,
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "formulation": "Upstream default 2D Laurent; independent exact geometry; no smoothing or injected matrices",
+  "build_command": [
+    "make",
+    "-B",
+    "-j2",
+    "build/libS4.a"
+  ],
+  "build_log_sha256": "e7cd999f42597094e6541ce6d9fd609332966c271f972ce03f7d3b75bfb079b0",
+  "note": "Fresh official pinned S4 build preceded all circle sweeps; later same-binary sweeps reuse this library and report their own binary/library hashes."
+}

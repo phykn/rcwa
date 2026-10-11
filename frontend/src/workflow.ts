@@ -411,6 +411,7 @@ export interface LayerSummary {
   cd_nm: number | null;
   cd_x_nm?: number;
   cd_y_nm?: number;
+  diameter_nm?: number;
   background: MaterialSummary | null;
 }
 export type StackDifference =
@@ -484,6 +485,9 @@ export function summarizeLayer(layer: Layer): LayerSummary {
     cd_nm: layer.geometry === "rectangle_1d" ? layer.cd_nm : null,
     ...(layer.geometry === "rectangle_2d"
       ? { cd_x_nm: layer.cd_x_nm, cd_y_nm: layer.cd_y_nm }
+      : {}),
+    ...(layer.geometry === "circular_hole_2d"
+      ? { diameter_nm: layer.diameter_nm }
       : {}),
     background:
       layer.geometry !== "homogeneous"

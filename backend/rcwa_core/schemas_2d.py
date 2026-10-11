@@ -1,4 +1,4 @@
-"""Explicit 1.2 rectangular 2D contract; legacy defaults remain unchanged.
+"""Explicit 1.2 bounded 2D contract; legacy defaults remain unchanged.
 
 Public requests opt in through shared version dispatch. Lengths are vacuum nm.
 """
@@ -22,7 +22,18 @@ class Rectangle2D(StrictModel):
     background: Material
 
 
-Layer2D = Annotated[Rectangle2D | Layer | HomogeneousLayer, Field(discriminator="geometry")]
+class CircularHole2D(StrictModel):
+    """Centered circular cylinder: material fills the hole, background is its host."""
+
+    name: str = Field(default="Synthetic circular hole", min_length=1, max_length=100)
+    geometry: Literal["circular_hole_2d"] = "circular_hole_2d"
+    thickness_nm: float = Field(default=90, ge=0, le=2000)
+    diameter_nm: float = Field(ge=0, le=5000)
+    material: Material
+    background: Material
+
+
+Layer2D = Annotated[Rectangle2D | CircularHole2D | Layer | HomogeneousLayer, Field(discriminator="geometry")]
 
 
 class Illumination2D(Illumination):
@@ -61,6 +72,9 @@ class Project2D(StrictModel):
             if isinstance(layer, Rectangle2D):
                 if layer.cd_x_nm > self.period_nm or layer.cd_y_nm > self.period_y_nm:
                     raise ValueError(f"Layer {i + 1}: rectangle widths must not exceed their periods")
+            elif isinstance(layer, CircularHole2D):
+                if layer.diameter_nm > min(self.period_nm, self.period_y_nm):
+                    raise ValueError(f"Layer {i + 1}: hole diameter must not exceed either period")
             elif isinstance(layer, Layer) and layer.cd_nm > self.period_nm:
                 raise ValueError(f"Layer {i + 1}: CD must not exceed the x period")
         if (self.ambient.kind == "constant" and self.ambient.k != 0) or (

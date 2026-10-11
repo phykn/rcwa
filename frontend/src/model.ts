@@ -5,10 +5,18 @@ import {
   stringify2DEnvelope,
   validateProject2D,
 } from "./project2d";
-import type { Project2D, Rectangle2DLayer } from "./project2d";
+import type {
+  Project2D,
+  Rectangle2DLayer,
+  CircularHole2DLayer,
+} from "./project2d";
 import { bindResult2D, isForwardResult2D } from "./result2d";
 import type { PublicForwardResult2D } from "./result2d";
-export type { Project2D, Rectangle2DLayer } from "./project2d";
+export type {
+  Project2D,
+  Rectangle2DLayer,
+  CircularHole2DLayer,
+} from "./project2d";
 export type { PublicForwardResult2D } from "./result2d";
 
 export type Polarization = "s" | "p" | "both";
@@ -37,7 +45,7 @@ export interface HomogeneousLayer {
   material: Material;
 }
 export type Layer1D = RectangleLayer | HomogeneousLayer;
-export type Layer = Layer1D | Rectangle2DLayer;
+export type Layer = Layer1D | Rectangle2DLayer | CircularHole2DLayer;
 export interface Project1D {
   schema_version: "1.0" | "1.1";
   name: string;
@@ -532,9 +540,11 @@ export function maximumPatternedCDX(project: Project): number {
     ...project.layers.map((layer) =>
       layer.geometry === "rectangle_1d"
         ? layer.cd_nm
-        : layer.geometry === "rectangle_2d"
-          ? layer.cd_x_nm
-          : 0,
+        : layer.geometry === "circular_hole_2d"
+          ? layer.diameter_nm
+          : layer.geometry === "rectangle_2d"
+            ? layer.cd_x_nm
+            : 0,
     ),
   );
 }
@@ -543,7 +553,11 @@ export function maximumPatternedCDY(project: Project): number {
   return Math.max(
     0,
     ...project.layers.map((layer) =>
-      layer.geometry === "rectangle_2d" ? layer.cd_y_nm : 0,
+      layer.geometry === "rectangle_2d"
+        ? layer.cd_y_nm
+        : layer.geometry === "circular_hole_2d"
+          ? layer.diameter_nm
+          : 0,
     ),
   );
 }
@@ -562,7 +576,7 @@ export function stackSummary(project: Project): string {
   return project.layers
     .map(
       (layer, index) =>
-        `${index + 1}. ${layer.name}: ${layer.geometry === "rectangle_1d" ? `CD ${layer.cd_nm} nm · ` : layer.geometry === "rectangle_2d" ? `Width X ${layer.cd_x_nm} nm · Y ${layer.cd_y_nm} nm · ` : "Uniform · "}${layer.thickness_nm} nm`,
+        `${index + 1}. ${layer.name}: ${layer.geometry === "rectangle_1d" ? `CD ${layer.cd_nm} nm · ` : layer.geometry === "rectangle_2d" ? `Width X ${layer.cd_x_nm} nm · Y ${layer.cd_y_nm} nm · ` : layer.geometry === "circular_hole_2d" ? `Diameter ${layer.diameter_nm} nm · ` : "Uniform · "}${layer.thickness_nm} nm`,
     )
     .join("; ");
 }
@@ -587,7 +601,8 @@ export function editStack(
   const index = validLayerIndex(project, selected);
   if (
     (operation.type === "add" || operation.type === "geometry") &&
-    operation.geometry === "rectangle_2d" &&
+    (operation.geometry === "rectangle_2d" ||
+      operation.geometry === "circular_hole_2d") &&
     project.schema_version !== "1.2"
   )
     throw new Error(
@@ -613,17 +628,28 @@ export function editStack(
             thickness_nm: base.thickness_nm,
             material: base.material,
           }
-        : operation.geometry === "rectangle_2d" && next.schema_version === "1.2"
+        : operation.geometry === "circular_hole_2d" &&
+            next.schema_version === "1.2"
           ? {
-              name: "Patterned layer",
-              geometry: "rectangle_2d",
+              name: "Circular-hole layer",
+              geometry: "circular_hole_2d",
               thickness_nm: base.thickness_nm,
-              cd_x_nm: Math.min(base.cd_nm, next.period_nm),
-              cd_y_nm: Math.min(base.cd_nm, next.period_y_nm),
-              material: base.material,
-              background: base.background,
+              diameter_nm: Math.min(next.period_nm, next.period_y_nm) / 2,
+              material: base.background,
+              background: base.material,
             }
-          : { ...base, cd_nm: Math.min(base.cd_nm, next.period_nm) };
+          : operation.geometry === "rectangle_2d" &&
+              next.schema_version === "1.2"
+            ? {
+                name: "Patterned layer",
+                geometry: "rectangle_2d",
+                thickness_nm: base.thickness_nm,
+                cd_x_nm: Math.min(base.cd_nm, next.period_nm),
+                cd_y_nm: Math.min(base.cd_nm, next.period_y_nm),
+                material: base.material,
+                background: base.background,
+              }
+            : { ...base, cd_nm: Math.min(base.cd_nm, next.period_nm) };
     layers.splice(index + 1, 0, added);
     selectedLayer = index + 1;
   } else if (operation.type === "duplicate") {
@@ -648,27 +674,49 @@ export function editStack(
       material: layer.material,
     };
     const widthX =
-      layer.geometry === "rectangle_2d"
-        ? layer.cd_x_nm
-        : layer.geometry === "rectangle_1d"
-          ? layer.cd_nm
-          : next.period_nm / 2;
+      layer.geometry === "circular_hole_2d"
+        ? layer.diameter_nm
+        : layer.geometry === "rectangle_2d"
+          ? layer.cd_x_nm
+          : layer.geometry === "rectangle_1d"
+            ? layer.cd_nm
+            : next.period_nm / 2;
     const background =
       layer.geometry === "homogeneous"
         ? structuredClone(next.ambient)
         : layer.background;
     layers[index] =
       operation.geometry === "homogeneous"
-        ? { ...base, geometry: "homogeneous" }
-        : operation.geometry === "rectangle_2d" && next.schema_version === "1.2"
+        ? {
+            ...base,
+            geometry: "homogeneous",
+            material:
+              layer.geometry === "circular_hole_2d"
+                ? layer.background
+                : layer.material,
+          }
+        : operation.geometry === "circular_hole_2d" &&
+            next.schema_version === "1.2"
           ? {
               ...base,
-              geometry: "rectangle_2d",
-              cd_x_nm: widthX,
-              cd_y_nm: next.period_y_nm / 2,
-              background,
+              geometry: "circular_hole_2d",
+              diameter_nm: Math.min(widthX, next.period_y_nm),
+              // A film becomes the host; patterned conversions preserve both material identities.
+              material:
+                layer.geometry === "homogeneous" ? background : layer.material,
+              background:
+                layer.geometry === "homogeneous" ? layer.material : background,
             }
-          : { ...base, geometry: "rectangle_1d", cd_nm: widthX, background };
+          : operation.geometry === "rectangle_2d" &&
+              next.schema_version === "1.2"
+            ? {
+                ...base,
+                geometry: "rectangle_2d",
+                cd_x_nm: widthX,
+                cd_y_nm: next.period_y_nm / 2,
+                background,
+              }
+            : { ...base, geometry: "rectangle_1d", cd_nm: widthX, background };
   }
   if (next.schema_version !== "1.2") next.schema_version = "1.1";
   return { project: next, selectedLayer };

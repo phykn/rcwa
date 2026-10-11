@@ -322,7 +322,10 @@ has been tested. References: [official Python SDK](https://github.com/modelconte
 ## Explicit 1.2 and bounded stdio output
 
 The existing forward/validate/job/snapshot tools share the API's explicit 1.2
-contracts. They do not implement another solver. The canonical example, fitting
+contracts, including the explicit `circular_hole_2d` geometry and its
+`diameter_nm`, hole-fill `material`, and host `background`. They do not implement
+another solver. Read the geometry list in the version-specific capability
+profile before submitting a circle. The canonical example, fitting
 and change-preview tools remain legacy-only in this backend increment; inspect
 version-specific capability profiles before using an operation. Harmonics use
 strict integer JSON tokens, so `3.0` is rejected even though JSON Schema's integer
