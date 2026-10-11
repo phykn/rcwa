@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import json
 from dataclasses import dataclass
 import sys
+from threading import Thread
 from typing import Annotated
 
 import anyio
@@ -42,10 +43,30 @@ class ProtocolIDTooLarge(Exception):
 
 class CancellableStdin(anyio.AsyncFile):
     async def readline(self):
-        # AsyncFile's default shielded thread can block shutdown while a client
-        # keeps its pipe open. This private SDK-owned descriptor is never recycled
-        # underneath a blocked thread; abandonment ends only this stdio process.
-        return await anyio.to_thread.run_sync(self.wrapped.readline, abandon_on_cancel=True)
+        # AnyIO workers are non-daemon: abandoning their coroutine still leaves
+        # process shutdown waiting for a client that keeps stdin open. A single
+        # daemon read instead owns this private SDK descriptor until process exit;
+        # the descriptor is never closed/recycled beneath a blocked read.
+        done = anyio.Event()
+        token = anyio.lowlevel.current_token()
+        outcome = []
+
+        def read():
+            try:
+                outcome.append((True, self.wrapped.readline()))
+            except BaseException as error:
+                outcome.append((False, error))
+            try:
+                anyio.from_thread.run_sync(done.set, token=token)
+            except RuntimeError:
+                pass  # Cancellation already ended this standalone stdio process.
+
+        Thread(target=read, name="rcwa-stdio-read", daemon=True).start()
+        await done.wait()
+        success, value = outcome[0]
+        if not success:
+            raise value
+        return value
 
 
 @asynccontextmanager

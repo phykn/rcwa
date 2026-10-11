@@ -1,8 +1,9 @@
 # Backend-only schema 1.2 integration verification
 
-Status: local numerical, resource and full-suite gates passed; independent
-numerical audit passed. Exact-candidate CI acceptance remains pending. This
-document does not approve publication.
+Status: numerical audit, initial live CI reference/browser checks and refreshed
+local resource/full-suite gates passed. The initial held-open-stdin shutdown race
+has a deterministic regression and correction. Corrected exact-candidate CI
+acceptance remains pending. This document does not approve publication.
 
 ## Source identity and scope
 
@@ -11,7 +12,7 @@ document does not approve publication.
 - The separate integration branch starts from local `2d21140989655f97dc3bacb6e3021879f1ba8da2`,
   whose tree is identical to that release.
 - Shared numerical/core checkpoint: `d2c00e55a699e75b58cc20de69d0f148718dc0c2`.
-- Backend/transport checkpoint: `fbd8eec6822b38cb0c7abcd3e01ef7862e46f8ff`.
+- Backend/transport checkpoint: `6ba8f0406a9e426434bc6a008104ab2fb7650882`.
 - All pre-existing `backend/rcwa_core` files and every frontend file remain
   byte-identical to the accepted first-use release. Core additions share one
   project parser, canonical hash and version dispatch; there is one JobManager,
@@ -103,17 +104,17 @@ terminal records can temporarily exceed it while owning resources. Unreaped
 children still consume slots; cleanup-pending records block further admission.
 This is not a total-RSS cap, nor a bound on concurrent serialization copies.
 
-Final-source maximum-table H5/31-wavelength/eight-layer cases succeeded in 35.37 s
-and 34.63 s. The first ran alongside a bounded legacy H12/41-wavelength fit,
-which succeeded in 6.16 s; their sampled API-plus-children peak was 405,860 KiB
-(396.35 MiB). Peak 2D-child RSS was 155,404 KiB and 150,064 KiB respectively.
+Final-source maximum-table H5/31-wavelength/eight-layer cases succeeded in 34.01 s
+and 33.70 s. The first ran alongside a bounded legacy H12/41-wavelength fit,
+which succeeded in 5.58 s; their sampled API-plus-children peak was 400,260 KiB
+(390.88 MiB). Peak 2D-child RSS was 151,384 KiB and 153,080 KiB respectively.
 Both verified output binding, SQLite idempotence/restart, all owned handles closed,
 outputs removed and temporary directories removed. These cases test resource and
 transport behavior; they are not independently converged physical fixtures.
 
 `backend-resource-evidence.tar.gz` retains both complete inputs/snapshots, all
 reports, source/dependency manifest and full-suite XML/log. Its SHA-256 is
-`e21c0de28fc3b8cbe3eb1503320b1b699ff9831d5896ea5235d6a0298cc4cb23`;
+`9a29ffa6da133fa3ae4d87694389e4c1fb908c73f6eba5075f452adadc4953e8`;
 `backend-resource-evidence.json` indexes the package and watchdog result.
 
 ## HTTP and MCP transport limits
@@ -139,10 +140,25 @@ limit; the recovery instructions do not claim otherwise.
 
 Protocol IDs are limited to 1,024 serialized UTF-8 JSON bytes. Oversized IDs close
 stdio before any tool/API invocation, with no truncation or oversized echo. The
-pinned SDK's standard input read otherwise shields a blocking thread; a small
-cancellation-aware readline wrapper preserves its fd ownership/diversion, parser
-and writer. Actual Linux tests cover open-stdin shutdown and fresh-client recovery;
-Windows execution of the same cases is required before acceptance.
+pinned SDK's standard input read otherwise uses a non-daemon AnyIO thread:
+abandoning its coroutine alone cannot guarantee process shutdown. A small
+readline wrapper now uses one daemon read while preserving the SDK's private
+descriptor ownership/diversion, parser and writer. The private descriptor is
+never closed or recycled under a blocked read. A cancelled read lasts only until
+this standalone adapter process exits; it does not alter the global thread pool.
+The real-process regression observes entry into the next blocking read before
+releasing the oversized-ID rejection, and checks empty stdout/stderr, clean exit,
+no API mutation and fresh-client recovery. Windows execution of the same cases
+is required before acceptance.
+
+Initial remote candidate `8aed11d0fae320a27d6c2905ca888923871200d5`
+(tree `2589d542efb5eba36cb68aac0505233327f49fd1`) ran Checks
+`38096261712`. Frontend, all browser suites and live S4 checks passed. Linux reported 1,425 passed,
+one optional-watchdog skip and one held-stdin exit timeout; Windows also failed
+its new transport suite. These failures are retained as failed evidence, not
+rerun away. The transport-only correction leaves numerical core and archives
+byte-identical. The original resource bundle remains in commit `0a7a317c`;
+the newly generated package above supersedes its transport acceptance.
 
 MCP local diagnostics now share the HTTP 50-diagnostic/512-byte message-and-location
 policy. The diagnostic payload stays below 64 KB; its duplicated MCP representation
@@ -153,19 +169,21 @@ can be about 98 KB and is still subject to the complete wire cap.
 These counts overlap and must not be added together.
 
 - Complete final local backend suite: **1,424 passed, three PostgreSQL-service
-  skips**, 270.89 s, with `RCWA_RUN_120S_WATCHDOG=1`. Actual watchdog passed in
-  120.35 s, actual spawned full-default H5 in 8.61 s and direct full-default H5 in
-  8.46 s. All fresh archive/core/dependency checks passed. Source hashes remained
+  skips**, 257.30 s, with `RCWA_RUN_120S_WATCHDOG=1`. Actual watchdog passed in
+  120.35 s, actual spawned full-default H5 in 8.20 s and direct full-default H5 in
+  7.76 s. All fresh archive/core/dependency checks passed. Source hashes remained
   unchanged throughout probes and tests. JUnit is retained in the resource package.
 - Broad lightweight backend pass: 1,358 passed, three PostgreSQL-service skips,
   two heavy cases deselected; old numerical archive/default tests were held for
   fresh generation, and transport cases were run separately.
-- Latest full transport plus lightweight worker/history pass: 121 passed,
+- Pre-fix full transport plus lightweight worker/history pass: 121 passed,
   two heavy cases deselected. All 48 transport boundary/recovery cases passed.
 - New shared dispatch/identity/API/MCP suites: 349 passed, one PostgreSQL skip;
   four subsequently added stored-record integrity cases also pass.
-- Independent reviewer: 56 transport/history cases passed, including all 48
-  transport cases, without a heavy solve.
+- Corrected deterministic transport suite: 48 passed in 52.24 s. Independent
+  reviewer reran 20 forced-read ID tests, plus 30 private-wrapper cancellation
+  stress subprocesses. The old reader fails the same forced-read negative control
+  until the parent closes stdin. No timeout or numerical threshold was relaxed.
 - Unchanged frontend: 205 tests passed, ESLint passed, production/static builds
   passed. The pre-existing bundle-size warning remains informational.
 - Ruff, whitespace checks and `pip check` passed. The full-suite XML run also
@@ -176,6 +194,18 @@ These counts overlap and must not be added together.
   `socket()` was denied. An identical supported-escalation retry also failed.
   No page assertions or screenshots from these attempts count as passing evidence.
   No further local browser attempts are made; exact-commit CI must run every suite.
+- Initial CI browser artifact: 173 files, seven passing suites with 92 checks,
+  no page errors; ten representative mobile/desktop images independently inspected.
+  ZIP SHA-256 `0330b92bd8b867ffac9a80a77900471e551f634ef06525942698d4b48392369c`.
+  This intermediate artifact is bound to `8aed11d0`, not the corrected candidate.
+- Initial live S4 artifact: all 29,184 signed 2D gate residual/tail values replay
+  exactly; production values match archived evidence. Fresh official Makefile/RNP
+  S4 reference values differ from the local BLAS/LAPACK build by at most 2.07e-10.
+  Both unchanged convergence gates pass; Laurent worst 2.87e-13. The builds are
+  explicitly distinct, not claimed byte-identical. Corrected CI must rerun them.
+- Windows CI now retains pytest JUnit and console-log artifacts even on failure,
+  preserving the test exit status. The first run's specialized Windows log fetch
+  failed in two independent connector sessions; its overall failure remains held.
 
 ## Remaining release gates
 

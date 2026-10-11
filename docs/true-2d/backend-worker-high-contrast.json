@@ -13,24 +13,24 @@
   },
   "worker_timeout_seconds": 120,
   "processes": {
-    "c9360917-c284-45f2-a93b-5c82133c35f4": {
-      "pid": 13,
-      "peak_RSS_KiB": 155404,
-      "peak_HWM_KiB": 155404,
-      "status": "succeeded",
-      "error_code": null,
-      "seconds": 35.37409040100465
-    },
-    "f77d3267-8796-4a71-b3e0-c31d5bbb53a4": {
+    "b030f69e-c288-4650-a04a-b32eb34c7077": {
       "pid": 14,
-      "peak_RSS_KiB": 149356,
-      "peak_HWM_KiB": 149356,
+      "peak_RSS_KiB": 151384,
+      "peak_HWM_KiB": 151384,
       "status": "succeeded",
       "error_code": null,
-      "seconds": 6.1603022960043745
+      "seconds": 34.01257050001004
+    },
+    "9fb8373f-357f-4f20-9bb6-b14163bb61d3": {
+      "pid": 15,
+      "peak_RSS_KiB": 149032,
+      "peak_HWM_KiB": 149032,
+      "status": "succeeded",
+      "error_code": null,
+      "seconds": 5.580713761009974
     }
   },
-  "peak_combined_rss_KiB": 405860,
+  "peak_combined_rss_KiB": 400260,
   "status": "succeeded",
   "error": null,
   "measurement_kind": "offline full per-version SDK serialization before bounded-response fallback",
@@ -39,37 +39,37 @@
   "sdk_version": "2.3.0",
   "wire_versions": {
     "2024-11-05": {
-      "jsonrpc_line_bytes": 8983929,
+      "jsonrpc_line_bytes": 8983931,
       "under_8MB": false,
-      "sha256": "1790146051e0dae0444183d9342b24c753669630fd05a3210985b022eb34f584",
+      "sha256": "647cbb60b710f986708520f029dcec4c42393620db19c3eb44e123a9df654c79",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-03-26": {
-      "jsonrpc_line_bytes": 8983929,
+      "jsonrpc_line_bytes": 8983931,
       "under_8MB": false,
-      "sha256": "1790146051e0dae0444183d9342b24c753669630fd05a3210985b022eb34f584",
+      "sha256": "647cbb60b710f986708520f029dcec4c42393620db19c3eb44e123a9df654c79",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-06-18": {
-      "jsonrpc_line_bytes": 8983929,
+      "jsonrpc_line_bytes": 8983931,
       "under_8MB": false,
-      "sha256": "1790146051e0dae0444183d9342b24c753669630fd05a3210985b022eb34f584",
+      "sha256": "647cbb60b710f986708520f029dcec4c42393620db19c3eb44e123a9df654c79",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-11-25": {
-      "jsonrpc_line_bytes": 8983929,
+      "jsonrpc_line_bytes": 8983931,
       "under_8MB": false,
-      "sha256": "1790146051e0dae0444183d9342b24c753669630fd05a3210985b022eb34f584",
+      "sha256": "647cbb60b710f986708520f029dcec4c42393620db19c3eb44e123a9df654c79",
       "server_info_stamp": null,
       "result_type": null
     },
     "2026-07-28": {
-      "jsonrpc_line_bytes": 8984044,
+      "jsonrpc_line_bytes": 8984046,
       "under_8MB": false,
-      "sha256": "6fc77d929251ec6b5ae7fb79bf86e6e5bf3f7e7708b684e5e0f573dac0b3f0d0",
+      "sha256": "d94e28de66d34ebea720de1b71bf201186486b96e18461357d735db0423b5719",
       "server_info_stamp": {
         "io.modelcontextprotocol/serverInfo": {
           "name": "RCWA Workbench",
@@ -79,22 +79,22 @@
       "result_type": "complete"
     }
   },
-  "result_bytes": 2240332,
-  "full_snapshot_bytes": 4234488,
+  "result_bytes": 2240333,
+  "full_snapshot_bytes": 4234489,
   "snapshot_under_8MB": true,
-  "full_result_post_bytes": 4233783,
+  "full_result_post_bytes": 4233784,
   "project_only_post_bytes": 1993455,
-  "snapshot_sha256": "5a8a8220ef985d557b4c08e28fde611b34c1a3e9d59820ad88bddd2d7f9ac075",
+  "snapshot_sha256": "e19f6e435362f391dfa6a0616217dbbb36ff8bf197748f43544f0ef0ff76e549",
   "estimated_project_object_bytes": 3547918,
   "estimated_result_object_bytes": 5476681,
   "estimated_completed_job_input_bytes": 9025937,
   "source_sha256": {
     "scripts/true_2d_worker_resources.py": "d68712bbf481b84639ac96e4f4237478c755aca714d1ba173dbd8c5d30026663",
     "backend/api/jobs.py": "2b213ec9327676249a13b9b93286984e9639a047d8a0f6a1d735797c5a682e6d",
-    "backend/mcp_adapter/server.py": "b4d4b0cdcdf2cce76ede0d8b9f3a443508a6af6d03857573561e88d588e8f4cb",
+    "backend/mcp_adapter/server.py": "aaf2dd246df5cafea8c236af253fb92d1d61bcb22a1576c6d210c2bd82c1b6ee",
     "backend/rcwa_core/project_io.py": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde"
   },
-  "worker_output_bytes": 2436091,
+  "worker_output_bytes": 2436092,
   "sqlite_restart_verified": true,
   "cleanup": {
     "running": [],
@@ -103,6 +103,6 @@
     "all_process_handles_closed": true,
     "all_outputs_removed": true
   },
-  "wall_seconds": 37.99489392700343,
+  "wall_seconds": 36.34141850400192,
   "directory_removed": true
 }

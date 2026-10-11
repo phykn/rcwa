@@ -287,7 +287,38 @@ async def test_real_oversized_stdio_save_is_recoverable_by_http_without_resubmit
 @contextmanager
 def raw_stdio(url):
     """Portable line reader with bounded waits, including Windows anonymous pipes."""
-    process = subprocess.Popen([sys.executable, "-m", "mcp_adapter.server", "--api-url", url], cwd=ROOT,
+    # Observe entry into the next blocking read before releasing the rejection.
+    # Without this deterministic scheduling edge, an abandoned
+    # non-daemon reader can appear to work merely because it has not started yet.
+    script = """
+import anyio
+from threading import Event
+from mcp_adapter import server
+reading = Event()
+wrapper = server._UnownedTextWrapper
+class ObservedInput:
+    def __init__(self, *args, **kwargs):
+        self.stream = wrapper(*args, **kwargs)
+    def readline(self):
+        reading.set()
+        try:
+            return self.stream.readline()
+        finally:
+            reading.clear()
+server._UnownedTextWrapper = ObservedInput
+original = server.BoundedProtocolIDs.receive
+async def delayed_rejection(self):
+    try:
+        return await original(self)
+    except server.ProtocolIDTooLarge:
+        with anyio.fail_after(5):
+            while not reading.is_set():
+                await anyio.sleep(0.001)
+        raise
+server.BoundedProtocolIDs.receive = delayed_rejection
+server.main()
+"""
+    process = subprocess.Popen([sys.executable, "-c", script, "--api-url", url], cwd=ROOT,
                                env={**os.environ, "PYTHONPATH": str(ROOT / "backend"),
                                     "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"},
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -324,10 +355,12 @@ def raw_stdio(url):
                     process.wait(timeout=5)
         reader.join(timeout=5)
         assert not reader.is_alive()
+        stderr = process.stderr.read()
         process.stdout.close()
         process.stderr.close()
         if not process.stdin.closed:
             process.stdin.close()
+        assert stderr == b"", stderr.decode("utf-8", errors="replace")
 
 
 def initialize_request(request_id):

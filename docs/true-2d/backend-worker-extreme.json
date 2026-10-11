@@ -13,16 +13,16 @@
   },
   "worker_timeout_seconds": 120,
   "processes": {
-    "4f8fe07e-ca4a-4fdf-813c-07fef37fa7f5": {
-      "pid": 17,
-      "peak_RSS_KiB": 150064,
-      "peak_HWM_KiB": 150064,
+    "8ebbad40-adec-4186-945f-aa5ffdd48f2a": {
+      "pid": 18,
+      "peak_RSS_KiB": 153080,
+      "peak_HWM_KiB": 153080,
       "status": "succeeded",
       "error_code": null,
-      "seconds": 34.62643721700442
+      "seconds": 33.701547827004106
     }
   },
-  "peak_combined_rss_KiB": 256704,
+  "peak_combined_rss_KiB": 260240,
   "status": "succeeded",
   "error": null,
   "measurement_kind": "offline full per-version SDK serialization before bounded-response fallback",
@@ -33,35 +33,35 @@
     "2024-11-05": {
       "jsonrpc_line_bytes": 8985111,
       "under_8MB": false,
-      "sha256": "0e50334e47c511b970f0ac909a65d3e4b8ca7a6c7cdf97352969c3689fbb720a",
+      "sha256": "d6fa95155107935623c9ce11976902a1a22af74fc8bea29834962331edfee80a",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-03-26": {
       "jsonrpc_line_bytes": 8985111,
       "under_8MB": false,
-      "sha256": "0e50334e47c511b970f0ac909a65d3e4b8ca7a6c7cdf97352969c3689fbb720a",
+      "sha256": "d6fa95155107935623c9ce11976902a1a22af74fc8bea29834962331edfee80a",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-06-18": {
       "jsonrpc_line_bytes": 8985111,
       "under_8MB": false,
-      "sha256": "0e50334e47c511b970f0ac909a65d3e4b8ca7a6c7cdf97352969c3689fbb720a",
+      "sha256": "d6fa95155107935623c9ce11976902a1a22af74fc8bea29834962331edfee80a",
       "server_info_stamp": null,
       "result_type": null
     },
     "2025-11-25": {
       "jsonrpc_line_bytes": 8985111,
       "under_8MB": false,
-      "sha256": "0e50334e47c511b970f0ac909a65d3e4b8ca7a6c7cdf97352969c3689fbb720a",
+      "sha256": "d6fa95155107935623c9ce11976902a1a22af74fc8bea29834962331edfee80a",
       "server_info_stamp": null,
       "result_type": null
     },
     "2026-07-28": {
       "jsonrpc_line_bytes": 8985226,
       "under_8MB": false,
-      "sha256": "7445bd972d0ebafe2ab7c2dd57c1186b799964df21dbd8b662d294efc091f519",
+      "sha256": "67bc9f4ae79a6845622758c23991372da1b0d1a5da9b56d7322d66f0dc1285af",
       "server_info_stamp": {
         "io.modelcontextprotocol/serverInfo": {
           "name": "RCWA Workbench",
@@ -76,14 +76,14 @@
   "snapshot_under_8MB": true,
   "full_result_post_bytes": 4234304,
   "project_only_post_bytes": 1993939,
-  "snapshot_sha256": "41d96813183fee59e0cbc31cd3516661385bb10aeef21fc807f8af73d78ab636",
+  "snapshot_sha256": "6aef06e55c5deb0a9a4cbf558adf4028bbcd5eb13cd45c75f9885cb59e90a262",
   "estimated_project_object_bytes": 3547912,
   "estimated_result_object_bytes": 5476681,
   "estimated_completed_job_input_bytes": 9025931,
   "source_sha256": {
     "scripts/true_2d_worker_resources.py": "d68712bbf481b84639ac96e4f4237478c755aca714d1ba173dbd8c5d30026663",
     "backend/api/jobs.py": "2b213ec9327676249a13b9b93286984e9639a047d8a0f6a1d735797c5a682e6d",
-    "backend/mcp_adapter/server.py": "b4d4b0cdcdf2cce76ede0d8b9f3a443508a6af6d03857573561e88d588e8f4cb",
+    "backend/mcp_adapter/server.py": "aaf2dd246df5cafea8c236af253fb92d1d61bcb22a1576c6d210c2bd82c1b6ee",
     "backend/rcwa_core/project_io.py": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde"
   },
   "worker_output_bytes": 2436128,
@@ -95,6 +95,6 @@
     "all_process_handles_closed": true,
     "all_outputs_removed": true
   },
-  "wall_seconds": 37.04192300300201,
+  "wall_seconds": 36.077952209991054,
   "directory_removed": true
 }
