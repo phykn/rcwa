@@ -76,7 +76,7 @@ async function collectCapture(
   report,
   output,
   name,
-  { top = true, full = true } = {},
+  { top = true, full = true, diagnostics } = {},
 ) {
   if (top) await page.evaluate(() => window.scrollTo(0, 0));
   const failures = [];
@@ -88,26 +88,42 @@ async function collectCapture(
           height: Math.max(innerHeight, document.documentElement.scrollHeight),
         }))
       : page.viewportSize();
-    const item = { filename, minimum, attempts: [] };
+    const item = {
+      filename,
+      minimum,
+      ...(diagnostics ? { diagnostics } : {}),
+      attempts: [],
+    };
     report.captures.push(item);
     for (let attempt = 1; attempt <= 2; attempt++) {
       const method = attempt === 1 ? "playwright" : "cdp";
       const path = `${output}/${filename}`;
+      const started = Date.now();
+      let stage = "remove-old-file";
       try {
         // Never let an old/partially written capture count as this attempt.
         await fs.rm(path, { force: true });
         if (method === "playwright") {
+          stage = "playwright:captureScreenshot";
           await page.screenshot({ path, fullPage, timeout: 7000 });
         } else {
           // A bounded same-page Chromium capture is a genuine pixel fallback
           // if Playwright's screenshot preparation stalls. No page reload,
           // geometry substitution, viewport mutation or result fabrication.
+          stage = "cdp:newSession";
           const session = await page.context().newCDPSession(page);
           let timer;
           try {
             const pending = (async () => {
+              stage = "cdp:getLayoutMetrics";
               const metrics = await session.send("Page.getLayoutMetrics");
               const bounds = metrics.cssContentSize;
+              item.layoutMetrics = {
+                content: bounds,
+                layoutViewport: metrics.cssLayoutViewport,
+                visualViewport: metrics.cssVisualViewport,
+              };
+              stage = "cdp:captureScreenshot";
               return session.send("Page.captureScreenshot", {
                 format: "png",
                 fromSurface: true,
@@ -130,25 +146,39 @@ async function collectCapture(
               pending,
               new Promise((_, reject) => {
                 timer = setTimeout(
-                  () => reject(new Error("CDP screenshot exceeded 10000 ms")),
+                  () =>
+                    reject(
+                      new Error(`CDP screenshot exceeded 10000 ms at ${stage}`),
+                    ),
                   10000,
                 );
               }),
             ]);
+            stage = "writePNG";
             await fs.writeFile(path, Buffer.from(result.data, "base64"));
           } finally {
             clearTimeout(timer);
             await session.detach().catch(() => {});
           }
         }
+        stage = "verifyPNG";
         const image = await verifyCaptureFile(path, minimum);
-        item.attempts.push({ attempt, method, status: "passed", ...image });
+        item.attempts.push({
+          attempt,
+          method,
+          stage,
+          elapsedMs: Date.now() - started,
+          status: "passed",
+          ...image,
+        });
         report.screenshots.push(filename);
         break;
       } catch (error) {
         item.attempts.push({
           attempt,
           method,
+          stage,
+          elapsedMs: Date.now() - started,
           status: "failed",
           error: String(error),
         });

@@ -284,6 +284,9 @@
   border-radius: 12px;
   overflow-y: auto;
 }
+.inspector.structure2d-dialog::backdrop {
+  backdrop-filter: none;
+}
 .structure2d-sheet.sheet-body {
   padding: 24px;
 }

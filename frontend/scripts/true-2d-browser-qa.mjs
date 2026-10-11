@@ -260,6 +260,55 @@ async function rejectImport(page, text, name, baseline, pattern = /./) {
   );
   await expect(page.locator("dialog[open]")).toHaveCount(0);
 }
+async function desktopSheetDiagnostics(page, record, name) {
+  // One bounded DOM snapshot per desktop paired-sheet state, under the
+  // existing group deadline. No extra waits, altered styles or capture paths.
+  const state = await page.locator("dialog.inspector").evaluate((dialog) => {
+    const canvas = document.querySelector(".s2-webgl canvas");
+    const focused = document.activeElement;
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      document: {
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+      },
+      scroll: { x: scrollX, y: scrollY },
+      dialog: {
+        open: dialog.open,
+        title: dialog.querySelector("h2")?.textContent,
+        bounds: dialog.getBoundingClientRect().toJSON(),
+        backdropFilter: getComputedStyle(dialog, "::backdrop").backdropFilter,
+        backdropColor: getComputedStyle(dialog, "::backdrop").backgroundColor,
+        inputs: [...dialog.querySelectorAll("input")].map((input) => ({
+          label: [...(input.labels || [])]
+            .map((label) => label.textContent?.trim())
+            .join(" "),
+          value: input.value,
+          axis: input.dataset.axis,
+          focused: input === focused,
+        })),
+      },
+      scene: canvas
+        ? {
+            ready: canvas.dataset.ready,
+            selectedLayer: canvas.dataset.selectedLayer,
+            cutaway: canvas.dataset.cutaway,
+            physicalScale: canvas.dataset.physicalScale,
+            renderedRegionCount: canvas.dataset.renderedRegionCount,
+          }
+        : null,
+    };
+  });
+  (record.captureDOM ??= []).push({ name, ...state });
+  assert.equal(state.dialog.open, true);
+  assert.equal(
+    state.dialog.backdropFilter,
+    "none",
+    "Production 2D paired sheets keep the scrim without a filtered WebGL backdrop",
+  );
+  assert.equal(state.scene?.ready, "true");
+  return state;
+}
 async function staticTasks(width) {
   await group(
     `static-${width}`,
@@ -358,7 +407,12 @@ async function staticTasks(width) {
       });
       await expect(y).toHaveValue("80");
       await y.focus();
-      await capture(page, report, output, `${width}-open-width-fields`);
+      await capture(page, report, output, `${width}-open-width-fields`, {
+        diagnostics:
+          width === 1440
+            ? await desktopSheetDiagnostics(page, record, "open-width-fields")
+            : undefined,
+      });
       await y.fill("85");
       await y.fill("90");
       await closeSheet(page);
@@ -380,7 +434,12 @@ async function staticTasks(width) {
       ).toHaveValue("150");
       await expect(pitchY).toHaveValue("140");
       await pitchY.focus();
-      await capture(page, report, output, `${width}-open-pitch-fields`);
+      await capture(page, report, output, `${width}-open-pitch-fields`, {
+        diagnostics:
+          width === 1440
+            ? await desktopSheetDiagnostics(page, record, "open-pitch-fields")
+            : undefined,
+      });
       await pitchY.fill("150");
       await pitchY.fill("160");
       await closeSheet(page);

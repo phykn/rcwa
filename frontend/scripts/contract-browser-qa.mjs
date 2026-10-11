@@ -23,6 +23,7 @@ const reference = JSON.parse(
 await fs.mkdir(output, { recursive: true });
 const checks = [];
 const pageErrors = [];
+const dragEvidence = [];
 let browser;
 let page;
 const deferred = () => {
@@ -466,15 +467,40 @@ try {
   await pitchHandle.scrollIntoViewIfNeeded();
   const pitchStart = await pitchHandle.boundingBox();
   const oldPitch = Number(await pitchHandle.getAttribute("aria-valuenow"));
+  assert.ok(Number.isFinite(oldPitch));
+  assert.equal(oldPitch, beforeRun.project.period_nm);
   const grabX = pitchStart.x + pitchStart.width / 2;
   const grabY = pitchStart.y + pitchStart.height / 2;
+  const pitchEvidence = {
+    oldPitch,
+    start: pitchStart,
+    requestedDelta: { x: 32, y: 0 },
+  };
+  dragEvidence.push(pitchEvidence);
   await page.mouse.move(grabX, grabY);
   await page.mouse.down();
   await page.mouse.move(grabX + 32, grabY, { steps: 8 });
-  await expect
-    .poll(async () => Number(await pitchHandle.getAttribute("aria-valuenow")))
-    .toBeGreaterThan(oldPitch);
+  // Read the same live DOM predicate in-page. A nested remote role-locator poll
+  // previously timed out without returning any predicate result while its
+  // failure screenshot already showed the successful 400→506 nm change.
+  // Keep the original deadline and numeric/physical movement requirements.
+  const increasedPitch = await page.waitForFunction(
+    (previous) => {
+      const handle = document.querySelector('.pitch-handle[role="slider"]');
+      const value = Number(handle?.getAttribute("aria-valuenow"));
+      return handle?.getAttribute("aria-label") === "Drag shared pitch" &&
+        value > previous
+        ? value
+        : false;
+    },
+    oldPitch,
+    { timeout: 5000, polling: 100 },
+  );
+  pitchEvidence.duringPitch = await increasedPitch.jsonValue();
+  await increasedPitch.dispose();
+  assert.ok(pitchEvidence.duringPitch > oldPitch);
   const pitchDuring = await pitchHandle.boundingBox();
+  pitchEvidence.during = pitchDuring;
   assert.ok(
     Math.hypot(pitchDuring.x - pitchStart.x, pitchDuring.y - pitchStart.y) > 8,
     "Pitch handle must move on screen during drag instead of cancelling motion by rescaling the scene",
@@ -911,6 +937,7 @@ try {
     status: "passed",
     checks,
     pageErrors,
+    dragEvidence,
     date: new Date().toISOString(),
   };
   await fs.writeFile(
@@ -919,6 +946,32 @@ try {
   );
   console.log(JSON.stringify(report, null, 2));
 } catch (error) {
+  if (page) {
+    const pending = page
+      .evaluate(() => {
+        const handle = document.querySelector('.pitch-handle[role="slider"]');
+        return handle
+          ? {
+              value: handle.getAttribute("aria-valuenow"),
+              rect: handle.getBoundingClientRect().toJSON(),
+            }
+          : null;
+      })
+      .catch((diagnosticError) => ({
+        diagnosticError: String(diagnosticError),
+      }));
+    let diagnosticTimer;
+    const current = await Promise.race([
+      pending,
+      new Promise((resolve) => {
+        diagnosticTimer = setTimeout(
+          () => resolve({ diagnosticTimeout: true }),
+          1000,
+        );
+      }),
+    ]).finally(() => clearTimeout(diagnosticTimer));
+    if (dragEvidence.length) dragEvidence.at(-1).failureState = current;
+  }
   await page
     ?.screenshot({
       path: `${output}/contract-browser-failure.png`,
@@ -932,6 +985,7 @@ try {
         status: "failed",
         checks,
         pageErrors,
+        dragEvidence,
         error: String(error),
         date: new Date().toISOString(),
       },
