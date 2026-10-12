@@ -194,6 +194,17 @@ An expired job cannot be silently resaved as a trusted result: export a local
 JSON copy or run it again. Draft inputs and imported results retain the existing
 unverified save path. An unchanged server snapshot is already durable.
 
+Project → Open lists at most the latest 100 saved copies. When this window is
+full, the dialog says that older copies may exist. **Open by snapshot ID** opens
+any known ID through the same validated load path, including records outside the
+list. A save confirmation shows a selectable snapshot ID; each listed copy also
+has a closed **Snapshot ID** disclosure for copying it later. Keep the ID before a
+copy leaves the recent list. It refers to that local server's database, not a job
+or a portable backup. Export JSON for a durable copy outside that database.
+Missing or invalid IDs leave the current workspace unchanged. Closing a pending
+load prevents its late response from changing the workspace. Opening by ID does
+not calculate, save, overwrite or promote imported result provenance.
+
 To compare, open Project → Open, select two or three saved projects, then choose
 Compare. Each selected record needs a stored spectrum. The chart uses the exact
 stored wavelengths and selected polarization; different grids or missing channels

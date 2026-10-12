@@ -1,3 +1,4 @@
+import { verifySavedRecovery } from "./saved-recovery-browser-cases.mjs";
 import { legacyExampleUrl } from "./browser-editor-controls.mjs";
 // Run with the local API (:8000), Vite dev (:5173), and a separately built
 // VITE_STATIC_PREVIEW=true preview (:4173) already running. No API mocks.
@@ -170,13 +171,56 @@ try {
   const menu = page.locator(".project-menu");
   if (!(await menu.evaluate((node) => node.open)))
     await menu.locator("summary").click();
+  const savingResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/projects" &&
+      response.request().method() === "POST",
+  );
   await page.getByLabel("Save project to local server").click();
+  const importedSave = await (await savingResponse).json();
   await expect(page.getByRole("status")).toContainText("Project saved");
+  const receiptId = page
+    .getByRole("status")
+    .getByRole("textbox", { name: "Snapshot ID", exact: true });
+  await expect(receiptId).toHaveValue(importedSave.id);
+  await receiptId.focus();
+  assert.deepEqual(
+    await receiptId.evaluate((node) => [
+      node.selectionStart,
+      node.selectionEnd,
+    ]),
+    [0, importedSave.id.length],
+  );
+  await page.screenshot({
+    path: `${output}/snapshot-save-receipt.png`,
+    fullPage: true,
+  });
   await openSaved();
   const importedItem = page
     .locator(".saved-item")
     .filter({ hasText: importName });
   await expect(importedItem).toContainText("Unverified import");
+  const importedRow = page
+    .locator(".saved-choice")
+    .filter({ hasText: importName });
+  await importedRow.locator("summary").click();
+  const disclosedId = importedRow.getByRole("textbox", {
+    name: `Snapshot ID for ${importName}`,
+    exact: true,
+  });
+  await expect(disclosedId).toHaveValue(importedSave.id);
+  await disclosedId.focus();
+  assert.deepEqual(
+    await disclosedId.evaluate((node) => [
+      node.selectionStart,
+      node.selectionEnd,
+    ]),
+    [0, importedSave.id.length],
+  );
+  await page.keyboard.press("Shift+Tab");
+  await expect(importedRow.locator("summary")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(disclosedId).not.toBeVisible();
   await importedItem.click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.locator(".result-badge")).toHaveText("Unverified import");
@@ -187,6 +231,17 @@ try {
   checks.push(
     "Compatibility Save/list/reload retains the spectrum as unverified; saved-project dialog still dismisses with Escape",
   );
+
+  await verifySavedRecovery({
+    page,
+    request,
+    openSaved,
+    exportFile,
+    saved,
+    snapshot,
+    output,
+    checks,
+  });
 
   for (const width of [360, 390, 1440]) {
     const preview = await browser.newPage({
@@ -228,7 +283,10 @@ try {
       preview.getByRole("button", { name: /Run simulation/ }),
     ).toHaveCount(0);
     await expect(
-      preview.getByRole("button", { name: "Use this design locally", exact: true }),
+      preview.getByRole("button", {
+        name: "Use this design locally",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       preview.getByRole("link", { name: "View example spectrum" }),
@@ -246,7 +304,10 @@ try {
         buffer: Buffer.from(JSON.stringify({ project: forged.project })),
       });
     await expect(
-      preview.getByRole("button", { name: "Use this design locally", exact: true }),
+      preview.getByRole("button", {
+        name: "Use this design locally",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
       preview.getByRole("link", { name: "View example spectrum" }),

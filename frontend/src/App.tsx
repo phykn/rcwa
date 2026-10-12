@@ -16,6 +16,7 @@ import {
   ApiError,
   ApiContractError,
   solverSupportError,
+  savedSnapshotId,
 } from "./api";
 import { hashProject2D, normalizeProject2D } from "./project2d";
 import rectangular2DInput from "./fixtures/default-project-2d.json";
@@ -582,13 +583,21 @@ export default function App() {
     "checking" | "online" | "offline"
   >("checking");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState(
+  const [notice, setNoticeText] = useState(
     recoveredDraft.project
       ? "Recovered the last saved valid inputs from this tab. Later unsaved edits may be missing. No result or undo history was restored."
       : "",
   );
+  const [noticeSnapshotId, setNoticeSnapshotId] = useState<string | null>(null);
+  function setNotice(message: string, snapshotId: string | null = null) {
+    setNoticeText(message);
+    setNoticeSnapshotId(snapshotId);
+  }
   const [polarization, setPolarization] = useState<"s" | "p">("s");
   const [saved, setSaved] = useState<SavedSummary[]>([]);
+  const [savedHasMore, setSavedHasMore] = useState(false);
+  const [savedListFailed, setSavedListFailed] = useState(false);
+  const [recoveryId, setRecoveryId] = useState("");
   const [showSaved, setShowSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -728,7 +737,7 @@ export default function App() {
       if (event.key !== "Tab") return;
       const elements = Array.from(
         document.querySelectorAll<HTMLElement>(
-          ".dialog button, .dialog input, .dialog select",
+          ".dialog button, .dialog input, .dialog select, .dialog summary",
         ),
       ).filter(
         (e) => !e.hasAttribute("disabled") && e.getClientRects().length > 0,
@@ -1213,7 +1222,7 @@ export default function App() {
     const currentResult = run && sameInputs(run.inputProject, frame.project);
     try {
       if (currentResult && run.origin === "server" && run.snapshotId) {
-        setNotice("This server snapshot is already saved.");
+        setNotice("This server snapshot is already saved.", run.snapshotId);
         return;
       }
       if (currentResult && run.origin === "computed") {
@@ -1242,7 +1251,7 @@ export default function App() {
           type: "set-displayed-run",
           run: savedWorkspace.displayedRun,
         });
-        setNotice("Project saved as an exact server-computed run.");
+        setNotice("Project saved as an exact server-computed run.", data.id);
       } else {
         const saved = await api.save(
           frame.project,
@@ -1271,6 +1280,7 @@ export default function App() {
           currentResult
             ? "Project saved with an unverified imported result."
             : "Project saved with inputs only. No current result was included.",
+          saved.id,
         );
       }
       setConnection("online");
@@ -1302,32 +1312,39 @@ export default function App() {
     setShowSaved(true);
     setLoadingSaved(true);
     setSaved([]);
+    setSavedHasMore(false);
+    setSavedListFailed(false);
+    setRecoveryId("");
     setSelectedCandidates([]);
     setError("");
     try {
-      const list = await api.list();
+      const index = await api.list();
       if (request !== savedRequest.current) return;
-      if (
-        !Array.isArray(list) ||
-        list.some(
-          (item) =>
-            !item || !validIdentifier(item.id) || typeof item.name !== "string",
-        )
-      )
-        throw new Error("The saved-project list is invalid.");
-      setSaved(list);
+      setSaved(index.snapshots);
+      setSavedHasMore(index.may_have_more);
       setConnection("online");
     } catch (e) {
-      if (request === savedRequest.current) setError(errorText(e));
+      if (request === savedRequest.current) {
+        setSavedListFailed(true);
+        setError(errorText(e));
+      }
     } finally {
       if (request === savedRequest.current) setLoadingSaved(false);
     }
   }
-  async function load(id: string) {
+  async function load(value: string) {
+    let id: string;
+    try {
+      id = savedSnapshotId(value);
+    } catch (e) {
+      setError(errorText(e));
+      return;
+    }
     const request = ++savedRequest.current;
     const version = actionVersion.current,
       revision = historyRef.current.revision;
     setLoadingProject(id);
+    setError("");
     try {
       const data = await api.load(id);
       if (
@@ -1353,7 +1370,11 @@ export default function App() {
         version === actionVersion.current &&
         revision === historyRef.current.revision
       )
-        setError(errorText(e));
+        setError(
+          e instanceof ApiError && e.status === 404
+            ? "No saved project has this snapshot ID on this server. Your current design is unchanged."
+            : errorText(e),
+        );
     } finally {
       if (request === savedRequest.current) setLoadingProject(null);
     }
@@ -2155,7 +2176,25 @@ export default function App() {
             {notice && (
               <div className="message success" role="status">
                 <Icon name="check" />
-                {notice}
+                <span>
+                  {notice}
+                  {noticeSnapshotId && (
+                    <span className="snapshot-id-label">
+                      <label htmlFor="saved-receipt-id">Snapshot ID</label>
+                      <input
+                        id="saved-receipt-id"
+                        aria-describedby="saved-receipt-help"
+                        readOnly
+                        value={noticeSnapshotId}
+                        onClick={(event) => event.currentTarget.select()}
+                        onFocus={(event) => event.currentTarget.select()}
+                      />
+                      <small id="saved-receipt-help">
+                        Keep this ID to reopen the saved copy in Project → Open.
+                      </small>
+                    </span>
+                  )}
+                </span>
                 <button
                   aria-label="Dismiss notification"
                   onClick={() => setNotice("")}
@@ -2946,6 +2985,42 @@ export default function App() {
               Projects saved on the Python server. Use Import JSON to open a
               local JSON file.
             </p>
+            {savedHasMore && (
+              <p className="control-note saved-window-note">
+                Showing the latest 100 saved projects. Older copies may exist;
+                open one with its snapshot ID below.
+              </p>
+            )}
+            <form
+              className="saved-recovery"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!loadingSaved && loadingProject === null && !comparing)
+                  void load(recoveryId);
+              }}
+            >
+              <label htmlFor="saved-snapshot-id">Open by snapshot ID</label>
+              <div>
+                <input
+                  id="saved-snapshot-id"
+                  value={recoveryId}
+                  onChange={(event) => setRecoveryId(event.target.value)}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={loadingProject !== null || comparing}
+                />
+                <button
+                  type="submit"
+                  className="text-button"
+                  disabled={
+                    loadingSaved || loadingProject !== null || comparing
+                  }
+                >
+                  {loadingProject !== null ? "Opening…" : "Open ID"}
+                </button>
+              </div>
+            </form>
             {error && (
               <p className="inline-error" role="alert">
                 {error}
@@ -2977,30 +3052,50 @@ export default function App() {
                       );
                     }}
                   />
-                  <button
-                    className="saved-item"
-                    disabled={loadingProject !== null || comparing}
-                    onClick={() => load(item.id)}
-                  >
-                    <span>
-                      <b>
-                        {item.name}
-                        {loadingProject === item.id ? " · Loading…" : ""}
-                      </b>
-                      <small>
-                        {new Date(
-                          item.updated_at || item.created_at,
-                        ).toLocaleString()}
-                        {" · "}
-                        {item.provenance?.source === "server_computed"
-                          ? "Server-computed"
-                          : "Unverified import"}
-                      </small>
-                    </span>
-                    <Icon name="arrow" />
-                  </button>
+                  <div className="saved-record">
+                    <button
+                      className="saved-item"
+                      disabled={loadingProject !== null || comparing}
+                      onClick={() => load(item.id)}
+                    >
+                      <span>
+                        <b>
+                          {item.name}
+                          {loadingProject === item.id ? " · Loading…" : ""}
+                        </b>
+                        <small>
+                          {new Date(
+                            item.updated_at || item.created_at,
+                          ).toLocaleString()}
+                          {" · "}
+                          {item.provenance?.source === "server_computed"
+                            ? "Server-computed"
+                            : "Unverified import"}
+                        </small>
+                      </span>
+                      <Icon name="arrow" />
+                    </button>
+                    <details className="saved-identity">
+                      <summary>Snapshot ID</summary>
+                      <label className="snapshot-id-label">
+                        <span className="sr-only">
+                          Snapshot ID for {item.name}
+                        </span>
+                        <input
+                          readOnly
+                          value={item.id}
+                          onClick={(event) => event.currentTarget.select()}
+                          onFocus={(event) => event.currentTarget.select()}
+                        />
+                      </label>
+                    </details>
+                  </div>
                 </div>
               ))
+            ) : savedListFailed ? (
+              <p className="saved-empty">
+                The saved list is unavailable. Open a known snapshot ID above.
+              </p>
             ) : (
               <p className="saved-empty">No saved projects yet.</p>
             )}

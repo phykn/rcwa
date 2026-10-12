@@ -266,8 +266,15 @@ try {
 
   const a = snapshot("contract-a", "Contract delayed A");
   const b = snapshot("contract-b", "Contract current B");
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({ json: [a, b] }),
+  await page.route("**/api/projects?view=index", (route) =>
+    route.fulfill({
+      json: {
+        view: "index",
+        snapshots: [a, b],
+        limit: 100,
+        may_have_more: false,
+      },
+    }),
   );
   const oldLoad = deferred();
   const loadStarted = deferred();
@@ -309,17 +316,32 @@ try {
     "A dismissed delayed project load cannot overwrite a newer loaded project or edits; repeated saved-item clicks are locked",
   );
 
-  await page.unroute("**/api/projects");
+  await page.unroute("**/api/projects?view=index");
   let listCount = 0;
   const oldList = deferred();
   const listStarted = deferred();
-  await page.route("**/api/projects", async (route) => {
+  await page.route("**/api/projects?view=index", async (route) => {
     listCount += 1;
     if (listCount === 1) {
       listStarted.resolve();
       await oldList.promise;
-      await route.fulfill({ json: [a] });
-    } else await route.fulfill({ json: [b] });
+      await route.fulfill({
+        json: {
+          view: "index",
+          snapshots: [a],
+          limit: 100,
+          may_have_more: false,
+        },
+      });
+    } else
+      await route.fulfill({
+        json: {
+          view: "index",
+          snapshots: [b],
+          limit: 100,
+          may_have_more: false,
+        },
+      });
   });
   await openSaved();
   await listStarted.promise;
@@ -329,7 +351,7 @@ try {
   await openSaved();
   await expect(page.locator(".saved-item")).toContainText(b.name);
   const listResponse = page.waitForResponse((response) =>
-    response.url().endsWith("/api/projects"),
+    response.url().endsWith("/api/projects?view=index"),
   );
   oldList.resolve();
   await listResponse;

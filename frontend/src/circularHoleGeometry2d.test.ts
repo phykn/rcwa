@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Raycaster, Mesh, MeshBasicMaterial, Vector3 } from "three";
-import { meshRegionGeometry2D } from "./circularHoleGeometry2d";
+import { meshRegionGeometry2D } from "./meshRegionGeometry2d";
 import {
   buildStructureGeometry2D,
   physicalToScene2D,

@@ -194,6 +194,14 @@ jobs:
         env:
           VITE_STATIC_PREVIEW: 'true'
       - run: npm run lint
+      - name: Verify deferred renderer dependency graph and byte counts
+        run: node scripts/progressive-bundle-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: progressive-bundle-qa
+          path: artifacts/progressive-bundle-qa.json
+          retention-days: 7
 
   browser:
     runs-on: ubuntu-latest
@@ -256,12 +264,14 @@ jobs:
           (cd frontend && timeout 180s node scripts/prototype-2d-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/true-2d-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/svg-fallback-browser-qa.mjs) || status=1
+          (cd frontend && timeout 300s node scripts/progressive-renderer-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/circular-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
           timeout 60s python scripts/agent_example.py \
             --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
             --output artifacts/circular-agent-best.json --report artifacts/circular-agent-report.json \
             > artifacts/circular-agent-cli.log 2>&1 || status=1
+          (cd frontend && timeout 180s node scripts/spectrum-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1
@@ -291,8 +301,10 @@ jobs:
             artifacts/prototype-2d-browser-qa.json
             artifacts/true-2d-*
             artifacts/svg-fallback-*
+            artifacts/progressive-*
             artifacts/circular-*
             artifacts/browser-qa.json
+            artifacts/spectrum-*
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json

@@ -65,12 +65,46 @@ describe("wavelength accessibility", () => {
     expect(plot(nonuniform)).toContain('aria-valuetext="431.25 nanometers"');
     expect(compare(nonuniform)).toContain('aria-valuetext="431.25 nanometers"');
   });
-  it("supports a single sample without inventing a range", () => {
-    const single = { ...result, wavelengths_nm: [633] };
-    for (const html of [plot(single), compare(single)]) {
-      expect(html).toContain('aria-valuetext="633 nanometers"');
-      expect(html).toContain('max="0"');
-    }
+  it("shows one exact centered sample without a slider or invented range", () => {
+    const wavelength = 633.25;
+    const single = {
+      ...result,
+      wavelengths_nm: [wavelength],
+      spectra: {
+        s: {
+          ...result.spectra.s!,
+          R: [0.2],
+          T: [0.8],
+          R_specular: [0.15],
+          T_specular: [0.7],
+        },
+      },
+    };
+    const html = plot(single);
+    expect(html).not.toContain('type="range"');
+    expect(html).not.toContain('for="wavelength-sample"');
+    expect(html).not.toContain("wavelength slider");
+    expect(html).not.toContain("<path");
+    expect(html).toContain("Single wavelength");
+    expect(html).toContain("633.25 nm");
+    expect(html).toContain(
+      "at 633.25 nanometers. Single wavelength; values below.",
+    );
+    expect(html).toContain(
+      "633.25 nanometers. s polarization. Reflectance 20.0 percent. Transmittance 80.0 percent.",
+    );
+    expect(html.match(/>633\.25<\/text>/g)).toHaveLength(1);
+    expect(html.match(/cx="192.5"/g)).toHaveLength(2);
+    // Comparison has its own separate sample control; this patch does not change it.
+    expect(compare(single)).toContain('aria-valuetext="633.25 nanometers"');
+  });
+  it("keeps the keyboard control and plotted range for multiple samples", () => {
+    const html = plot();
+    expect(html).toContain('type="range"');
+    expect(html).toContain(`max="${result.wavelengths_nm.length - 1}"`);
+    expect(html).toContain("wavelength slider");
+    expect(html).toContain("<path");
+    expect(html).not.toContain("Single wavelength");
   });
   it("does not announce a spectrum when it is missing", () => {
     expect(plot(null)).not.toContain('id="spectrum-sample-description"');

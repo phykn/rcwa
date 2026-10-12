@@ -7,6 +7,47 @@ import type {
 } from "./model";
 import { parseJSONWith2DNumberGate, stringify2DEnvelope } from "./project2d";
 
+export interface SavedProjectIndex {
+  view: "index";
+  snapshots: SavedSummary[];
+  limit: 100;
+  may_have_more: boolean;
+}
+
+export function validateSavedProjectIndex(value: unknown): SavedProjectIndex {
+  const index = value as Partial<SavedProjectIndex> | null;
+  if (
+    !index ||
+    index.view !== "index" ||
+    index.limit !== 100 ||
+    !Array.isArray(index.snapshots) ||
+    index.snapshots.length > index.limit ||
+    index.may_have_more !== (index.snapshots.length === index.limit) ||
+    index.snapshots.some(
+      (item) =>
+        !item ||
+        typeof item.id !== "string" ||
+        !/^[A-Za-z0-9_-]{1,100}$/.test(item.id) ||
+        typeof item.name !== "string",
+    ) ||
+    new Set(index.snapshots.map((item) => item.id)).size !==
+      index.snapshots.length
+  )
+    throw new ApiContractError(
+      "The saved-project index is invalid. Your current design is unchanged.",
+    );
+  return index as SavedProjectIndex;
+}
+
+export function savedSnapshotId(value: string): string {
+  const id = value.trim();
+  if (!/^[A-Za-z0-9_-]{1,100}$/.test(id))
+    throw new Error(
+      "Enter a snapshot ID using letters, numbers, hyphens or underscores (up to 100 characters).",
+    );
+  return id;
+}
+
 export interface ServerCapabilities {
   supported_project_schema_versions: string[];
   supported_result_schema_versions: string[];
@@ -206,7 +247,8 @@ export const api = {
   job: (id: string) => request<Job>(`/jobs/${encodeURIComponent(id)}`),
   cancel: (id: string) =>
     request<Job>(`/jobs/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  list: () => request<SavedSummary[]>("/projects"),
+  list: async () =>
+    validateSavedProjectIndex(await request<unknown>("/projects?view=index")),
   load: (id: string) =>
     request<SavedProject>(`/projects/${encodeURIComponent(id)}`),
   save: (project: Project, result: ForwardResult | null) =>

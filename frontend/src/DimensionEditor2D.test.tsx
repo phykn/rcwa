@@ -252,7 +252,7 @@ describe("accepted 2D first-use controls", () => {
     expect(formatDimension2D(150)).toBe("150");
   });
 
-  it("exposes native Full stack/Cutaway outside the bounded guide", () => {
+  it("exposes native Full stack/Cutaway while exact SVG loads the renderer", () => {
     const html = renderToStaticMarkup(
       createElement(ThreeStructure2D, {
         project: source,
@@ -265,15 +265,18 @@ describe("accepted 2D first-use controls", () => {
     expect(html).toContain(
       '<option value="cutaway" selected="">Cutaway</option>',
     );
-    expect(html).toContain("Corner hidden");
+    expect(html).toContain("2D view · 3D loading.");
+    expect(html).not.toContain("Corner hidden");
     expect(html.indexOf("<select")).toBeLessThan(html.indexOf("<details"));
     expect(html).toContain('aria-label="View guide"');
-    expect(html).toContain(">Reset view</button>");
+    expect(html).not.toContain(">Reset view</button>");
     expect(html).toContain(
       'tabindex="0" role="region" aria-label="View guide details"',
     );
-    expect(html).toContain("your structure is unchanged");
-    expect(html).toContain("schematic depth");
+    expect(html).toContain("Each projection has equal");
+    expect(html).toContain(
+      "Exact dimensions and materials remain editable below",
+    );
     expect(html).toContain("Selected: Layer 3");
     expect(html).not.toContain("drag to resize");
   });

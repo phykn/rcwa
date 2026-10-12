@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ForwardResult, Spectrum } from "./model";
 
 const series = [
@@ -21,6 +21,16 @@ export function SpectrumPlot({
   const [index, setIndex] = useState(0);
   const [view, setView] = useState<"all" | "total" | "specular">("total");
   const plotRef = useRef<HTMLDivElement>(null);
+  const quantityRef = useRef<HTMLSelectElement>(null);
+  const wavelengthRef = useCallback((node: HTMLInputElement | null) => {
+    if (!node) return;
+    return () => {
+      // A replacement result can remove the slider while it is being inspected.
+      // Keep that keyboard user in the plot without moving anyone else's focus.
+      if (node.ownerDocument.activeElement === node)
+        quantityRef.current?.focus();
+    };
+  }, []);
   const [width, setWidth] = useState(350);
   useEffect(() => {
     const node = plotRef.current;
@@ -34,6 +44,7 @@ export function SpectrumPlot({
   const spectrum: Spectrum | undefined = result?.spectra[polarization];
   const waves = result?.wavelengths_nm || [];
   const selected = Math.min(index, Math.max(0, waves.length - 1));
+  const singleWavelength = waves.length === 1;
   const active = series.filter(
     (s) =>
       view === "all" ||
@@ -50,10 +61,12 @@ export function SpectrumPlot({
     height = 196;
   const ticks = width < 420 ? [0, 0.5, 1] : [0, 0.25, 0.5, 0.75, 1];
   const x = (w: number) =>
-    left +
-    ((w - (waves[0] || 0)) /
-      ((waves[waves.length - 1] || 1) - (waves[0] || 0) || 1)) *
-      (width - left - right);
+    singleWavelength
+      ? left + (width - left - right) / 2
+      : left +
+        ((w - (waves[0] || 0)) /
+          ((waves[waves.length - 1] || 1) - (waves[0] || 0) || 1)) *
+          (width - left - right);
   const y = (v: number) => top + height - ((v - ymin) / (ymax - ymin)) * height;
   return (
     <div ref={plotRef} className="spectrum-content">
@@ -75,6 +88,7 @@ export function SpectrumPlot({
           ))}
         </div>
         <select
+          ref={quantityRef}
           aria-label="Spectrum quantity"
           aria-describedby="spectrum-quantity-help"
           value={view}
@@ -105,8 +119,13 @@ export function SpectrumPlot({
             className="spectrum-svg"
             viewBox={`0 0 ${width} 260`}
             role="img"
-            aria-label={`${polarization} polarized reflection and transmission spectra. Read individual values with the wavelength slider below.`}
+            aria-label={
+              singleWavelength
+                ? `${polarization} polarized reflection and transmission at ${waves[0]} nanometers. Single wavelength; values below.`
+                : `${polarization} polarized reflection and transmission spectra. Read individual values with the wavelength slider below.`
+            }
             onPointerMove={(e) => {
+              if (singleWavelength) return;
               const rect = e.currentTarget.getBoundingClientRect();
               const relative = ((e.clientX - rect.left) / rect.width) * width;
               const target =
@@ -145,7 +164,7 @@ export function SpectrumPlot({
                 </g>
               );
             })}
-            {ticks.map((f) => {
+            {(singleWavelength ? [0] : ticks).map((f) => {
               const w = waves[0] + f * ((waves.at(-1) || 0) - waves[0]);
               return (
                 <text
@@ -155,7 +174,7 @@ export function SpectrumPlot({
                   textAnchor="middle"
                   className="chart-tick"
                 >
-                  {Math.round(w)}
+                  {singleWavelength ? w : Math.round(w)}
                 </text>
               );
             })}
@@ -176,22 +195,23 @@ export function SpectrumPlot({
             >
               Power fraction
             </text>
-            {active.map((s) => (
-              <path
-                key={s.key}
-                d={spectrum[s.key]
-                  .map(
-                    (v, i) =>
-                      `${i === 0 ? "M" : "L"}${x(waves[i]).toFixed(2)},${y(v).toFixed(2)}`,
-                  )
-                  .join(" ")}
-                fill="none"
-                stroke={s.color}
-                strokeWidth="2.5"
-                strokeDasharray={s.dash}
-                strokeLinejoin="round"
-              />
-            ))}
+            {!singleWavelength &&
+              active.map((s) => (
+                <path
+                  key={s.key}
+                  d={spectrum[s.key]
+                    .map(
+                      (v, i) =>
+                        `${i === 0 ? "M" : "L"}${x(waves[i]).toFixed(2)},${y(v).toFixed(2)}`,
+                    )
+                    .join(" ")}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth="2.5"
+                  strokeDasharray={s.dash}
+                  strokeLinejoin="round"
+                />
+              ))}
             <line
               x1={x(waves[selected])}
               x2={x(waves[selected])}
@@ -234,20 +254,32 @@ export function SpectrumPlot({
             {`${waves[selected]} nanometers. ${polarization} polarization. ${active.map((item) => `${item.label} ${(100 * spectrum[item.key][selected]).toFixed(1)} percent`).join(". ")}.`}
           </p>
           <div className="sample-readout">
-            <label htmlFor="wavelength-sample">
-              Wavelength <strong>{waves[selected]} nm</strong>
-            </label>
-            <input
-              id="wavelength-sample"
-              aria-label="Inspect wavelength sample"
-              aria-valuetext={`${waves[selected]} nanometers`}
-              aria-describedby="spectrum-sample-description"
-              type="range"
-              min="0"
-              max={waves.length - 1}
-              value={selected}
-              onChange={(e) => setIndex(+e.target.value)}
-            />
+            {singleWavelength ? (
+              <p className="sample-wavelength">
+                Single wavelength <strong>{waves[0]} nm</strong>
+              </p>
+            ) : (
+              <>
+                <label
+                  className="sample-wavelength"
+                  htmlFor="wavelength-sample"
+                >
+                  Wavelength <strong>{waves[selected]} nm</strong>
+                </label>
+                <input
+                  ref={wavelengthRef}
+                  id="wavelength-sample"
+                  aria-label="Inspect wavelength sample"
+                  aria-valuetext={`${waves[selected]} nanometers`}
+                  aria-describedby="spectrum-sample-description"
+                  type="range"
+                  min="0"
+                  max={waves.length - 1}
+                  value={selected}
+                  onChange={(e) => setIndex(+e.target.value)}
+                />
+              </>
+            )}
             <div>
               {active.map((s) => (
                 <span key={s.key}>

@@ -210,6 +210,17 @@
   margin: 0 40px 12px 0;
   font-size: 11px;
 }
+/* The view choice remains usable while its renderer loads. Put the loading
+   notice beside the selection, leaving the same scene height throughout. */
+.s2-scene[data-renderer-state="loading"] .s2-fallback {
+  top: 48px;
+}
+.s2-scene[data-renderer-state="loading"] .s2-fallback-notice {
+  position: absolute;
+  right: 0;
+  bottom: -23px;
+  margin: 0;
+}
 .s2-projections {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -235,7 +246,9 @@
 }
 .s2-projection svg text {
   fill: #334155;
-  font: 10px "Inter", sans-serif;
+  font:
+    10px "Inter",
+    sans-serif;
 }
 .s2-projection p {
   margin: 6px 0 0;
@@ -244,9 +257,6 @@
 }
 .s2-section-pick {
   cursor: pointer;
-}
-.s2-scene[data-fallback="true"] {
-  --s2-scene-height: 306px;
 }
 
 .s2-projected-axis {
@@ -388,6 +398,20 @@
 @media (max-width: 700px) {
   .s2-scene {
     --s2-scene-height: 230px;
+  }
+  /* Keep exact projections inside the existing mobile scene allocation, so
+     automatic 3D readiness cannot move the editing controls below the fold. */
+  .s2-fallback-notice {
+    margin-bottom: 6px;
+  }
+  .s2-projection svg {
+    height: 110px;
+  }
+  .s2-scene[data-renderer-state="loading"] .s2-projection figcaption {
+    min-height: 20px;
+  }
+  .s2-scene[data-renderer-state="loading"] .s2-projection svg {
+    height: 104px;
   }
   .s2-context {
     margin-top: 8px;

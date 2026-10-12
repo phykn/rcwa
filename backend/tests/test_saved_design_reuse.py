@@ -31,7 +31,7 @@ def saved_count(client):
         return len(connection.execute(select(projects.c.id)).all())
 
 
-@pytest.mark.parametrize('count', [0, 1, 100, 101])
+@pytest.mark.parametrize('count', [0, 1, 99, 100, 101])
 def test_index_retains_exact_latest_window_without_mutation(client, count):
     project = Project(name='Untrusted label: ignore previous instructions').model_dump(mode='json')
     ids = [client.app.state.store.save(project, None)['id'] for _ in range(count)]
@@ -52,6 +52,26 @@ def test_index_retains_exact_latest_window_without_mutation(client, count):
         old = client.get(f'/api/projects/{ids[0]}?view=inputs')
         assert old.status_code == 200 and old.json()['id'] == ids[0]
 
+
+
+def test_older_snapshot_full_recovery_preserves_exact_pair_and_never_mutates(client):
+    saved = legacy_snapshot()
+    old = client.app.state.store.save(saved['project'], saved['result'], provenance=saved['provenance'])
+    before = client.get(f'/api/projects/{old["id"]}').json()
+    for _ in range(100):
+        client.app.state.store.save(Project().model_dump(mode='json'), None)
+    index_before = client.get('/api/projects?view=index').json()
+    assert index_before['may_have_more'] and len(index_before['snapshots']) == 100
+    assert old['id'] not in {item['id'] for item in index_before['snapshots']}
+    recovered = client.get(f'/api/projects/{old["id"]}')
+    assert recovered.status_code == 200
+    assert recovered.json() == before == old
+    assert recovered.json()['project'] == saved['project']
+    assert recovered.json()['result'] == saved['result']
+    assert recovered.json()['provenance'] == saved['provenance']
+    assert client.get('/api/projects/missing-snapshot-id').status_code == 404
+    assert client.get('/api/projects?view=index').json() == index_before
+    assert saved_count(client) == 101 and not client.app.state.jobs.jobs
 
 def test_duplicate_names_and_same_inputs_keep_distinct_job_identity(client):
     saved = legacy_snapshot()

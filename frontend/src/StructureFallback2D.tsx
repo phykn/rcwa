@@ -287,11 +287,13 @@ export function StructureFallback2D({
   selected,
   onSelect,
   disabled,
+  loading = false,
 }: {
   project: FallbackProject;
   selected: number;
   onSelect: (index: number) => void;
   disabled: boolean;
+  loading?: boolean;
 }) {
   const projection = useMemo(
     () => buildStructureProjections2D(project, selected),
@@ -304,7 +306,7 @@ export function StructureFallback2D({
       aria-label="Structure projections"
     >
       <p className="s2-fallback-notice" role="status">
-        2D view · 3D unavailable.
+        {loading ? "2D view · 3D loading." : "2D view · 3D unavailable."}
       </p>
       <div className="s2-projections">
         <Projection

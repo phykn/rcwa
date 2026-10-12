@@ -1255,7 +1255,7 @@ async function realForward() {
       );
       const listing = responseFor(page, (r) => isResponse(r, "/projects"));
       await menuAction(page, "Open");
-      const list = await (await listing).json();
+      const { snapshots: list } = await (await listing).json();
       const index = list.findIndex((item) => item.id === saved.id);
       assert.ok(index >= 0);
       const loading = responseFor(page, (r) =>
@@ -1863,7 +1863,7 @@ async function comparisonRegression() {
       async function openComparison() {
         const listing = responseFor(page, (r) => isResponse(r, "/projects"));
         await menuAction(page, "Open");
-        const list = await (await listing).json();
+        const { snapshots: list } = await (await listing).json();
         for (const snapshot of liveSnapshots) {
           const index = list.findIndex((item) => item.id === snapshot.id);
           assert.ok(index >= 0);
