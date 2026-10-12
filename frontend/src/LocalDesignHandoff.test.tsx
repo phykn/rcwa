@@ -5,7 +5,6 @@ import {
   LocalDesignHandoff,
   POSIX_LOCAL_SETUP,
   WINDOWS_LOCAL_SETUP,
-  FRONTEND_LOCAL_SETUP,
 } from "./LocalDesignHandoff";
 import { normalizeProject2D } from "./project2d";
 import circle from "./fixtures/default-project-circular.json";
@@ -31,12 +30,14 @@ describe("input-only local design handoff", () => {
       "git clone https://github.com/phykn/rcwa.git\ncd rcwa\npython3 -m venv .venv",
     );
     expect(POSIX_LOCAL_SETUP).toContain(
-      "--app-dir backend --host 127.0.0.1 --port 8000",
+      "cd frontend && npm ci && cd ..\n.venv/bin/python scripts/start_local.py",
     );
     expect(WINDOWS_LOCAL_SETUP).toContain(
-      ".\\.venv\\Scripts\\python.exe -m uvicorn",
+      ".\\.venv\\Scripts\\python.exe scripts\\start_local.py",
     );
-    expect(FRONTEND_LOCAL_SETUP).toBe("cd frontend\nnpm ci\nnpm run dev");
+    expect(WINDOWS_LOCAL_SETUP).toContain("cd frontend\nnpm ci\ncd ..");
+    expect(html).toContain("Ctrl+C stops both");
+    expect(html).toContain("After the first setup, restart with the last command only.");
   });
   it("does not export invalid input as a runnable design", () => {
     const project = normalizeProject2D(circle);

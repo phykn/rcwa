@@ -7,15 +7,16 @@ export const POSIX_LOCAL_SETUP = `git clone https://github.com/phykn/rcwa.git
 cd rcwa
 python3 -m venv .venv
 .venv/bin/python -m pip install -r backend/requirements-lock.txt
-.venv/bin/python -m uvicorn api.main:app --app-dir backend --host 127.0.0.1 --port 8000`;
+cd frontend && npm ci && cd ..
+.venv/bin/python scripts/start_local.py`;
 export const WINDOWS_LOCAL_SETUP = `git clone https://github.com/phykn/rcwa.git
 cd rcwa
 py -3.12 -m venv .venv
 .\\.venv\\Scripts\\python.exe -m pip install -r backend/requirements-lock.txt
-.\\.venv\\Scripts\\python.exe -m uvicorn api.main:app --app-dir backend --host 127.0.0.1 --port 8000`;
-export const FRONTEND_LOCAL_SETUP = `cd frontend
+cd frontend
 npm ci
-npm run dev`;
+cd ..
+.\\.venv\\Scripts\\python.exe scripts\\start_local.py`;
 
 export function LocalDesignHandoff({
   project,
@@ -90,24 +91,21 @@ export function LocalDesignHandoff({
           <li>
             <h3>Start the local workbench</h3>
             <p>
-              Requires Git, Python 3.12+ and Node.js 22+. Run these commands on
-              your computer. Keep both terminals open.
+              Requires Git, Python 3.12+ and Node.js 22.13+ (22.x) or 24+. Install
+              once, then keep the launcher terminal open. Ctrl+C stops both the
+              editor and solver.
             </p>
             <details>
               <summary>First-time setup commands</summary>
-              <h4>Terminal 1 · macOS / Linux</h4>
+              <h4>macOS / Linux</h4>
               <pre>
                 <code>{POSIX_LOCAL_SETUP}</code>
               </pre>
-              <h4>Terminal 1 · Windows PowerShell</h4>
+              <h4>Windows PowerShell</h4>
               <pre>
                 <code>{WINDOWS_LOCAL_SETUP}</code>
               </pre>
-              <h4>Terminal 2 · all platforms</h4>
-              <p>Open another terminal in the cloned rcwa folder, then run:</p>
-              <pre>
-                <code>{FRONTEND_LOCAL_SETUP}</code>
-              </pre>
+              <p>After the first setup, restart with the last command only.</p>
             </details>
             <p>
               <a href={LOCAL_SETUP_URL} target="_blank" rel="noreferrer">

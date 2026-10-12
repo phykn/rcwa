@@ -1510,11 +1510,12 @@ try {
     .locator(".saved-item")
     .filter({ hasText: savedA.name })
     .click();
-  await expect(savedDialog.getByRole("alert")).toContainText(
-    "Snapshot no longer exists",
+  await expect(savedDialog.getByRole("alert")).toHaveText(
+    "No saved project has this snapshot ID on this server. Your current design is unchanged.",
   );
   await page.keyboard.press("Escape");
   await page.unroute(savedPath);
+  assert.deepEqual(await exportJson(page), baseline);
   await page.route(savedPath, (route) => route.fulfill({ json: savedB }));
   savedDialog = await openSaved(page);
   await savedDialog

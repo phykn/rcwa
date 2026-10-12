@@ -8,7 +8,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17-alpine
@@ -34,11 +34,34 @@ jobs:
           cache-dependency-path: backend/requirements*.txt
       - run: pip install -r backend/requirements-mcp-lock.txt
       - run: pip check
-      - run: ruff check backend
+      - run: ruff check backend scripts/start_local.py scripts/local_runtime.py scripts/local_windows.py scripts/tests/*.py scripts/tests/fixtures/*.py
       - run: PYTHONPATH=backend pytest backend/tests -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Check real Linux local-launcher lifecycle
+        env:
+          RCWA_LAUNCHER_LOG_DIR: artifacts/local-startup-linux
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python -m pytest scripts/tests/test_local_startup.py -q --junitxml=artifacts/local-startup-linux.xml 2>&1 | tee artifacts/local-startup-linux.log
+      - name: Retain Linux launcher logs and numerical-entry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-startup-linux
+          path: artifacts/local-startup-linux*
+          retention-days: 7
+          if-no-files-found: warn
   mcp-windows:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -61,6 +84,28 @@ jobs:
           New-Item -ItemType Directory -Force artifacts | Out-Null
           python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py backend/tests/test_mcp_saved_design_reuse.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Check real Windows local-launcher lifecycle
+        env:
+          RCWA_LAUNCHER_LOG_DIR: artifacts/local-startup-windows
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          python -m pytest scripts/tests/test_local_startup.py -q --junitxml=artifacts/local-startup-windows.xml 2>&1 | Tee-Object -FilePath artifacts/local-startup-windows.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain Windows launcher logs and numerical-entry evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-startup-windows
+          path: artifacts/local-startup-windows*
+          retention-days: 7
+          if-no-files-found: warn
       - name: Retain Windows transport diagnostics
         if: always()
         uses: actions/upload-artifact@v4
