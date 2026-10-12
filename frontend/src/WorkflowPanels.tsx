@@ -106,10 +106,12 @@ function GeometryCard({
   project,
   label,
   scale,
+  showSectionNote = true,
 }: {
   project: Project;
   label: string;
   scale: number;
+  showSectionNote?: boolean;
 }) {
   const { height, pitch } = geometry(project);
   const is2D = project.schema_version === "1.2";
@@ -218,7 +220,7 @@ function GeometryCard({
           </div>
         )}
       </dl>
-      {is2D && (
+      {is2D && showSectionNote && (
         <p className="preview-scale-note">
           X–Z section through the cell center. Y extent is not shown.
         </p>
@@ -235,6 +237,7 @@ export function ReviewPanel({
   warnings,
   onApply,
   onClose,
+  importedDesign = false,
 }: {
   title: string;
   baseProject: Project;
@@ -244,6 +247,7 @@ export function ReviewPanel({
   warnings: string[];
   onApply: () => void;
   onClose: () => void;
+  importedDesign?: boolean;
 }) {
   const before = geometry(baseProject),
     after = geometry(candidateProject);
@@ -256,15 +260,23 @@ export function ReviewPanel({
     <Modal title={title} onClose={onClose}>
       <p className="control-note">{note}</p>
       <div className="geometry-previews">
-        <GeometryCard project={baseProject} label="Current" scale={scale} />
+        <GeometryCard
+          project={baseProject}
+          label="Current"
+          scale={scale}
+          showSectionNote={!importedDesign}
+        />
         <GeometryCard
           project={candidateProject}
           label="Proposed"
           scale={scale}
+          showSectionNote={!importedDesign}
         />
       </div>
       <p className="preview-scale-note">
-        Cross-sections use the same scale. No new spectrum has been calculated.
+        {importedDesign
+          ? "X–Z center sections use the same scale; Y extent is not shown. No calculation or server save."
+          : "Cross-sections use the same scale. No new spectrum has been calculated."}
       </p>
       <div className="change-list" aria-label="Input changes">
         {changes.length ? (

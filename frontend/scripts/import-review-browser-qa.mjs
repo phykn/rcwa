@@ -245,6 +245,13 @@ async function assertPreserved(page, baseline, name) {
   );
 }
 async function reviewLayout(page, dialog, width) {
+  await expect(dialog.locator(".control-note")).toHaveText(
+    "Review changes before applying. Existing spectra keep their original inputs.",
+  );
+  await expect(dialog.locator(".preview-scale-note")).toHaveCount(1);
+  await expect(dialog.locator(".preview-scale-note")).toHaveText(
+    "X–Z center sections use the same scale; Y extent is not shown. No calculation or server save.",
+  );
   // Full-input disclosure checks scroll within the modal. Top evidence must
   // deliberately return to the Current/Proposed cards before capture.
   await dialog.evaluate((node) => { node.scrollTop = 0; });

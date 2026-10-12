@@ -258,6 +258,7 @@ describe("schema 1.2 human input review", () => {
     if (next.layers[0].geometry !== "rectangle_2d") throw Error("fixture");
     next.layers[0].cd_y_nm = 0;
     const html = review(base, next);
+    expect(html.match(/class="preview-scale-note"/g)).toHaveLength(3);
     expect(html).toContain(
       "X–Z section through the cell center. Y extent is not shown.",
     );

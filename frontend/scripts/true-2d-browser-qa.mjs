@@ -957,6 +957,15 @@ async function importsAndEdges() {
       );
       await importText(page, signedText, "signed-zero");
       await applyImportedDesign(page);
+      // Input-only Apply retains the current layer. Check that contract before
+      // explicitly selecting the layer whose zero-Y width this case examines.
+      await expect(
+        page.getByRole("button", { name: /^Select layer 3:/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: /^Select layer 1:/ }).click();
+      await expect(
+        page.getByRole("button", { name: /^Select layer 1:/ }),
+      ).toHaveAttribute("aria-pressed", "true");
       await expect(
         page.getByRole("button", { name: /^Edit Layer 1 width:/ }),
       ).toHaveAccessibleName(/Y 0 nanometers/);

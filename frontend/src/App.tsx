@@ -1442,7 +1442,7 @@ export default function App() {
           workspace: imported.workspace,
           revision,
           actionVersion: version,
-          note: "Review the imported inputs before applying. Your displayed spectrum stays with its original inputs. This does not calculate, save to the server or validate physical accuracy.",
+          note: "Review changes before applying. Existing spectra keep their original inputs.",
           warnings: [],
           blockedReason: "",
         });
@@ -2887,6 +2887,7 @@ export default function App() {
           candidateProject={review.workspace.project}
           note={review.note}
           warnings={review.warnings}
+          importedDesign={!!review.importedBase}
           blockedReason={
             review.blockedReason ||
             (review.revision !== history.revision ||

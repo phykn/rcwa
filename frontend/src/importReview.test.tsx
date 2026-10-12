@@ -177,6 +177,7 @@ describe("input-only 1.2 import review", () => {
     const html = renderToStaticMarkup(
       createElement(ReviewPanel, {
         title: "Review imported design",
+        importedDesign: true,
         baseProject: base.project,
         candidateProject: stage.workspace.project,
         note: "Review input differences only.",
@@ -195,6 +196,12 @@ describe("input-only 1.2 import review", () => {
     expect(html).toContain("-0.0");
     expect(html).toContain("Cancel</button>");
     expect(html).toContain("Apply changes</button>");
+    expect(html.match(/class="preview-scale-note"/g)).toHaveLength(1);
+    expect(html).toContain(
+      "X–Z center sections use the same scale; Y extent is not shown. No calculation or server save.",
+    );
+    // Each geometry retains its complete accessible cross-section description.
+    expect(html.match(/Y extent is not shown/g)).toHaveLength(3);
   });
   it("can recover valid imported inputs from an invalid editor draft", async () => {
     const invalid = { ...base, project: { ...input(), period_y_nm: 0 } };
