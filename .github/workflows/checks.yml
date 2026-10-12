@@ -258,6 +258,10 @@ jobs:
           (cd frontend && timeout 300s node scripts/svg-fallback-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/circular-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
+          timeout 60s python scripts/agent_example.py \
+            --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
+            --output artifacts/circular-agent-best.json --report artifacts/circular-agent-report.json \
+            > artifacts/circular-agent-cli.log 2>&1 || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1

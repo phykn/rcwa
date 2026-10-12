@@ -35,6 +35,56 @@ The script uses only the Python standard library and public HTTP routes. It impo
 
 Each candidate is validated, submitted as a forward job, and polled. The script then saves the best successful job, fetches that durable snapshot, and exports exactly `{ "project": ..., "result": ... }`. It prints every candidate's outcome and warnings. The report records the objective, limits, diagnostics, failed and unevaluated candidates, available engine information, selected job, and returned snapshot provenance. The export is checked against the complete normalized input/result pair observed during the chosen job and its server-owned job provenance. The winner is **best among evaluated candidates only**. Failed trials count toward the budget. A tie selects the first candidate in the supplied order.
 
+### Bounded circular-hole example
+
+With that same local API running:
+
+```sh
+.venv/bin/python scripts/agent_example.py \
+  --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 \
+  --output artifacts/circular-best.json --report artifacts/circular-report.json
+```
+
+This explicit mode fetches `GET /api/example?example=circular_hole_2d`. It uses
+650 nm, s polarization and **Hx=Hy=1 (nine orders)** for a small runnable example.
+Only `layers[0].diameter_nm` varies between candidates. The named seed's 150/140 nm
+pitches, lower-layer diameters, thicknesses, incidence/azimuth and every material
+value/source remain unchanged. Omitting `--diameters` selects 45, 65 and 85 nm;
+the default budget remains three. Diameters must be finite, distinct and within
+0–140 nm. Invalid lists/budgets and incompatible `--cd`/`--diameters` modes fail
+before HTTP. The existing no-flag and `--cd` invocations still use the legacy 1D
+example and its unchanged settings/hashes. No arbitrary template is accepted.
+
+The circular path also verifies the normalized candidate's canonical hash,
+submitted/polled job ID/kind/hash, exact result wavelength/polarization and input
+hash, then the fetched saved ID and provenance hash. The export preserves the
+full result and all warnings, not a summary. The report's `diameter_nm` and
+`varied_input` identify the top layer; its claim remains **best among evaluated
+candidates only**, never a certified optimum or reliable physical ranking.
+
+The materials are **synthetic, not measured or real HBM data**. H1 is deliberately
+small and not convergence-tested; a successful calculation does not assess convergence.
+Circles use the production 64-midpoint-strip approximation. Spatial and harmonic
+refinement are separate; flux balance and geometry area bounds do not certify
+optical accuracy. These edited inputs inherit no offline fixture convergence
+evidence. These limitations are printed and saved alongside the server warnings.
+
+For a generic tool-capable client, the same sequence is: discover capabilities,
+fetch the named seed, make those explicit common settings and one top-diameter
+change, validate, submit only the returned normalized input, poll the returned
+ID, and select by exact total `spectra.s.R` at 650 nm. Save by the winning job ID
+and fetch the returned durable ID. Keep both IDs and the validated hash. Do not
+infer tool access from this script; HTTP/OpenAPI and optional MCP are separate
+client routes to the same local service.
+
+If saving is uncertain, keep `best.job_id` from the report. **Do not rerun the
+experiment or retry POST to discover whether it saved.** Use only
+`GET /api/projects?view=index`, match the original `provenance.job_id`, and fetch
+that ID's `?view=inputs` and `?view=summary` (or full record for a result import).
+Check ID/hash/provenance and retain every warning. Restart removes volatile jobs
+but preserves saved records. The latest-100 index is bounded; no match is
+unresolved, not permission to resubmit. See [saved-input recovery](#discover-and-reuse-saved-inputs).
+
 ### Bounds and failure behavior
 
 - The explicit candidate list must fit the requested budget. The default budget is 3 and hard maximum is 8; duplicate/nonfinite candidates and invalid limits are rejected before any HTTP request.
@@ -45,7 +95,14 @@ Each candidate is validated, submitted as a forward job, and polled. The script 
 - Ctrl-C, termination, a polling error, or the work deadline triggers one cancellation attempt for a known active job. The report says whether cancellation was confirmed. Interruption during submission can leave an unknown job ID that the script cannot cancel.
 - Only loopback HTTP destinations are accepted. Environment HTTP proxies and redirects are disabled. The client bounds response size at 8 MB.
 
-Exit status is 0 when a best snapshot was saved and exported, 1 for a stopped/unsuccessful run, and 130 for interruption. A completed run may still contain failed candidates, so inspect the report. On failure no new export is written; an export left from an earlier invocation is not evidence of success for the current run.
+Exit status is 0 when a best snapshot and both local files were saved, 1 for a stopped/unsuccessful run, and 130 for interruption. A completed run may still contain failed candidates, so inspect the report. Calculation/save failure writes no new export; an export left from an earlier invocation is not evidence of success for the current run.
+
+Each JSON file is replaced atomically using a temporary file in its own directory.
+The report/export are not a two-file transaction. An export-write failure returns
+1, preserves the earlier file, and records the stop plus durable snapshot/job IDs
+in the report when that report can be written. A report-write failure also returns
+1 and is printed explicitly; an already written export can still be used.
+Obvious destination conflicts and directory targets are rejected before HTTP.
 
 ## Open the result in the UI
 
@@ -54,6 +111,11 @@ Start the local frontend with `cd frontend && npm run dev`, then open `http://lo
 - Use **Import JSON** to open `artifacts/agent-best.json` and inspect its geometry, selected wavelength/polarization, powers, and warnings.
 - Or open **Saved projects** and choose the durable snapshot from this run. Its ID is printed by the script and recorded in `agent-report.json`.
 - Editing the input makes the displayed result stale. Recompute before interpreting it as the result of your edited input.
+
+The circular export follows the existing **full result import** route. In
+contrast, schema-1.2 **input-only** JSON opens Review imported design and requires
+Apply changes; it does not install a result or run a calculation. A compact
+summary/receipt is neither an input file nor a full result import.
 
 The JSON export preserves the server-returned project/result pair for compatibility, but importing a file does not establish trusted server provenance. Client-supplied saves are classified as unverified imports, even if a file claims otherwise. To inspect server-owned provenance, fetch the durable ID from the API or use the server's saved-project entry.
 

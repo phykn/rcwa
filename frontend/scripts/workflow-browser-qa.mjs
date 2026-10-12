@@ -182,11 +182,15 @@ function observe(target) {
   event("created");
   return calls;
 }
-async function newPage(url = appUrl, viewport = { width: 1440, height: 1100 }) {
+async function newPage(
+  url = appUrl,
+  viewport = { width: 1440, height: 1100 },
+  legacy = true,
+) {
   const target = await browser.newPage({ viewport });
   page = target;
   const calls = observe(target);
-  await target.goto(legacyExampleUrl(url));
+  await target.goto(legacy ? legacyExampleUrl(url) : url);
   await expect(target.locator(".connection")).toHaveText(
     url === previewUrl ? "Static preview" : "Solver connected",
   );
@@ -698,6 +702,116 @@ async function launchBrowser(phase) {
 
 try {
   browser = await launchBrowser("desktop-functional-stress");
+  // CI produces these files with the actual bounded circular CLI, never a
+  // fixture or hand-built result. Full import retains an unverified file origin.
+  const circularFile = `${output}/circular-agent-best.json`;
+  const circularPair = JSON.parse(await fs.readFile(circularFile, "utf8"));
+  const circularReport = JSON.parse(
+    await fs.readFile(`${output}/circular-agent-report.json`, "utf8"),
+  );
+  assert.equal(circularReport.status, "completed");
+  assert.equal(circularReport.attempted_count, 3);
+  assert.equal(circularReport.evaluated_count, 3);
+  assert.deepEqual(
+    circularReport.candidates.map((item) => item.diameter_nm),
+    [45, 65, 85],
+  );
+  const circularBest = circularReport.candidates.reduce((best, candidate) =>
+    candidate.score > best.score ? candidate : best,
+  );
+  assert.equal(circularReport.best.job_id, circularBest.job_id);
+  assert.equal(
+    circularPair.project.layers[0].diameter_nm,
+    circularBest.diameter_nm,
+  );
+  assert.deepEqual(circularPair.project.illumination.wavelengths_nm, [650]);
+  assert.equal(circularPair.project.illumination.polarization, "s");
+  assert.deepEqual(circularPair.project.solver, {
+    harmonics_x: 1,
+    harmonics_y: 1,
+  });
+  assert.deepEqual(circularPair.result.wavelengths_nm, [650]);
+  assert.deepEqual(Object.keys(circularPair.result.spectra), ["s"]);
+  assert.equal(circularPair.result.spectra.s.R[0], circularBest.score);
+  assert.equal(
+    circularPair.result.metadata.input_hash,
+    circularBest.input_hash,
+  );
+  const circularSaved = await request(
+    `/projects/${encodeURIComponent(circularReport.snapshot.id)}`,
+  );
+  assert.equal(circularSaved.id, circularReport.snapshot.id);
+  assert.deepEqual(circularSaved.project, circularPair.project);
+  assert.deepEqual(circularSaved.result, circularPair.result);
+  assert.deepEqual(
+    circularSaved.provenance,
+    circularReport.snapshot.provenance,
+  );
+  assert.equal(circularSaved.provenance.source, "server_computed");
+  assert.equal(circularSaved.provenance.job_id, circularBest.job_id);
+  const circularPage = await newPage(
+    appUrl,
+    { width: 1440, height: 1100 },
+    false,
+  );
+  const circularCallsBefore = circularPage.calls.length;
+  await circularPage.target
+    .locator(".project-menu input[type=file]")
+    .setInputFiles(circularFile);
+  await expect(circularPage.target.locator(".result-badge")).toHaveText(
+    "Unverified import",
+  );
+  await expect(
+    circularPage.target.getByRole("dialog", {
+      name: "Review imported design",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    circularPage.target.getByRole("button", {
+      name: /^Edit Layer 1 diameter:/,
+    }),
+  ).toHaveAttribute(
+    "aria-label",
+    `Edit Layer 1 diameter: ${circularBest.diameter_nm} nanometers`,
+  );
+  await expect(
+    circularPage.target.getByLabel("Inspect wavelength sample"),
+  ).toHaveAttribute("aria-valuetext", "650 nanometers");
+  await expect(
+    circularPage.target.locator("#spectrum-sample-description"),
+  ).toContainText("650 nanometers. s polarization.");
+  assert.deepEqual(
+    await exportJson(circularPage.target),
+    exactPair(circularSaved),
+  );
+  assert.deepEqual(
+    circularPage.calls
+      .slice(circularCallsBefore)
+      .filter((call) => call.method !== "GET"),
+    [],
+    "Importing the actual CLI pair neither recalculates nor saves it",
+  );
+  await circularPage.target.evaluate(() => document.fonts.ready);
+  await screenshot(circularPage.target, "circular-agent-cli-import");
+  evidence.circularAgent = {
+    export: "circular-agent-best.json",
+    report: "circular-agent-report.json",
+    log: "circular-agent-cli.log",
+    snapshotId: circularSaved.id,
+    jobId: circularBest.job_id,
+    inputHash: circularBest.input_hash,
+    diameterNm: circularBest.diameter_nm,
+    wavelengthNm: 650,
+    polarization: "s",
+    totalR: circularBest.score,
+    warnings: circularPair.result.warnings,
+    importedOrigin: "unverified",
+  };
+  checks.push(
+    "Actual three-candidate circular CLI export imports with exact diameter/650 nm/s/full-result binding and warnings; file provenance remains unverified without another solve or save",
+  );
+  await circularPage.target.close();
   const live = await newPage();
   page = live.target;
   const calls = live.calls;
