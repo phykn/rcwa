@@ -5,28 +5,39 @@ import assert from "node:assert/strict";
 // never traverse the inert editor behind it. W3C H102 explicitly distinguishes
 // these: https://www.w3.org/WAI/WCAG22/Techniques/html/H102
 export function assertNativeModalFocusTrace(trace, direction, controlCount) {
+  assert.ok(["forward", "backward"].includes(direction), "Known keyboard direction");
   assert.ok(controlCount >= 2, "The dialog has multiple keyboard controls");
   assert.ok(trace.length >= controlCount + 1, "Record a complete keyboard traversal");
-  assert.equal(trace[0].inside, true, "Keyboard traversal starts in the dialog");
-  assert.equal(trace.at(-1).inside, true, "Keyboard traversal returns to the dialog without forced focus");
   const visited = new Set();
-  for (let index = 0; index < trace.length; index++) {
-    const state = trace[index];
+  const kinds = trace.map((state) => {
     assert.equal(state.modal, true, "The native dialog remains modal throughout traversal");
-    if (state.inside) {
-      assert.ok(state.controlIndex >= 0 && state.controlIndex < controlCount, "Focus stays on a visible dialog control");
-      visited.add(state.controlIndex);
-      continue;
+    if (state.self) {
+      assert.ok(state.tag === "DIALOG" && state.inside && state.hasFocus && !state.root && state.controlIndex === -1,
+        "Only the exact focused modal container can be a native dialog stop");
+      return "self";
     }
-    // Do not accept BODY as a blanket exception: prove a one-step chrome
-    // boundary, with no page focus, exactly between the modal's end controls.
-    assert.equal(state.root, true, "Background editor controls must never receive focus");
-    assert.equal(state.hasFocus, false, "Only browser-chrome focus may leave the modal DOM");
-    const previous = trace[index - 1], next = trace[index + 1];
-    assert.equal(previous?.inside, true, "Chrome boundary immediately follows a dialog control");
-    assert.equal(next?.inside, true, "Next Tab returns directly to the dialog");
-    assert.equal(previous.controlIndex, direction === "forward" ? controlCount - 1 : 0, "Chrome boundary leaves the correct end control");
-    assert.equal(next.controlIndex, direction === "forward" ? 0 : controlCount - 1, "Chrome boundary returns at the opposite end control");
+    if (state.inside) {
+      assert.ok(state.hasFocus && !state.root && Number.isInteger(state.controlIndex) && state.controlIndex >= 0 && state.controlIndex < controlCount,
+        "Focus stays on a visible dialog control");
+      visited.add(state.controlIndex);
+      return state.controlIndex;
+    }
+    assert.ok(state.root && !state.hasFocus && ["BODY", "HTML"].includes(state.tag) && state.controlIndex === -1,
+      "Only browser chrome can leave the modal; background editor controls must never receive focus");
+    return "chrome";
+  });
+  assert.equal(typeof kinds[0], "number", "Keyboard traversal starts on a dialog control");
+  assert.equal(typeof kinds.at(-1), "number", "Keyboard traversal returns to a dialog control without forced focus");
+  for (let index = 1; index < kinds.length; index++) {
+    const previous = kinds[index - 1], current = kinds[index];
+    const allowed = direction === "forward"
+      ? previous === "chrome" ? ["self", 0]
+        : previous === "self" ? [0]
+          : previous === controlCount - 1 ? ["chrome", "self", 0] : [previous + 1]
+      : previous === "chrome" ? [controlCount - 1]
+        : previous === "self" ? ["chrome", controlCount - 1]
+          : previous === 0 ? ["self", "chrome", controlCount - 1] : [previous - 1];
+    assert.ok(allowed.includes(current), `Invalid ${direction} native focus transition: ${previous} -> ${current}`);
   }
   assert.equal(visited.size, controlCount, "Every visible dialog control is keyboard reachable");
 }
@@ -43,6 +54,7 @@ export async function recordNativeModalKeyboard(page, dialog, report, width) {
       hasFocus: document.hasFocus(),
       modal: node.matches(":modal"),
       inside: !!active && node.contains(active),
+      self: active === node,
       root: active === document.body || active === document.documentElement,
       controlIndex: controls.indexOf(active),
       controlCount: controls.length,
@@ -57,8 +69,16 @@ export async function recordNativeModalKeyboard(page, dialog, report, width) {
     await page.keyboard.press("Tab");
     entry.forward.push(await snapshot());
   }
+  for (let step = 0; step < 2 && entry.forward.at(-1).controlIndex < 0; step++) {
+    await page.keyboard.press("Tab");
+    entry.forward.push(await snapshot());
+  }
   entry.backward.push(await snapshot());
   for (let step = 0; step < 2 * (count + 1); step++) {
+    await page.keyboard.press("Shift+Tab");
+    entry.backward.push(await snapshot());
+  }
+  for (let step = 0; step < 2 && entry.backward.at(-1).controlIndex < 0; step++) {
     await page.keyboard.press("Shift+Tab");
     entry.backward.push(await snapshot());
   }

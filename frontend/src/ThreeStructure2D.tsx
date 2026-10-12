@@ -14,6 +14,7 @@ import { formatDimension2D, exactDimensionText2D } from "./DimensionEditor2D";
 import "./structure2d.css";
 import { layerColor } from "./layerColors";
 import { meshRegionGeometry2D } from "./circularHoleGeometry2d";
+import { StructureFallback2D } from "./StructureFallback2D";
 
 function StructureCanvas2D({
   project,
@@ -22,6 +23,8 @@ function StructureCanvas2D({
   onSelect,
   disabled,
   resetView,
+  failed,
+  onFallbackChange,
 }: {
   project: StructureViewProject2D;
   selected: number;
@@ -29,12 +32,13 @@ function StructureCanvas2D({
   onSelect: (layer: number) => void;
   disabled: boolean;
   resetView: RefObject<(() => void) | null>;
+  failed: boolean;
+  onFallbackChange: (failed: boolean) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const current = useRef({ project, selected, cutaway, onSelect, disabled });
   current.current = { project, selected, cutaway, onSelect, disabled };
   const update = useRef<(() => void) | null>(null);
-  const [failed, setFailed] = useState(false);
   const failedRef = useRef(false);
   useEffect(() => {
     const element = host.current;
@@ -45,9 +49,10 @@ function StructureCanvas2D({
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     } catch {
       failedRef.current = true;
-      setFailed(true);
+      onFallbackChange(true);
       return;
     }
+    onFallbackChange(false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setClearColor(0xf2f5fa, 1);
     const canvas = renderer.domElement;
@@ -600,14 +605,14 @@ function StructureCanvas2D({
       axisLabels.forEach(({ label }) => {
         label.hidden = true;
       });
-      setFailed(true);
+      onFallbackChange(true);
     };
     const contextRestored = () => {
       failedRef.current = false;
       controls.enabled = true;
       canvas.tabIndex = 0;
       canvas.removeAttribute("aria-hidden");
-      setFailed(false);
+      onFallbackChange(false);
       rebuild();
       resize();
     };
@@ -634,24 +639,11 @@ function StructureCanvas2D({
       canvas.remove();
       axisLabels.forEach(({ label }) => label.remove());
     };
-  }, [resetView]);
+  }, [resetView, onFallbackChange]);
   useEffect(() => {
     update.current?.();
   }, [project, selected, cutaway]);
-  return (
-    <>
-      <div className="s2-webgl" ref={host} data-fallback={failed} />
-      {failed && (
-        <div className="s2-fallback" role="status">
-          <strong>3D view is unavailable.</strong>
-          <p>
-            Choose a layer above. Diameter or Width, Thickness, and Shared pitch
-            remain editable below.
-          </p>
-        </div>
-      )}
-    </>
-  );
+  return <div className="s2-webgl" ref={host} data-fallback={failed} />;
 }
 
 export interface StructureViewProject2D extends StructureGeometryProject2D {
@@ -675,9 +667,14 @@ export function ThreeStructure2D({
   disabled = false,
 }: ThreeStructure2DProps) {
   const [cutaway, setCutaway] = useState(true);
+  const [failed, setFailed] = useState(false);
   const resetView = useRef<(() => void) | null>(null);
   return (
-    <div className="s2-scene" aria-label="Structure view">
+    <div
+      className="s2-scene"
+      aria-label="Structure view"
+      data-fallback={failed}
+    >
       <StructureCanvas2D
         project={project}
         selected={selectedLayer}
@@ -685,21 +682,33 @@ export function ThreeStructure2D({
         onSelect={onSelectLayer}
         disabled={disabled}
         resetView={resetView}
+        failed={failed}
+        onFallbackChange={setFailed}
       />
-      <div className="s2-view-control">
-        <label>
-          <span>View</span>
-          <select
-            aria-label="Structure view"
-            value={cutaway ? "cutaway" : "full"}
-            onChange={(event) => setCutaway(event.target.value === "cutaway")}
-          >
-            <option value="full">Full stack</option>
-            <option value="cutaway">Cutaway</option>
-          </select>
-        </label>
-        {cutaway && <span className="s2-cut-note">Corner hidden</span>}
-      </div>
+      {failed && (
+        <StructureFallback2D
+          project={project}
+          selected={selectedLayer}
+          onSelect={onSelectLayer}
+          disabled={disabled}
+        />
+      )}
+      {!failed && (
+        <div className="s2-view-control">
+          <label>
+            <span>View</span>
+            <select
+              aria-label="Structure view"
+              value={cutaway ? "cutaway" : "full"}
+              onChange={(event) => setCutaway(event.target.value === "cutaway")}
+            >
+              <option value="full">Full stack</option>
+              <option value="cutaway">Cutaway</option>
+            </select>
+          </label>
+          {cutaway && <span className="s2-cut-note">Corner hidden</span>}
+        </div>
+      )}
       <details
         className="s2-guide"
         onKeyDown={(event) => {
@@ -711,36 +720,59 @@ export function ThreeStructure2D({
       >
         <summary aria-label="View guide">ⓘ</summary>
         <div tabIndex={0} role="region" aria-label="View guide details">
-          <button
-            className="text-button"
-            onClick={(event) => {
-              resetView.current?.();
-              const guide = event.currentTarget.closest("details");
-              if (guide) guide.open = false;
-              const canvas = event.currentTarget
-                .closest(".s2-scene")
-                ?.querySelector("canvas");
-              if (canvas?.dataset.ready === "true") canvas.focus();
-              else guide?.querySelector("summary")?.focus();
-            }}
-          >
-            Reset view
-          </button>
-          <p>
-            A corner is hidden in Cutaway to show inner layers; your structure
-            is unchanged.
-          </p>
-          <p>
-            X and Y stay fixed to the structure. Diameter is the circular hole
-            size; width describes rectangular patterns. Pitch is repeat spacing.
-            The dashed outline marks one repeat cell.
-          </p>
-          <p>
-            Colors identify layers from top to bottom. Circular layers show
-            their host with round openings; non-air hole fills remain visible.
-            Pale gray is rectangular background material. The gray base is the
-            substrate, shown at a schematic depth.
-          </p>
+          {failed ? (
+            <>
+              <p>
+                One repeat cell: the selected layer from above (X–Y), and the
+                stack through its center (X–Z at Y=0). Each projection has equal
+                physical axis scales and is fitted separately.
+              </p>
+              <p>
+                Colors identify layers. Circular hosts use the layer color;
+                non-air hole fills and rectangular backgrounds use pale gray.
+                White is air. Ambient and substrate are boundary lines with no
+                added thickness.
+              </p>
+              <p>
+                Tap a distinct section to select a layer. Use the layer chips
+                for thin or zero-thickness layers and keyboard selection. Exact
+                dimensions and materials remain editable below.
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                className="text-button"
+                onClick={(event) => {
+                  resetView.current?.();
+                  const guide = event.currentTarget.closest("details");
+                  if (guide) guide.open = false;
+                  const canvas = event.currentTarget
+                    .closest(".s2-scene")
+                    ?.querySelector("canvas");
+                  if (canvas?.dataset.ready === "true") canvas.focus();
+                  else guide?.querySelector("summary")?.focus();
+                }}
+              >
+                Reset view
+              </button>
+              <p>
+                A corner is hidden in Cutaway to show inner layers; your
+                structure is unchanged.
+              </p>
+              <p>
+                X and Y stay fixed to the structure. Diameter is the circular
+                hole size; width describes rectangular patterns. Pitch is repeat
+                spacing. The dashed outline marks one repeat cell.
+              </p>
+              <p>
+                Colors identify layers from top to bottom. Circular layers show
+                their host with round openings; non-air hole fills remain
+                visible. Pale gray is rectangular background material. The gray
+                base is the substrate, shown at a schematic depth.
+              </p>
+            </>
+          )}
         </div>
       </details>
       <div className="s2-selection" aria-live="polite">

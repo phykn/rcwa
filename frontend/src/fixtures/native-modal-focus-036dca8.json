@@ -1,0 +1,340 @@
+{
+  "source_commit": "036dca885963f960b0e57a1e9f2c3e0485748080",
+  "source_run": 38216881474,
+  "source_artifact_sha256": "799c42fbc106f9ec0f4649393bd63ab723ebeca911071a5d54f1c0097bdbc298",
+  "width": 360,
+  "forward": [
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 1,
+      "controlCount": 6
+    },
+    {
+      "tag": "SUMMARY",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 2,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 3,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 4,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 5,
+      "controlCount": 6
+    },
+    {
+      "tag": "BODY",
+      "id": null,
+      "role": null,
+      "hasFocus": false,
+      "modal": true,
+      "inside": false,
+      "root": true,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "DIALOG",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 0,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 1,
+      "controlCount": 6
+    },
+    {
+      "tag": "SUMMARY",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 2,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 3,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 4,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 5,
+      "controlCount": 6
+    },
+    {
+      "tag": "BODY",
+      "id": null,
+      "role": null,
+      "hasFocus": false,
+      "modal": true,
+      "inside": false,
+      "root": true,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "DIALOG",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": -1,
+      "controlCount": 6
+    }
+  ],
+  "backward": [
+    {
+      "tag": "DIALOG",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BODY",
+      "id": null,
+      "role": null,
+      "hasFocus": false,
+      "modal": true,
+      "inside": false,
+      "root": true,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 5,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 4,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 3,
+      "controlCount": 6
+    },
+    {
+      "tag": "SUMMARY",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 2,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 0,
+      "controlCount": 6
+    },
+    {
+      "tag": "DIALOG",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BODY",
+      "id": null,
+      "role": null,
+      "hasFocus": false,
+      "modal": true,
+      "inside": false,
+      "root": true,
+      "controlIndex": -1,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 5,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 4,
+      "controlCount": 6
+    },
+    {
+      "tag": "A",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 3,
+      "controlCount": 6
+    },
+    {
+      "tag": "SUMMARY",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 2,
+      "controlCount": 6
+    },
+    {
+      "tag": "BUTTON",
+      "id": null,
+      "role": null,
+      "hasFocus": true,
+      "modal": true,
+      "inside": true,
+      "root": false,
+      "controlIndex": 1,
+      "controlCount": 6
+    }
+  ]
+}

@@ -35,3 +35,24 @@ through `?example=rectangle`; the retained 1D suites use their explicit legacy
 route. All suites run in the browser CI job, and the exact candidate's screenshots
 need independent inspection before release. Existing screenshots from another
 commit do not establish acceptance.
+
+## Physical SVG fallback
+
+Run `node scripts/svg-fallback-browser-qa.mjs` against the static preview for
+schema-1.2 fallback acceptance. The dedicated suite covers both ordinary
+circular and explicit rectangular routes at 360/390 px, actual WebGL context
+loss and restoration after edits, repeated transitions with an editor focused,
+SVG geometry, diagram/chip selection, imports, ordering and undo. Exported
+inputs, the full original spectrum and its input binding remain exact; static
+API requests must remain zero. These assertions supplement the existing
+circular and rectangular fallback checks without replacing numerical checks.
+
+The screenshot plan is the `svg-fallback-*` PNG set and JSON report retained
+by the browser CI job: initial circular/rectangular failures at both phone
+widths, edited geometry, mixed/degenerate stacks and real restored contexts.
+Review the candidate's actual images for readable projection labels, circular
+holes at unequal pitch, top-to-bottom order, true dimensions, unclipped mobile
+layout and absence of ineffective 3D controls. Browser emulation does not
+establish real-device touch or spoken screen-reader behavior. A local Chromium
+socket/ProcessSingleton launch failure provides no visual or lifecycle pass;
+those checks remain pending until the supported CI browser run completes.

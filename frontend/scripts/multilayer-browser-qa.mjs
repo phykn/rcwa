@@ -6,7 +6,8 @@ import { enableDragHandles, openMaterial } from "./browser-editor-controls.mjs";
 /* global document, innerWidth, requestAnimationFrame, window */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { chromium, expect as baseExpect, errors } from "@playwright/test";
+import { chromium, expect as baseExpect } from "@playwright/test";
+import { capture as capturePage } from "./browser-2d-controls.mjs";
 const expect = baseExpect.configure({ timeout: 10000 });
 const apiUrl = process.env.RCWA_API_URL || "http://127.0.0.1:8000";
 const appUrl = process.env.RCWA_APP_URL || "http://127.0.0.1:5173";
@@ -340,24 +341,10 @@ async function separatedHandles(label) {
   (evidence.handleLayouts ??= []).push({ label, targets, controls });
 }
 async function capture(name) {
-  const filename = `multilayer-${name}.png`,
-    result = { filename, attempts: [] };
-  evidence.captures.push(result);
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      await page.screenshot({
-        path: `${output}/${filename}`,
-        fullPage: false,
-        timeout: 10000,
-      });
-      result.attempts.push({ attempt, status: "passed" });
-      evidence.screenshots.push(filename);
-      return;
-    } catch (error) {
-      result.attempts.push({ attempt, status: "failed", error: String(error) });
-      if (!(error instanceof errors.TimeoutError) || attempt === 2) throw error;
-    }
-  }
+  await capturePage(page, evidence, output, name, {
+    top: false, full: false, prefix: "multilayer",
+    filenameFor: () => `multilayer-${name}.png`,
+  });
 }
 try {
   const base = await request("/example"),

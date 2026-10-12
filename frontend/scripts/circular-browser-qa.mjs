@@ -479,7 +479,7 @@ try {
     })(),
   );
   await expect(
-    page.getByText("3D view is unavailable.", { exact: true }),
+    page.getByText("2D view · 3D unavailable.", { exact: true }),
   ).toBeVisible();
   await diameter(page).click();
   await expect(

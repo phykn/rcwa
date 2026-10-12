@@ -23,8 +23,8 @@ See the [2D editor and result identity](docs/ui/2d-editor.md) and [explicit 1.2 
 
 ## Quickstart
 
-Requires Git, Python 3.12+ and Node.js 22+. The API stays on your computer;
-no account or paid hosting is required. Keep the following two terminals open.
+Requires Git, Python 3.12+ and Node.js 22+. The API stays on your computer.
+Keep the following two terminals open.
 
 ### Terminal 1: get the code and start the Python solver
 

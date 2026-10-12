@@ -89,7 +89,15 @@ try {
     assert.equal(file.data.result_project, null);
     transferred = file;
     await shot(page, `${width}-dialog`);
-    await recordNativeModalKeyboard(page, dialog, report, width);
+    try {
+      await recordNativeModalKeyboard(page, dialog, report, width);
+      report.keyboard.at(-1).status = "passed";
+    } catch (error) {
+      // Preserve this independent failure while collecting the remaining real
+      // handoff evidence. Any recorded issue still fails the suite below.
+      report.issues.push(`${width}px keyboard: ${String(error?.stack || error)}`);
+      if (report.keyboard.at(-1)?.width === width) report.keyboard.at(-1).status = "failed";
+    }
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(handoff(page)).toBeFocused();
@@ -122,7 +130,7 @@ try {
     assert.deepEqual((await exportMenu(page, `${width}-reset-reloaded`)).data.project, original);
     await expect(page.locator(".result-badge")).toHaveText("No result yet");
     assert.equal(calls.length, 0);
-    report.checks.push(`${width}px: edited name/diameter/material, two-action current-input export, focus/Tab/Escape/reopen, pagehide recovery, no restored result/history, isolated new tab, reset replacement, no API requests`);
+    report.checks.push(`${width}px: edited name/diameter/material, two-action current-input export, Escape/trigger-focus/reopen, pagehide recovery, no restored result/history, isolated new tab, reset replacement, no API requests; keyboard traces are reported separately`);
     await context.close();
   }
   for (const [name, raw] of [
@@ -209,6 +217,7 @@ try {
     await context.close();
   }
   assert.deepEqual(report.pageErrors, []);
+  assert.deepEqual(report.issues, [], "Every independent keyboard check must pass; failures remain in the report");
   report.status = "passed";
 } catch (error) {
   report.status = "failed";

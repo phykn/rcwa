@@ -202,16 +202,51 @@
   min-height: 48px;
 }
 .s2-fallback {
-  display: flex;
-  height: 100%;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
+  position: absolute;
+  inset: 12px 12px 36px;
+  color: #334155;
 }
-.s2-fallback p {
-  font-size: 12px;
-  color: #71717a;
+.s2-fallback-notice {
+  margin: 0 40px 12px 0;
+  font-size: 11px;
+}
+.s2-projections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.s2-projection {
+  margin: 0;
+  min-width: 0;
+  text-align: center;
+}
+.s2-projection figcaption {
+  min-height: 30px;
+  font-size: 11px;
+  line-height: 15px;
+}
+.s2-projection svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+  background: #fff;
+  border-radius: 4px;
+  touch-action: pan-y;
+}
+.s2-projection svg text {
+  fill: #334155;
+  font: 10px "Inter", sans-serif;
+}
+.s2-projection p {
+  margin: 6px 0 0;
+  font: 10px var(--font-code);
+  overflow-wrap: anywhere;
+}
+.s2-section-pick {
+  cursor: pointer;
+}
+.s2-scene[data-fallback="true"] {
+  --s2-scene-height: 306px;
 }
 
 .s2-projected-axis {
@@ -337,16 +372,6 @@
 .s2-webgl[data-fallback="true"] canvas,
 .s2-webgl[data-fallback="true"] .s2-projected-axis {
   visibility: hidden;
-}
-.s2-fallback {
-  position: absolute;
-  inset: 50px 0 32px;
-  height: auto;
-  text-align: center;
-  pointer-events: none;
-}
-.s2-fallback p {
-  max-width: 320px;
 }
 .s2-dimensions button:disabled {
   cursor: not-allowed;

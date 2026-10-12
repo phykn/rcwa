@@ -721,6 +721,7 @@ async function fallback(kind, width) {
         const lost = await canvas2D(page).evaluate((canvas) => {
           const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
           const extension = gl?.getExtension("WEBGL_lose_context");
+          canvas.__qaLossExtension = extension;
           extension?.loseContext();
           return !!extension;
         });
@@ -731,7 +732,7 @@ async function fallback(kind, width) {
         );
       }
       await expect(page.locator(".s2-fallback")).toContainText(
-        "3D view is unavailable.",
+        "2D view · 3D unavailable.",
       );
       await expect(page.locator(".s2-webgl")).toHaveAttribute(
         "data-fallback",
@@ -740,10 +741,25 @@ async function fallback(kind, width) {
       const guide = page.getByLabel("View guide", { exact: true });
       await guide.focus();
       await page.keyboard.press("Enter");
-      await page
-        .getByRole("button", { name: "Reset view", exact: true })
-        .focus();
-      await page.keyboard.press("Enter");
+      await expect(
+        page.getByRole("button", { name: "Reset view", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("combobox", { name: "Structure view", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("img", {
+          name: "Selected layer top view, X–Y",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("img", {
+          name: "Stack center section, X–Z at Y=0",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
       await expect(
         page.getByRole("region", { name: "View guide details", exact: true }),
       ).not.toBeVisible();
@@ -766,12 +782,27 @@ async function fallback(kind, width) {
       await projectEquals(page, changed, `${width}-${kind}-editable`);
       await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
       await capture(page, report, output, `${width}-${kind}-fallback`);
+      if (kind === "context-loss") {
+        await pitchCard(page).focus();
+        await canvas2D(page).evaluate((canvas) => {
+          canvas.__qaLossExtension.restoreContext();
+        });
+        await expect(canvas2D(page)).toHaveAttribute("data-ready", "true");
+        await expect(page.locator(".s2-fallback")).toHaveCount(0);
+        await expect(pitchCard(page)).toBeFocused();
+        await assertScene(page, changed, true);
+        await projectEquals(page, changed, `${width}-${kind}-restored`);
+        await expect(page.locator(".result-badge")).toHaveText(
+          "Inputs changed",
+        );
+        await capture(page, report, output, `${width}-${kind}-restored`);
+      }
       assert.equal(
         report.api.filter((entry) => entry.group === record.name).length,
         0,
       );
     },
-    { width, timeout: 30000 },
+    { width, timeout: 40000 },
   );
 }
 async function importsAndEdges() {

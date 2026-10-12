@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
+import { capture as capturePage } from "./browser-2d-controls.mjs";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, { recursive: true });
 const original = JSON.parse(await fs.readFile(new URL("../src/fixtures/default-project-2d.json", import.meta.url), "utf8"));
@@ -22,16 +23,10 @@ for (const width of [360, 390, 1440]) {
     const project = () => page.locator(".p2").evaluate((e) => JSON.parse(e.dataset.project));
     const history = () => page.locator(".p2").getAttribute("data-history-count");
     async function shot(name) {
-      await page.evaluate(() => window.scrollTo(0, 0));
-      for (const fullPage of [false, true]) {
-        const filename = `prototype-2d-${width}-${name}${fullPage ? "" : "-viewport"}.png`;
-        const capture = { filename, attempts: [] }; report.captures.push(capture);
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          try { await page.screenshot({ path: `${output}/${filename}`, fullPage, timeout: 10000 }); capture.attempts.push({ attempt, status: "passed" }); break; }
-          catch (error) { capture.attempts.push({ attempt, status: "failed", error: String(error) }); if (attempt === 2) throw error; }
-        }
-        report.screenshots.push(filename);
-      }
+      await capturePage(page, report, output, `${width}-${name}`, {
+        prefix: "prototype-2d",
+        filenameFor: (fullPage) => `prototype-2d-${width}-${name}${fullPage ? "" : "-viewport"}.png`,
+      });
     }
     await shot("initial-cutaway");
     assert.deepEqual(await project(), original);
@@ -102,8 +97,11 @@ for (const width of [360, 390, 1440]) {
     await shot("edited");
     await page.getByRole("link", { name: "View example spectrum" }).click();
     await expect(page.locator(".p2-stale-note")).toHaveText("This stored spectrum no longer matches your inputs.");
-    await page.locator("#spectrum").screenshot({ path: `${output}/prototype-2d-${width}-stale-spectrum.png` });
-    report.screenshots.push(`prototype-2d-${width}-stale-spectrum.png`);
+    await page.locator("#spectrum").scrollIntoViewIfNeeded();
+    await capturePage(page, report, output, `${width}-stale-spectrum`, {
+      top: false, full: false, prefix: "prototype-2d",
+      filenameFor: () => `prototype-2d-${width}-stale-spectrum.png`,
+    });
     assert.equal(apiCalls.length, 0);
     report.checks.push(`${width}px: exact approved default, physical full/cut view identity, all3chips/CTA fit, bottom Y-only edit isolation, shared Y bounds, invalid dismissal, focus return, one-step Undo/Redo, truthful stored spectrum and zero API calls`);
   } catch (error) { report.issues.push({ width, error: String(error) }); }

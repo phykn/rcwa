@@ -15,6 +15,29 @@ material; rectangular backgrounds remain pale gray. The substrate's displayed
 depth is schematic. A low-index inclusion is still material, not automatically
 air. The image is an inspection view, not a precision measurement surface.
 
+### When 3D is unavailable
+
+If WebGL cannot start or its context is lost, the schema-1.2 editor displays
+two physical SVG projections: one repeat of the **selected layer from above
+(X–Y)**, and one repeat of the **stack's center section (X–Z at Y=0)**. Each
+projection fits independently, with equal physical scales on its two axes.
+Circles stay circular even when X/Y pitches differ. These are orthographic
+sections of the current inputs, not a simulated 3D image or a new solver result.
+
+Layer order, host/fill roles and dimensions match the canonical geometry.
+Only constant n=1, k=0 material is shown as air; low-index and tabulated material
+remains visible. Ambient and substrate are labeled boundaries with no invented
+depth. Zero-thickness layers have no finite area; an all-zero stack has
+coincident ambient/substrate boundaries. Thin geometry is never enlarged.
+
+Tap a clearly separated section to select its layer, or use the existing layer
+chips, including for keyboard selection and thin/zero-thickness layers. The
+same dimension and material editors update both projections. Selection changes
+no inputs and starts no calculation. The inactive 3D View and Reset controls
+are hidden until WebGL recovers. Restoration rebuilds the current edited inputs
+without moving focus from an open editor. The retained schema-1.0/1.1 viewer is
+unchanged by this fallback.
+
 ## Stored example versus a new calculation
 
 Both local and static builds initially show the complete input-bound circular
