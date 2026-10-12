@@ -1,35 +1,52 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Buffer } from "node:buffer";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { capture } from "../scripts/browser-2d-controls.mjs";
+import { URL } from "node:url";
+import { CAPTURE_BUDGET_MS, capture } from "../scripts/browser-2d-controls.mjs";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=", "base64");
 const directories = [];
-afterEach(async () => { await Promise.all(directories.splice(0).map((path) => rm(path, {recursive: true, force: true}))); });
+afterEach(async () => { vi.restoreAllMocks(); vi.useRealTimers(); await Promise.all(directories.splice(0).map((path) => rm(path, {recursive: true, force: true}))); });
 
 async function fakePage(first, fallback) {
   const output = await mkdtemp(join(tmpdir(), "rcwa-capture-"));
   directories.push(output);
   const calls = {playwright: 0, cdp: 0, detached: 0};
+  const screenshotOptions = [];
   const page = {
     viewportSize: () => ({width: 1, height: 1}),
-    screenshot: async ({path}) => { calls.playwright++; if (first === "fail") throw new Error("Original screenshot preparation timeout"); await writeFile(path, first === "invalid" ? Buffer.from("not PNG") : png); },
+    screenshot: async (options) => { screenshotOptions.push(options); const {path} = options; calls.playwright++; if (first === "fail") throw new Error("Original screenshot preparation timeout"); await writeFile(path, first === "invalid" ? Buffer.from("not PNG") : png); },
     context: () => ({newCDPSession: async () => ({
       send: async (method) => {
         if (method === "Page.getLayoutMetrics") return {cssContentSize: {x: 0, y: 0, width: 1, height: 1}};
         calls.cdp++; if (fallback === "fail") throw new Error("Final CDP capture failure");
+        if (fallback === "hang") return new Promise(() => {});
         return {data: (fallback === "invalid" ? Buffer.from("not PNG") : png).toString("base64")};
       },
       detach: async () => { calls.detached++; },
     })}),
   };
-  return {page, output, calls, report: {captures: [], screenshots: []}};
+  return {page, output, calls, screenshotOptions, report: {captures: [], screenshots: []}};
 }
 const options = {top: false, full: false, filenameFor: () => "stable-existing-name.png"};
 
 describe("bounded screenshot evidence capture", () => {
+  it("reports the same shared budgets that the capture helper executes", async () => {
+    const source = await readFile(new URL("../scripts/true-2d-browser-qa.mjs", import.meta.url), "utf8");
+    expect(source).toMatch(/playwrightTimeoutMs:\s*CAPTURE_BUDGET_MS\.playwright/);
+    expect(source).toMatch(/cdpRetryTimeoutMs:\s*CAPTURE_BUDGET_MS\.cdp/);
+  });
+  it("passes the explicit finite budget to the primary capture and requires a valid PNG", async () => {
+    expect(CAPTURE_BUDGET_MS).toEqual({playwright: 15_000, cdp: 15_000});
+    expect(Object.isFrozen(CAPTURE_BUDGET_MS)).toBe(true);
+    const {page, output, calls, screenshotOptions, report} = await fakePage("pass", "fail");
+    await capture(page, report, output, "ignored", options);
+    expect(screenshotOptions).toEqual([{path: join(output, "stable-existing-name.png"), fullPage: false, timeout: 15_000}]);
+    expect(calls).toEqual({playwright: 1, cdp: 0, detached: 0});
+    expect(report.captures[0].attempts).toEqual([expect.objectContaining({method: "playwright", status: "passed", width: 1, height: 1})]);
+  });
   it("retains the original failure and verifies one same-page fallback PNG", async () => {
     const {page, output, calls, report} = await fakePage("fail", "pass");
     await capture(page, report, output, "ignored", options);
@@ -46,5 +63,28 @@ describe("bounded screenshot evidence capture", () => {
     expect(report.captures[0].attempts).toHaveLength(2);
     expect(report.captures[0].attempts.every((a) => a.status === "failed")).toBe(true);
     expect(report.screenshots).toEqual([]);
+  });
+  it("terminates a stalled CDP capture at the configured finite budget and retains both failures", async () => {
+    const {page, output, calls, report} = await fakePage("fail", "hang");
+    vi.useFakeTimers();
+    const timeout = vi.spyOn(globalThis, "setTimeout");
+    let settled = false;
+    const outcome = capture(page, report, output, "ignored", options).then(
+      () => ({error: null}), (error) => ({error}),
+    ).then((result) => { settled = true; return result; });
+    await vi.waitFor(() => expect(calls.cdp).toBe(1));
+    expect(timeout).toHaveBeenCalledWith(expect.any(Function), 15_000);
+    expect(settled).toBe(false);
+    await vi.runAllTimersAsync();
+    const result = await outcome;
+    expect(result.error).toBeInstanceOf(Error);
+    expect(String(result.error)).toContain("Every required screenshot");
+    expect(calls).toEqual({playwright: 1, cdp: 1, detached: 1});
+    expect(report.captures[0].attempts).toEqual([
+      expect.objectContaining({method: "playwright", status: "failed", error: "Error: Original screenshot preparation timeout"}),
+      expect.objectContaining({method: "cdp", status: "failed", error: "Error: CDP screenshot exceeded 15000 ms at cdp:captureScreenshot"}),
+    ]);
+    expect(report.screenshots).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -16,6 +16,7 @@ import {
   importText,
   editY,
   capture,
+  CAPTURE_BUDGET_MS,
   activeCapture,
   verifyCaptureFile,
   assertScene,
@@ -64,8 +65,8 @@ const report = {
     "Production entry point, explicit rectangular example URL; exact historical 1.2 fixture/reference",
   screenshotPolicy: {
     serialPageGroups: true,
-    playwrightTimeoutMs: 7000,
-    cdpRetryTimeoutMs: 10000,
+    playwrightTimeoutMs: CAPTURE_BUDGET_MS.playwright,
+    cdpRetryTimeoutMs: CAPTURE_BUDGET_MS.cdp,
     groupTimeoutWaitsForActiveCapture: true,
   },
   limitations: [

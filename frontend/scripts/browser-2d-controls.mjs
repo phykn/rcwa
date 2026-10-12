@@ -48,6 +48,9 @@ export async function editY(page, value, layer = 3) {
     .fill(String(value));
   await closeSheet(page);
 }
+// CI's genuine WebGL captures can exceed the previous 7 s preparation budget.
+// Keep one primary capture and one same-page fallback, each with a finite cap.
+export const CAPTURE_BUDGET_MS = Object.freeze({ playwright: 15_000, cdp: 15_000 });
 const capturesInFlight = new WeakMap();
 export function activeCapture(page) {
   return capturesInFlight.get(page) || null;
@@ -105,7 +108,7 @@ async function collectCapture(
         await fs.rm(path, { force: true });
         if (method === "playwright") {
           stage = "playwright:captureScreenshot";
-          await page.screenshot({ path, fullPage, timeout: 7000 });
+          await page.screenshot({ path, fullPage, timeout: CAPTURE_BUDGET_MS.playwright });
         } else {
           // A bounded same-page Chromium capture is a genuine pixel fallback
           // if Playwright's screenshot preparation stalls. No page reload,
@@ -148,9 +151,9 @@ async function collectCapture(
                 timer = setTimeout(
                   () =>
                     reject(
-                      new Error(`CDP screenshot exceeded 10000 ms at ${stage}`),
+                      new Error(`CDP screenshot exceeded ${CAPTURE_BUDGET_MS.cdp} ms at ${stage}`),
                     ),
-                  10000,
+                  CAPTURE_BUDGET_MS.cdp,
                 );
               }),
             ]);
