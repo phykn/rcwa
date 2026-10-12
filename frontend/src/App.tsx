@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { LocalDesignHandoff } from "./LocalDesignHandoff";
+import { reviewImportedDesign } from "./importReview";
 import {
   browserDraftStorage,
   inputDraftKey,
@@ -84,6 +85,9 @@ function sameInputs(a: Project | null, b: Project) {
   return a !== null && sameNormalizedProject(a, b);
 }
 type ReviewState = {
+  // Input-only imports are reviewed against this exact editor frame, including
+  // selection and the displayed result. They are not base-bound AI proposals.
+  importedBase?: Workspace;
   title: string;
   baseProject: Project;
   workspace: Workspace;
@@ -493,12 +497,21 @@ export default function App() {
   const inspector = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const actionVersion = useRef(0);
+  const pendingImportVersion = useRef<number | null>(null);
+  function cancelImportRead() {
+    if (pendingImportVersion.current === null) return;
+    const current = pendingImportVersion.current === actionVersion.current;
+    pendingImportVersion.current = null;
+    if (current) actionVersion.current += 1;
+  }
   const savedRequest = useRef(0);
   const connectionRequest = useRef(0);
   const startingRef = useRef(false);
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [loadingProject, setLoadingProject] = useState<string | null>(null);
   function openSheet(next: Sheet, layerIndex?: number) {
+    cancelImportRead();
+    dismissImportedReview();
     if (layerIndex !== undefined) selectLayer(layerIndex);
     previousFocus.current = document.activeElement as HTMLElement;
     setSheet(next);
@@ -537,6 +550,14 @@ export default function App() {
   function presentReview(next: ReviewState | null) {
     reviewRef.current = next;
     setReview(next);
+  }
+  function dismissImportedReview() {
+    if (reviewRef.current?.importedBase) presentReview(null);
+  }
+  function openHandoff() {
+    cancelImportRead();
+    dismissImportedReview();
+    setHandoffOpen(true);
   }
   const [comparison, setComparison] = useState<SavedProject[] | null>(null);
   const comparisonRequest = useRef(0);
@@ -833,10 +854,13 @@ export default function App() {
       if (
         selection !== undefined &&
         selection !== historyRef.current.present.selectedLayer
-      )
+      ) {
+        dismissImportedReview();
         dispatch({ type: "select-layer", index: selection });
+      }
       return;
     }
+    dismissImportedReview();
     actionVersion.current += 1;
     inputsChanged.current = true;
     dispatch({
@@ -846,7 +870,8 @@ export default function App() {
     });
     setNotice("");
   }
-  function install(workspace: Workspace) {
+  function install(workspace: Workspace, preservePolarization = false) {
+    dismissImportedReview();
     actionVersion.current += 1;
     inputsChanged.current = true;
     endEdit();
@@ -860,11 +885,13 @@ export default function App() {
         ),
       },
     });
-    setPolarization(workspace.displayedRun?.result.spectra.s ? "s" : "p");
+    if (!preservePolarization)
+      setPolarization(workspace.displayedRun?.result.spectra.s ? "s" : "p");
     setJob(null);
   }
   function restoreHistory(direction: "undo" | "redo") {
     if (busy || startingRef.current) return;
+    dismissImportedReview();
     actionVersion.current += 1;
     inputsChanged.current = true;
     endEdit();
@@ -1005,6 +1032,8 @@ export default function App() {
     return true;
   }
   function selectLayer(index: number) {
+    cancelImportRead();
+    dismissImportedReview();
     endEdit();
     dispatch({ type: "select-layer", index });
     // Material/dimension sheets are reopened for an explicit selection.
@@ -1267,6 +1296,8 @@ export default function App() {
     setComparing(false);
   }
   async function openSaved() {
+    cancelImportRead();
+    dismissImportedReview();
     const request = ++savedRequest.current;
     setShowSaved(true);
     setLoadingSaved(true);
@@ -1330,19 +1361,26 @@ export default function App() {
   async function importProject(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || busy || startingRef.current) return;
+    // Clear synchronously so the same file can be selected again. An older
+    // read must never clear the file input belonging to a newer selection.
+    event.target.value = "";
     endEdit();
+    presentReview(null);
     const version = ++actionVersion.current,
-      revision = historyRef.current.revision;
+      revision = historyRef.current.revision,
+      baseWorkspace = historyRef.current.present;
+    pendingImportVersion.current = version;
+    const current = () =>
+      pendingImportVersion.current === version &&
+      version === actionVersion.current &&
+      revision === historyRef.current.revision &&
+      baseWorkspace === historyRef.current.present;
     inputsChanged.current = true;
     try {
       if (file.size > 20 * 1024 * 1024)
         throw new Error("Project JSON must be smaller than 20 MB.");
       const text = await file.text();
-      if (
-        version !== actionVersion.current ||
-        revision !== historyRef.current.revision
-      )
-        return;
+      if (!current()) return;
       const envelope: unknown = JSON.parse(text);
       if (
         envelope &&
@@ -1386,21 +1424,41 @@ export default function App() {
         return;
       }
       const data = await parseProjectFileAsync(text);
-      if (
-        version !== actionVersion.current ||
-        revision !== historyRef.current.revision
-      )
+      if (!current()) return;
+      const imported = reviewImportedDesign(data, baseWorkspace);
+      if (imported) {
+        setError("");
+        if (imported.unchanged) {
+          setNotice(
+            "Imported inputs match the current design. Nothing changed.",
+          );
+          return;
+        }
+        setNotice("");
+        presentReview({
+          title: "Review imported design",
+          importedBase: baseWorkspace,
+          baseProject: baseWorkspace.project,
+          workspace: imported.workspace,
+          revision,
+          actionVersion: version,
+          note: "Review the imported inputs before applying. Your displayed spectrum stays with its original inputs. This does not calculate, save to the server or validate physical accuracy.",
+          warnings: [],
+          blockedReason: "",
+        });
         return;
+      }
       install(workspaceFromFile(data, "imported"));
       setNotice("JSON loaded. Review the inputs and saved results.");
       setError("");
     } catch (e) {
-      if (version === actionVersion.current)
+      if (current())
         setError(
           `${errorText(e)} If the inputs are valid, remove the result and result_project fields from the JSON file and import it again to recover inputs only.`,
         );
     } finally {
-      event.target.value = "";
+      if (pendingImportVersion.current === version)
+        pendingImportVersion.current = null;
     }
   }
   async function readReference() {
@@ -1436,6 +1494,7 @@ export default function App() {
     return parsed;
   }
   async function loadReference() {
+    dismissImportedReview();
     endEdit();
     const version = ++actionVersion.current,
       revision = historyRef.current.revision;
@@ -1575,12 +1634,15 @@ export default function App() {
     if (
       pending.revision !== historyRef.current.revision ||
       pending.actionVersion !== actionVersion.current ||
-      !sameInputs(pending.baseProject, historyRef.current.present.project)
+      (pending.importedBase &&
+        pending.importedBase !== historyRef.current.present) ||
+      (!pending.importedBase &&
+        !sameInputs(pending.baseProject, historyRef.current.present.project))
     ) {
       presentReview({
         ...pending,
         blockedReason:
-          "The project changed while this preview was open. Close it and review a new proposal.",
+          "The project changed while this preview was open. Close it and review the changes again.",
       });
       return;
     }
@@ -1588,12 +1650,13 @@ export default function App() {
     // A repeated Apply or a queued action after Cancel is therefore a no-op.
     presentReview(null);
     closeComparison();
-    install(pending.workspace);
+    install(pending.workspace, !!pending.importedBase);
     setError("");
     setNotice("Changes applied. Undo is available in the Project menu.");
   }
   useEffect(() => {
     function shortcuts(event: KeyboardEvent) {
+      if (event.key === "Escape") cancelImportRead();
       const target = event.target as HTMLElement | null;
       if (
         busy ||
@@ -1950,7 +2013,7 @@ export default function App() {
                   {editedStaticDesign ? (
                     <button
                       className="preview-result-button"
-                      onClick={() => setHandoffOpen(true)}
+                      onClick={openHandoff}
                     >
                       Use this design locally <Icon name="arrow" />
                     </button>
@@ -2827,14 +2890,17 @@ export default function App() {
           blockedReason={
             review.blockedReason ||
             (review.revision !== history.revision ||
-            review.actionVersion !== actionVersion.current
-              ? "The project changed. Close this preview and request a new proposal."
+            review.actionVersion !== actionVersion.current ||
+            (review.importedBase && review.importedBase !== history.present)
+              ? "The project changed. Close this preview and review the changes again."
               : "")
           }
           onApply={applyReview}
           onClose={() => {
+            if (reviewRef.current !== review) return;
             comparisonRequest.current += 1;
-            if (reviewRef.current === review) presentReview(null);
+            if (review.importedBase) actionVersion.current += 1;
+            presentReview(null);
           }}
         />
       )}

@@ -156,6 +156,20 @@ status badges retain their text labels in addition to color.
 
 ## Review edits and compare candidates
 
+Valid schema-1.2 input-only JSON opens **Review imported design** before changing
+the workspace. The existing Current/Proposed review includes every changed input
+and exact optical tables under Full inputs. Apply changes is one undoable edit;
+the displayed spectrum, original result inputs and origin stay together, with the
+usual stale label when inputs differ. Cancel leaves them untouched. Identical
+inputs report that nothing changed and create no history step. Invalid or
+oversized files never install. Newer imports, input edits, layer selection,
+history/reset transitions and dismissal invalidate an older review or pending
+file read; Escape or opening an inspector also dismisses a queued read. Review
+and Apply do not calculate or save to the server. This is an input comparison,
+not a base-bound proposal or physical-accuracy check. Result-bearing imports and
+legacy imports retain their existing routes; schema-1.2 proposal endpoints
+remain unsupported.
+
 Undo and Redo live in the Project menu. Keyboard shortcuts are Ctrl/Cmd+Z and
 Ctrl/Cmd+Shift+Z outside text fields; Ctrl+Y also redoes. Native text-field undo
 is preserved. A pointer drag or focused numeric edit is one history step. This

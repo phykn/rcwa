@@ -9,6 +9,7 @@ import {
   closeSheet,
   menuAction,
   importText,
+  applyImportedDesign,
   capture,
   assertFullResult,
 } from "./browser-2d-controls.mjs";
@@ -86,7 +87,11 @@ async function imported(page, data, name) {
   });
   if (await dismiss.isVisible()) await dismiss.click();
   await importText(page, data, name);
-  await expect(page.locator(".message.success")).toContainText("JSON loaded.");
+  const project = data.project ?? data;
+  if (project.schema_version === "1.2" && !data.result)
+    await applyImportedDesign(page);
+  else
+    await expect(page.locator(".message.success")).toContainText("JSON loaded.");
 }
 async function ready(page, url = previewUrl) {
   await page.goto(url);

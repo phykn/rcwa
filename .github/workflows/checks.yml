@@ -263,6 +263,7 @@ jobs:
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/design-handoff-browser-qa.mjs) || status=1
+          (cd frontend && timeout 180s node scripts/import-review-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/multilayer-browser-qa.mjs) || status=1
           exit "$status"
       - name: Collect local browser server logs
@@ -292,6 +293,7 @@ jobs:
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json
             artifacts/design-handoff-*
+            artifacts/import-review-*
             artifacts/multilayer-browser-qa.json
             artifacts/agent-report.json
             artifacts/rcwa-*.log

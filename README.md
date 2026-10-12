@@ -76,7 +76,8 @@ static-preview configuration.
    the old example spectrum. The Project menu also provides JSON export.
 2. Start both local terminals above and open http://127.0.0.1:5173.
 3. Choose **Project → Import JSON** and select the downloaded file. Review the
-   imported dimensions, materials and illumination, then choose **Run simulation**.
+   current/proposed dimensions, materials and illumination, then choose
+   **Apply changes** and **Run simulation**. **Cancel** keeps the current design.
 4. Wait for the calculation to complete. A new result applies only to its exact
    inputs; edited designs need their own convergence/accuracy checks. Use
    **Project → Export** to keep inputs and the complete result together, or

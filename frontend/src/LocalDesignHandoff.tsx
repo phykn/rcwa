@@ -123,8 +123,8 @@ export function LocalDesignHandoff({
                 127.0.0.1:5173
               </a>
               . Choose Project → Import JSON and select your exported file.
-              Review the dimensions, wait for Solver connected, then choose Run
-              simulation.
+              Review the input changes and choose Apply changes. Once Solver
+              connected appears, choose Run simulation.
             </p>
             <p className="local-handoff-note">
               Keep the API on 127.0.0.1. No account, paid hosting or design

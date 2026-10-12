@@ -63,6 +63,13 @@ preserve the previous result. Fitting and change proposals are not supported for
 
 ## Import, history and saving
 
+- Input-only schema 1.2 JSON opens **Review imported design** with Current and
+  Proposed inputs. **Apply changes** creates one undo step and keeps the displayed
+  spectrum bound to its original inputs, visibly stale when appropriate.
+  **Cancel** changes nothing. Exact material tables remain in **Full inputs**;
+  this review does not calculate, save to the server or check physical accuracy. Identical
+  inputs create no edit. New imports or editor/history transitions discard old
+  reviews and queued reads.
 - Imported schema 1.0/1.1 projects retain their original 1D behavior and identity.
   Nothing is silently migrated or downgraded. The explicit `?example=1d` URL opens
   the retained original 1D fixture; the ordinary URL remains the circular-hole 2D example.
@@ -92,7 +99,8 @@ or spoken screen-reader validation.
 On the static Pages preview, changing the inputs replaces the example-spectrum
 primary action with **Use this design locally**. Its accessible dialog offers
 **Export current inputs** as the next action, plus macOS/Linux and Windows
-setup commands and the local **Project → Import JSON → Run simulation** flow.
+setup commands and the local **Project → Import JSON → Apply changes → Run
+simulation** flow.
 The export contains current inputs only, never the stale example result. The
 unchanged first-open example still links to its precomputed spectrum. All static
 editing and recovery remain API-free.

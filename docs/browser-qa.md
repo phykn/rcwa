@@ -56,3 +56,15 @@ layout and absence of ineffective 3D controls. Browser emulation does not
 establish real-device touch or spoken screen-reader behavior. A local Chromium
 socket/ProcessSingleton launch failure provides no visual or lifecycle pass;
 those checks remain pending until the supported CI browser run completes.
+
+## Imported design review
+
+`node scripts/import-review-browser-qa.mjs` checks schema-1.2 input-only imports
+against the static and local applications. Its `import-review-*` artifacts cover
+export/external editing/review/Cancel/Apply/Undo, exact material and result binding,
+keyboard dismissal and focus, repeated actions, stale file reads, invalid files,
+and 360/390 px layouts. Static API requests must remain zero; import and Apply
+must never submit a calculation or save. The existing circle, rectangle, fallback
+and local-handoff suites explicitly Apply valid changed input-only imports.
+These are CI acceptance tests, not a claim of local browser execution. Inspect
+the exact candidate's retained screenshots before release.

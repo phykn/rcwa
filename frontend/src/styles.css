@@ -1964,7 +1964,7 @@ input[type="range"]:focus-visible {
 .geometry-preview-card dd {
   margin: 0;
   font-family: "Source Code Pro", monospace;
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
 }
 .preview-scale-note {
@@ -1987,7 +1987,7 @@ input[type="range"]:focus-visible {
 .change-list > div > span:last-child {
   text-align: right;
   font-family: "Source Code Pro", monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 .comparison-dialog {
   width: min(940px, calc(100vw - 24px));

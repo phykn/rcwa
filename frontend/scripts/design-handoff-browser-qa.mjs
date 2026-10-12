@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
 import { recordNativeModalKeyboard } from "./browser-native-dialog-focus.mjs";
-import { capture, closeSheet, menuAction, importText, assertFullResult } from "./browser-2d-controls.mjs";
+import { capture, closeSheet, menuAction, importText, applyImportedDesign, assertFullResult } from "./browser-2d-controls.mjs";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, {recursive: true});
 const previewUrl = process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173";
@@ -174,6 +174,7 @@ try {
       edited.layers = Array.from({length: 8}, () => ({...structuredClone(original.layers[0]), material: structuredClone(table), background: structuredClone(table)}));
       assert.ok(Buffer.byteLength(JSON.stringify(edited)) > 512 * 1024);
       await importText(page, {project: edited}, "valid-large-inputs");
+      await applyImportedDesign(page);
       await expect(page.locator(".draft-warning")).toContainText("exceed the tab recovery limit");
       assert.deepEqual((await exportMenu(page, "oversize-export")).data.project, edited);
     }
@@ -192,9 +193,10 @@ try {
     page.on("pageerror", (error) => report.pageErrors.push(error.message));
     await page.goto(appUrl);
     await expect(page.locator(".connection")).toHaveText("Solver connected");
+    await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
     await page.locator(".project-menu input[type=file]").setInputFiles(transferred.path);
-    await expect(page.locator(".message.success")).toContainText("JSON loaded");
-    await expect(page.locator(".result-badge")).toHaveText("No result yet");
+    await applyImportedDesign(page);
+    await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
     assert.deepEqual((await exportMenu(page, "local-import")).data.project, transferred.data.project);
     const validation = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/validate" && response.request().method() === "POST");
     validation.catch(() => {});

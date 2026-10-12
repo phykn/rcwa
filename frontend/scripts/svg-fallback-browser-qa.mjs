@@ -13,6 +13,7 @@ import {
   menuAction,
   exportWorkspace,
   importText,
+  applyImportedDesign,
   pitchCard,
   assertFullResult,
   assertScene,
@@ -852,7 +853,8 @@ async function importAndHistory() {
       thickness_nm: 0,
     });
     await importText(page, extreme, "svg-fallback-extreme");
-    await expect(page.locator(".result-badge")).toHaveText("No result yet");
+    await applyImportedDesign(page);
+    await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
     await expect(xz(page)).toHaveAttribute("data-period-y", "5000");
     await chip(page, 1).focus();
     await page.keyboard.press("Enter");
@@ -872,8 +874,6 @@ async function importAndHistory() {
       fixture,
       extreme,
       `${record.name}-extreme-thin`,
-      null,
-      null,
     );
     await shot(page, `${record.name}-extreme-thin`);
     const allZero = structuredClone(reordered);
@@ -881,7 +881,8 @@ async function importAndHistory() {
       layer.thickness_nm = 0;
     });
     await importText(page, allZero, "svg-fallback-all-zero");
-    await expect(page.locator(".result-badge")).toHaveText("No result yet");
+    await applyImportedDesign(page);
+    await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
     await expect(xz(page)).toHaveAttribute("data-total-thickness", "0");
     await chip(page, 0).click();
     await assertProjection(page, allZero, 0, `${record.name}-all-zero`);
@@ -890,13 +891,11 @@ async function importAndHistory() {
       fixture,
       allZero,
       `${record.name}-all-zero`,
-      null,
-      null,
     );
-    await expect(page.locator(".result-badge")).toHaveText("No result yet");
+    await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
     await shot(page, `${record.name}-all-zero`);
     record.checks.push(
-      "Exact import, zero diameter/thickness/width, full diameter, non-air fill, homogeneous film, invariant-Y ridge, all-zero stack; 20 × 5000 nm pitch with a 0.001 nm slab and no expanded pick targets; per-layer selection; reorder/Undo/Redo update physical SVG; unchanged stored spectrum on edits and no fabricated result for input-only imports",
+      "Exact import, zero diameter/thickness/width, full diameter, non-air fill, homogeneous film, invariant-Y ridge, all-zero stack; 20 × 5000 nm pitch with a 0.001 nm slab and no expanded pick targets; per-layer selection; reorder/Undo/Redo update physical SVG; unchanged stored spectrum on edits and input-only import review preserves the exact stale spectrum",
     );
   });
 }

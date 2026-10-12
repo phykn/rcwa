@@ -14,6 +14,7 @@ import {
   menuAction,
   exportWorkspace,
   importText,
+  applyImportedDesign,
   editY,
   capture,
   CAPTURE_BUDGET_MS,
@@ -917,8 +918,15 @@ async function importsAndEdges() {
       delete mixed.layers[2].cd_x_nm;
       delete mixed.layers[2].cd_y_nm;
       await importText(page, mixed, "mixed-full-zero");
-      await expect(page.locator(".result-badge")).toHaveText("No result yet");
-      await projectEquals(page, mixed, "mixed-full-zero-export", null, null);
+      await applyImportedDesign(page);
+      await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
+      await projectEquals(
+        page,
+        mixed,
+        "mixed-full-zero-export",
+        reference.result,
+        original,
+      );
       await page
         .getByRole("combobox", { name: "Structure view", exact: true })
         .selectOption("full");
@@ -948,6 +956,7 @@ async function importsAndEdges() {
         '"angle_deg":-0.0',
       );
       await importText(page, signedText, "signed-zero");
+      await applyImportedDesign(page);
       await expect(
         page.getByRole("button", { name: /^Edit Layer 1 width:/ }),
       ).toHaveAccessibleName(/Y 0 nanometers/);
@@ -1291,7 +1300,8 @@ async function realForward() {
       edited.name = `2D single-wavelength browser QA ${started}`;
       edited.illumination.wavelengths_nm = [650];
       await importText(page, edited, "single-wave-cancel-input");
-      await expect(page.locator(".result-badge")).toHaveText("No result yet");
+      await applyImportedDesign(page);
+      await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
       // Delay only this real DELETE until the real worker completes. This is
       // completed-before-cancel transport timing, not proof of a cancelled worker.
       await page.route("**/api/jobs/*", async (route) => {
@@ -1368,8 +1378,8 @@ async function realForward() {
           page,
           edited,
           "cancelled-inputs-unlocked",
-          null,
-          null,
+          reference.result,
+          original,
         );
       }
       await capture(

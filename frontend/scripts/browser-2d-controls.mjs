@@ -38,6 +38,26 @@ export async function importText(page, value, name = "project") {
     buffer: Buffer.from(text),
   });
 }
+// Explicit acceptance for suites whose next step requires the imported inputs.
+// Keep importText raw: review, cancellation, rejection and no-change tests must
+// observe the dialog themselves instead of silently accepting every file.
+export async function applyImportedDesign(page) {
+  const dialog = page.getByRole("dialog", {
+    name: "Review imported design",
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "Apply changes", exact: true }),
+  ).toBeEnabled();
+  await dialog
+    .getByRole("button", { name: "Apply changes", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".message.success")).toContainText(
+    "Changes applied.",
+  );
+}
 export async function editY(page, value, layer = 3) {
   await page
     .getByRole("button", { name: new RegExp(`^Select layer ${layer}:`) })

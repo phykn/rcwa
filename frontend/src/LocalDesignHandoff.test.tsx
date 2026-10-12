@@ -24,6 +24,7 @@ describe("input-only local design handoff", () => {
     expect(html).toContain("Export current inputs</button>");
     expect(html).toContain("No example spectrum is included.");
     expect(html).toContain("Project → Import JSON");
+    expect(html).toContain("Review the input changes and choose Apply changes.");
     expect(html).toContain("Run simulation");
     expect(html).toContain("Keep the API on 127.0.0.1.");
     expect(POSIX_LOCAL_SETUP).toContain(
