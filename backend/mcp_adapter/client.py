@@ -81,13 +81,16 @@ class LocalAPI:
 
     async def request(self, method: str, path: str, body=None):
         # Even internal callers cannot turn this transport into a general HTTP tool.
-        fixed = {("GET", "/api/capabilities"), ("GET", "/api/example"), ("GET", "/api/example?example=circular_hole_2d"),
+        fixed = {("GET", "/api/capabilities"), ("GET", "/api/projects?view=index"), ("GET", "/api/example"), ("GET", "/api/example?example=circular_hole_2d"),
                  ("POST", "/api/validate"), ("POST", "/api/change-preview"),
                  ("POST", "/api/stack-change-preview"),
                  ("POST", "/api/jobs"), ("POST", "/api/snapshots"), ("POST", "/api/snapshots?view=receipt")}
-        variable = re.fullmatch(r"/api/(jobs|projects)/([A-Za-z0-9_-]{1,100})(\?view=summary)?", path)
+        variable = re.fullmatch(r"/api/(jobs|projects)/([A-Za-z0-9_-]{1,100})(\?view=(summary|inputs))?", path)
         if (method, path) not in fixed and not (
-            variable and (method == "GET" or (method == "DELETE" and variable[1] == "jobs" and variable[3] is None))
+            variable and (
+                (method == "GET" and (variable[4] != "inputs" or variable[1] == "projects"))
+                or (method == "DELETE" and variable[1] == "jobs" and variable[3] is None)
+            )
         ):
             raise AdapterError("invalid_route", "This HTTP route is not exposed by the adapter")
         try:

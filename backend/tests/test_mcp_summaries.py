@@ -204,7 +204,7 @@ def test_additive_view_schemas_forbid_fields_and_advertise_enums():
     ]:
         schema = operations[name].tool().input_schema
         assert schema["properties"][field]["enum"] == (
-            ["legacy_1d", valid] if field == "example" else ["full", valid]
+            ["legacy_1d", valid] if field == "example" else (["full", valid, "inputs"] if name == "rcwa_get_snapshot" else ["full", valid])
         )
         assert invalid not in schema["properties"][field]["enum"]
 

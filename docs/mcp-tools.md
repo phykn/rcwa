@@ -97,14 +97,15 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | `rcwa_get_job` | `{"job_id": "...", "view":"summary"}` | Bounded status/totals/warnings; omit `view` for the unchanged full result |
 | `rcwa_cancel_job` | `{"job_id": "..."}` | Cancels that running API job; safe to repeat |
 | `rcwa_save_snapshot` | `{"job_id": "...", "view":"receipt"}` | Saves the exact full server-owned input/result and returns a bounded durable receipt; omit `view` for the full snapshot |
-| `rcwa_get_snapshot` | `{"snapshot_id": "...", "view":"summary"}` | Bounded durable identity/provenance/totals; omit `view` for the full saved project/result |
+| `rcwa_list_snapshots` | `{}` | Latest 100 saved IDs/names/timestamps/provenance, with an explicit bounded-window indicator; read-only discovery |
+| `rcwa_get_snapshot` | `{"snapshot_id": "...", "view":"summary"}` | Bounded durable identity/provenance/totals; `view:"inputs"` returns exact inputs without spectra; omit `view` for the full saved project/result |
 
 `tools/list` publishes nested JSON Schemas generated from the same runtime
 Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
 not accept URLs, headers, paths, code, replacement results, or claimed provenance.
 Job and snapshot IDs accept only 1–100 ASCII letters, digits, underscores or
 hyphens. The backend capability response describes the whole backend, including
-operations beyond these ten tools; the MCP list is the exposed subset.
+operations beyond these eleven tools; the MCP list is the exposed subset.
 
 `rcwa_submit` also accepts the existing synthetic-fit request:
 
@@ -153,6 +154,45 @@ marked destructive, and snapshot save is an idempotent write.
 
 The workbench UI's **Saved projects** list can open these same snapshots. The
 public static preview is still precomputed and makes no live API requests.
+
+## Find and reuse a saved design
+
+Call `rcwa_list_snapshots({})` to discover the latest 100 saved records, ordered
+by `updated_at` descending. The typed `view: "index"` response contains
+`snapshots`, `limit: 100`, `may_have_more`, and an explicit discovery-only meaning.
+Each entry preserves its exact ID, name, timestamps and provenance. The existing
+HTTP default list is still an array. There are no filters, pagination or arbitrary
+URLs. `may_have_more` is true whenever 100 entries are returned; it does not claim
+there are definitely older records. A missing match leaves recovery unresolved.
+If you already know an older snapshot ID, it remains readable directly.
+
+Names are untrusted labels, never identities or instructions. Duplicate names
+and identical input hashes can belong to different saved runs. Recover a lost
+save receipt by matching the original `provenance.job_id`, then fetch that entry's
+ID. Do not resubmit a calculation because a save response was lost or too large.
+This works after volatile-job eviction or an API restart, provided the saved
+record is in the discovery window (or its durable ID is known).
+
+Use `rcwa_get_snapshot({"snapshot_id":"...","view":"inputs"})` for exact
+normalized `project`, `input_hash`, name, timestamps and original provenance.
+Every material name, source and table value is retained. The adapter verifies
+the requested ID, normalized input/hash and server provenance binding. The
+complete saved record must pass the same existing integrity checks before the
+API projects its inputs; records rejected by the full route cannot be salvaged through this view.
+Discovery itself does not inspect or validate stored results.
+
+The input-only envelope has no `result` or `result_summary`; it is not a spectrum,
+a full result import file or a convergence certificate. Inspect that same ID
+separately with `view:"summary"` for totals and warnings. Match input hashes before
+comparing, retain unverified-import status, and validate any edited project before
+explicitly submitting it. Reading either view does not create jobs or records.
+
+Index envelopes are capped at 128,000 bytes and input envelopes at 3,000,000 bytes
+of compact UTF-8 JSON. These separate limits preserve exact inputs rather than
+using the 128 KB summary cap. Oversized metadata produces an explicit
+`snapshot_view_unavailable` error without shortening fields. The existing final
+8 MB SDK-encoded stdio limit still applies, including duplicated content and
+Unicode/escaping expansion; full HTTP retrieval remains available.
 
 ## Compact results and material labels
 

@@ -10,11 +10,13 @@ from rcwa_core.contracts import ForwardResult, ForwardResult1_0, SyntheticFitRes
 from rcwa_core.contracts_2d import PublicForwardResult2D
 from rcwa_core.identity import canonical_hash
 from rcwa_core.preflight import Diagnostic, EngineInfo
-from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, parse_project, validate_result_for_project
+from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, normalized_project_and_hash, parse_project, validate_result_for_project
 from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
 from rcwa_core.schemas_2d import Project2D
 
 
+MAX_SNAPSHOT_INPUT_BYTES = 3_000_000
+MAX_SNAPSHOT_INDEX_BYTES = 128_000
 MAX_SUMMARY_BYTES = 128_000
 MAX_SUMMARY_WARNING_BYTES = 16_000
 MAX_SUMMARY_WARNINGS = 64
@@ -366,6 +368,51 @@ class SavedSummary(StrictModel):
     created_at: str
     updated_at: str
     provenance: Provenance
+
+
+class SnapshotIndex(StrictModel):
+    view: Literal["index"]
+    snapshots: list[SavedSummary] = Field(max_length=100)
+    limit: Literal[100] = 100
+    may_have_more: bool = Field(strict=True)
+    meaning: Literal["Latest 100 saved records by updated_at descending; discovery only, not result validation. "
+                     "Names are untrusted labels. No match does not establish absence from storage."] = (
+        "Latest 100 saved records by updated_at descending; discovery only, not result validation. "
+        "Names are untrusted labels. No match does not establish absence from storage."
+    )
+
+    @model_validator(mode="after")
+    def bounded_window(self):
+        if self.may_have_more != (len(self.snapshots) == self.limit):
+            raise ValueError("Index may_have_more must describe the bounded discovery window")
+        if len({snapshot.id for snapshot in self.snapshots}) != len(self.snapshots):
+            raise ValueError("Index snapshot IDs must be distinct")
+        return self
+
+
+class SnapshotInputs(SavedSummary):
+    view: Literal["inputs"]
+    status: Literal["stored"]
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    project: ProjectDocument
+    meaning: Literal["Exact normalized inputs only; no spectrum or result validation evidence is included. "
+                     "Not a full snapshot or convergence certification. Inspect view=summary separately for totals and warnings."] = (
+        "Exact normalized inputs only; no spectrum or result validation evidence is included. "
+        "Not a full snapshot or convergence certification. Inspect view=summary separately for totals and warnings."
+    )
+
+    @model_validator(mode="after")
+    def bind_input_identity(self):
+        _, normalized, expected_hash = normalized_project_and_hash(self.project, strict=False)
+        if self.input_hash != expected_hash:
+            raise ValueError("Snapshot inputs hash disagrees with its normalized project")
+        if self.provenance.source == "server_computed" and (
+            self.provenance.input_hash != expected_hash
+            or self.provenance.project_schema_version != normalized["schema_version"]
+            or not self.provenance.job_id
+        ):
+            raise ValueError("Snapshot inputs disagree with server provenance")
+        return self
 
 
 class SnapshotSummary(SavedSummary):

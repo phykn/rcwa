@@ -52,7 +52,7 @@ def test_timeout_is_bounded(timeout):
 
 def test_tool_schemas_come_from_shared_models():
     tools = {operation.name: operation.tool() for operation in OPERATIONS}
-    assert len(tools) == 10
+    assert len(tools) == 11
     for tool in tools.values():
         Draft202012Validator.check_schema(tool.input_schema)
         Draft202012Validator.check_schema(tool.output_schema)

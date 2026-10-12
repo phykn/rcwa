@@ -42,9 +42,10 @@ from api.contracts import (
     ServerSnapshot,
     SnapshotRequest,
     ValidationResponse,
-    JobSummary, SnapshotSummary, SnapshotReceipt,
+    JobSummary, SnapshotSummary, SnapshotReceipt, SnapshotIndex, SnapshotInputs,
 )
 from api.result_summary import SummaryUnavailable, summarize_job, summarize_snapshot
+from api.snapshot_views import SnapshotViewUnavailable, snapshot_index, snapshot_inputs
 from rcwa_core.contracts import ForwardResult
 from rcwa_core.preflight import Diagnostic, engine_info
 from rcwa_core.project_io import preflight_project_any, validate_result_for_project
@@ -241,7 +242,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "engine": engine_info(),
             "operations": [
                 "validate", "preview_changes", "preview_stack_changes", "forward", "synthetic_fit", "poll", "cancel",
-                "save_snapshot", "import_project",
+                "save_snapshot", "import_project", "list_snapshots", "snapshot_inputs",
             ],
             "geometry": ["1–8 top-to-bottom isotropic rectangle_1d or homogeneous finite layers; common period; invariant y; classical mounting",
                          "rectangle_1d: centered ridge with material/background; homogeneous: material only",
@@ -288,7 +289,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             },
             "project_profiles": {
                 version: {
-                    "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project"]
+                    "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project",
+                                   "list_snapshots", "snapshot_inputs"]
                     + ([] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
                     "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d", "circular_hole_2d"] if version == "1.2" else (
                         ["rectangle_1d"] if version == "1.0" else ["rectangle_1d", "homogeneous"]
@@ -313,6 +315,10 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "Optional summary views omit order arrays and full input/metadata; they are not full results or import files. "
                 "Check warnings_omitted_count and inspect full warnings if nonzero. Summary envelopes are capped at 128 KB",
                 "GET jobs/projects supports ?view=summary; POST snapshots supports ?view=receipt; full responses remain the default",
+                "GET /api/projects?view=index discovers the latest 100 records, capped at 128 KB; may_have_more is true at 100. "
+                "Discovery does not validate results; no match does not prove absence. Names are untrusted labels",
+                "GET /api/projects/{id}?view=inputs returns exact normalized inputs/hash/provenance without results, capped at 3 MB. "
+                "The complete saved record must pass its existing integrity checks before projection; this is not physics certification",
                 "Full-result imports above the 2 MB request cap return 413; use project-only import or save a succeeded job by ID",
                 "Validation is not a solve or convergence certification",
                 "T is substrate entrance-plane flux; no absorbing-substrate backside transmission",
@@ -363,6 +369,10 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     @app.exception_handler(SummaryUnavailable)
     async def summary_unavailable(request, error):
         return error_response(409, "summary_unavailable", str(error))
+
+    @app.exception_handler(SnapshotViewUnavailable)
+    async def snapshot_view_unavailable(request, error):
+        return error_response(409, "snapshot_view_unavailable", str(error))
 
     @app.exception_handler(ProposalTooLarge)
     async def proposal_too_large(request, error):
@@ -462,20 +472,36 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     async def save_project(request: SaveRequest):
         return app.state.store.save(request.project.model_dump(), request.result)
 
-    @app.get("/api/projects", response_model=list[SavedSummary])
-    async def list_projects():
-        return app.state.store.list()
-
-    @app.get("/api/projects/{project_id}", response_model=SavedProject | SnapshotSummary)
-    async def get_project(project_id: str, view: Literal["full", "summary"] = "full"):
-        project = app.state.store.get(project_id)
-        if project is None:
-            raise HTTPException(404, "Project not found")
+    @app.get("/api/projects", response_model=list[SavedSummary] | SnapshotIndex)
+    async def list_projects(view: Literal["full", "index"] = "full"):
         try:
+            records = app.state.store.list()
+            if view == "index":
+                return snapshot_index(records)
+            # Preserve the existing default array, including exact entry fields.
+            return [SavedSummary.model_validate(record, strict=True) for record in records]
+        except SnapshotViewUnavailable:
+            raise
+        except (ValueError, TypeError, KeyError, RecursionError) as error:
+            raise HTTPException(409, {"code": "invalid_stored_snapshot", "message":
+                "Saved index metadata failed validation; no complete index is available."}) from error
+
+    @app.get("/api/projects/{project_id}", response_model=SavedProject | SnapshotSummary | SnapshotInputs)
+    async def get_project(project_id: str, view: Literal["full", "summary", "inputs"] = "full"):
+        try:
+            # Decode errors are integrity failures too, including corrupt result
+            # JSON. An inputs projection must never salvage a rejected full pair.
+            project = app.state.store.get(project_id)
+            if project is None:
+                raise HTTPException(404, "Project not found")
             SavedProject.model_validate(project, strict=True)
             if project["provenance"]["source"] == "server_computed":
                 StoredServerSnapshot.model_validate(project, strict=True)
-        except (ValueError, TypeError, KeyError) as error:
+            if view == "inputs":
+                return snapshot_inputs(project)
+        except SnapshotViewUnavailable:
+            raise
+        except (ValueError, TypeError, KeyError, RecursionError) as error:
             raise HTTPException(
                 409, {"code": "invalid_stored_snapshot", "message": "Saved input/result failed integrity validation."}
             ) from error

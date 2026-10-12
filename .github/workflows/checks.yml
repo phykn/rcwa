@@ -59,7 +59,7 @@ jobs:
           RCWA_STDIO_DIAGNOSTIC_DIR: artifacts/windows-stdio-stacks
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
+          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py backend/tests/test_mcp_saved_design_reuse.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain Windows transport diagnostics
         if: always()

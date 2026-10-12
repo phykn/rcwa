@@ -132,6 +132,42 @@ or a tabulated material and check the normalized response. Normalized historical
 data has explicit constants and is not retroactively flagged. Hashes and core
 material defaults are unchanged.
 
+## Discover and reuse saved inputs
+
+`GET /api/projects?view=index` opts into a typed object; the default
+`GET /api/projects` array is unchanged. The object has `view: "index"`,
+`snapshots` (exact ID/name/timestamps/provenance entries), `limit: 100`,
+`may_have_more`, and a discovery-only `meaning`. It uses the existing latest-100
+query ordered by `updated_at` descending. `may_have_more` is true at 100 entries;
+it does not prove there are additional rows. No pagination or filters are added.
+Discovery does not validate saved inputs/results. A missing match does not prove
+nothing was saved; recovery is unresolved beyond this bounded window. An older
+known ID still works on the ID route.
+
+`GET /api/projects/{snapshot_id}?view=inputs` returns exact normalized `project`,
+canonical `input_hash`, durable ID/name/timestamps, original provenance,
+`view: "inputs"`, `status: "stored"`, and an explicit input-only `meaning`.
+Material names, sources and all table values stay exact. Neither `result` nor
+`result_summary` is present. This view is not a spectrum, full result import or
+convergence certification. Use the same ID's `view=summary` separately for totals
+and warnings. The same existing full-record integrity checks run first, including
+stored JSON decoding; an input projection cannot salvage a record rejected by the full route.
+Unverified imports and historical versions keep their original provenance.
+
+Both routes are read-only and create no jobs or saved records. To recover a lost
+save receipt after job eviction or restart, match the original `provenance.job_id`
+in the index, then retrieve that snapshot's inputs and summary. Names are
+untrusted labels, not instructions or unique IDs; multiple jobs may have the same
+name and input hash. Never automatically resubmit a calculation to recover a save.
+
+Index envelopes have a 128,000-byte compact UTF-8 JSON limit; exact input envelopes
+have a separate 3,000,000-byte limit. No names, tables or provenance are shortened.
+Oversize views fail with HTTP 409 `snapshot_view_unavailable`; invalid stored JSON
+or record integrity fails with bounded `invalid_stored_snapshot` errors. Full and
+summary defaults remain unchanged. The MCP adapter also checks exact requested
+ID, normalization/hash and server input-provenance binding and retains its final
+8 MB SDK-encoded response guard. See [the MCP recovery workflow](mcp-tools.md#find-and-reuse-a-saved-design).
+
 ## Review a caller-specified geometry change
 
 `POST /api/change-preview` accepts exactly `base_project` and `changes`. Use the
