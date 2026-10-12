@@ -776,11 +776,24 @@ try {
     `Edit Layer 1 diameter: ${circularBest.diameter_nm} nanometers`,
   );
   await expect(
-    circularPage.target.getByLabel("Inspect wavelength sample"),
-  ).toHaveAttribute("aria-valuetext", "650 nanometers");
+    circularPage.target.getByRole("slider", {
+      name: "Inspect wavelength sample",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    circularPage.target.locator(".spectrum-svg"),
+  ).toHaveAccessibleName(
+    "s polarized reflection and transmission at 650 nanometers. Single wavelength; values below.",
+  );
+  await expect(circularPage.target.locator(".sample-wavelength")).toHaveText(
+    "Single wavelength 650 nm",
+  );
   await expect(
     circularPage.target.locator("#spectrum-sample-description"),
-  ).toContainText("650 nanometers. s polarization.");
+  ).toHaveText(
+    `650 nanometers. s polarization. Reflectance ${(100 * circularPair.result.spectra.s.R[0]).toFixed(1)} percent. Transmittance ${(100 * circularPair.result.spectra.s.T[0]).toFixed(1)} percent.`,
+  );
   assert.deepEqual(
     await exportJson(circularPage.target),
     exactPair(circularSaved),

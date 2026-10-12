@@ -444,11 +444,18 @@ async function lifecycle(page, record, url) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await renderer.started();
   await expect(diameter(page)).toBeEnabled();
-  // The first file-input action creates Playwright's main-world helper and its
-  // page-lifetime window hit-target listeners. Prime it with the already-empty
-  // input so those automation listeners are included in the baseline, without
-  // importing a design or relaxing any renderer cleanup assertion.
-  await page.locator(".project-menu input[type=file]").setInputFiles([]);
+  // Creating a MAIN-world ElementHandle initializes Playwright's node preview
+  // helper there, including its page-lifetime hit-target listeners. Wait for
+  // that initialization before the baseline; utility-world locator actions do
+  // not initialize it. Both renderer modules remain held, with no app edits.
+  const body = await page.evaluateHandle(() => document.body);
+  try {
+    await expect
+      .poll(() => page.evaluate(() => window.progressiveGlobalListeners().window))
+      .toEqual({ pointerdown: 1, pointerup: 1 });
+  } finally {
+    await body.dispose();
+  }
   const globalBaseline = await page.evaluate(() =>
     window.progressiveGlobalListeners(),
   );

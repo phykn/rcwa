@@ -306,6 +306,7 @@ jobs:
             artifacts/browser-qa.json
             artifacts/spectrum-*
             artifacts/snapshot-browser-qa.json
+            artifacts/snapshot-recovery-*.json
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json
             artifacts/design-handoff-*

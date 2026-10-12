@@ -3,6 +3,31 @@
 import assert from "node:assert/strict";
 import { expect } from "@playwright/test";
 
+// An export timestamp describes the download, not the saved workspace. Validate
+// both timestamps independently; compare every other field without filtering.
+export function assertSameSavedExport(actual, expected) {
+  function contents(envelope) {
+    const { exported_at, ...data } = envelope;
+    assert.equal(
+      typeof exported_at,
+      "string",
+      "Export timestamp must be a string",
+    );
+    const timestamp = Date.parse(exported_at);
+    assert.ok(
+      Number.isFinite(timestamp),
+      "Export timestamp must be a valid date",
+    );
+    assert.equal(
+      new Date(timestamp).toISOString(),
+      exported_at,
+      "Export timestamp must be canonical ISO UTC",
+    );
+    return data;
+  }
+  assert.deepEqual(contents(actual), contents(expected));
+}
+
 export async function verifySavedRecovery({
   page,
   request,
@@ -44,7 +69,7 @@ export async function verifySavedRecovery({
   }
   async function exactExport(expected, suffix) {
     await expect(dialog).not.toBeVisible();
-    assert.deepEqual(
+    assertSameSavedExport(
       (await exportFile(`snapshot-recovery-${suffix}.json`)).data,
       expected,
     );
