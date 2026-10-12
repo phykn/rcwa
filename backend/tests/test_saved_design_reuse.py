@@ -23,7 +23,7 @@ circular_snapshot = summaries.circular_snapshot
 
 
 def legacy_snapshot():
-    return json.loads((Path(__file__).parent / 'fixtures/legacy_server_snapshot.json').read_text())
+    return json.loads((Path(__file__).parent / 'fixtures/legacy_server_snapshot.json').read_text(encoding='utf-8'))
 
 
 def saved_count(client):
