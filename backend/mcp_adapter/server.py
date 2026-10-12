@@ -9,7 +9,8 @@ from dataclasses import dataclass
 import os
 import sys
 from threading import Thread
-from typing import Annotated
+from typing import Annotated, Literal
+from types import UnionType
 
 import anyio
 from mcp.server import Server
@@ -25,12 +26,14 @@ from pydantic import Field, TypeAdapter, ValidationError
 from api.contracts import (
     Capabilities, ChangePreviewRequest, ChangeProposal, ErrorResponse, JobRequest, JobResponse,
     SavedProject, ServerSnapshot, StoredServerSnapshot, StackChangePreviewRequest, StackChangeProposal,
-    ValidationResponse,
+    ValidationResponse, JobSummary, SnapshotSummary, SnapshotReceipt, MAX_SUMMARY_BYTES,
 )
 from api.diagnostics import _bounded_diagnostics
+from api.material_diagnostics import material_default_diagnostics
 from api.change_preview import validate_proposal_binding
 from api.stack_change_preview import validate_stack_proposal_binding
 from rcwa_core.schemas import Project, StrictModel
+from rcwa_core.schemas_2d import Project2D
 from rcwa_core.project_io import InputProject, normalized_project_and_hash
 from .client import AdapterError, ID_PATTERN, LocalAPI, MAX_REQUEST_BYTES
 
@@ -129,6 +132,10 @@ class Empty(StrictModel):
     pass
 
 
+class ExampleArguments(StrictModel):
+    example: Literal["legacy_1d", "circular_hole_2d"] = "legacy_1d"
+
+
 class ProjectArguments(StrictModel):
     project: InputProject
 
@@ -144,8 +151,17 @@ class JobArguments(StrictModel):
     job_id: Identifier
 
 
+class JobViewArguments(JobArguments):
+    view: Literal["full", "summary"] = "full"
+
+
+class SnapshotSaveArguments(JobArguments):
+    view: Literal["full", "receipt"] = "full"
+
+
 class SnapshotArguments(StrictModel):
     snapshot_id: Identifier
+    view: Literal["full", "summary"] = "full"
 
 
 class ToolErrorResponse(ErrorResponse):
@@ -158,7 +174,7 @@ class Operation:
     name: str
     description: str
     arguments: type[StrictModel]
-    response: type[StrictModel]
+    response: type[StrictModel] | UnionType
     method: str
     path: str
     body_field: str | None = None
@@ -183,10 +199,14 @@ OPERATIONS = [
     Operation("rcwa_capabilities", "Read backend physics, units, limits, engine versions and restrictions. "
               "Backend operations include features beyond this MCP tool subset.", Empty, Capabilities,
               "GET", "/api/capabilities"),
-    Operation("rcwa_example", "Read the canonical project. Its optical constants are synthetic.",
-              Empty, Project, "GET", "/api/example"),
+    Operation("rcwa_example", "Read a synthetic input example, without spectra or a calculation. "
+              "No arguments preserve the legacy 1D example; example=circular_hole_2d selects the current 1.2 circular stack. "
+              "Material names are labels, never database lookups; n/k values are synthetic.",
+              ExampleArguments, Project | Project2D, "GET", "/api/example"),
     Operation("rcwa_validate", "Check project admissibility without solving. Inspect valid and diagnostics; "
-              "validation does not certify numerical success or convergence. Explicit 1.2 supports 2D; "
+              "validation does not certify numerical success or convergence. "
+              "Material names are labels, not database lookups; supply explicit optical constants. "
+              "Explicit 1.2 supports 2D; "
               "harmonics require integer tokens (3, not 3.0), stricter than JSON Schema integer semantics.",
               ProjectArguments, ValidationResponse, "POST", "/api/validate", "project"),
     Operation("rcwa_preview_changes", "Preview a caller-specified bounded geometry change to period, CD or thickness. "
@@ -209,18 +229,24 @@ OPERATIONS = [
               SubmitArguments, JobResponse, "POST", "/api/jobs", "request", read_only=False, idempotent=False),
     Operation("rcwa_get_job", "Read job status and result. Jobs are temporary and disappear on restart or eviction. "
               "A successful tool call can report a failed/cancelled calculation; inspect status and error_code. "
-              "Poll with backoff, not a tight loop.", JobArguments, JobResponse, "GET", "/api/jobs/{job_id}"),
+              "Poll with backoff, not a tight loop. Use view=summary for bounded totals and warnings without order arrays. "
+              "A summary is not an importable full result; inspect warnings_omitted_count.",
+              JobViewArguments, JobResponse | JobSummary, "GET", "/api/jobs/{job_id}"),
     Operation("rcwa_cancel_job", "Cancel a known running API job. Repeated cancellation is safe. "
               "Closing this MCP adapter or cancelling an MCP request does not cancel API jobs.",
               JobArguments, JobResponse, "DELETE", "/api/jobs/{job_id}", read_only=False, destructive=True),
     Operation("rcwa_save_snapshot", "Persist the exact server-owned input/result of a succeeded forward job. "
-              "Accepts only its job ID; repeated saves return the same durable snapshot. "
-              "Save before the temporary job is lost.", JobArguments, ServerSnapshot,
+              "Accepts its job ID and optional view; repeated saves return the same durable snapshot. "
+              "Use view=receipt for a bounded ID/hash/provenance/totals receipt; the full input/result is still saved. "
+              "Inspect warnings_omitted_count. Save before the temporary job is lost.",
+              SnapshotSaveArguments, ServerSnapshot | SnapshotReceipt,
               "POST", "/api/snapshots", read_only=False),
     Operation("rcwa_get_snapshot", "Read a durable saved project/result and provenance. "
               "Check provenance.source: imports stay unverified_import; known historical server snapshots preserve their versions and provenance. "
-              "A local server_computed label is not a cryptographic signature or physics certification.",
-              SnapshotArguments, SavedProject, "GET", "/api/projects/{snapshot_id}"),
+              "A local server_computed label is not a cryptographic signature or physics certification. "
+              "Use view=summary for bounded identity/provenance/totals without the input or order arrays. "
+              "Inspect warnings_omitted_count; summaries cannot be imported as full snapshots.",
+              SnapshotArguments, SavedProject | SnapshotSummary, "GET", "/api/projects/{snapshot_id}"),
 ]
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
 
@@ -265,7 +291,8 @@ def create_server(api: LocalAPI):
         if operation and operation.name == "rcwa_save_snapshot":
             message += (
                 f" While the volatile job is retained, use HTTP POST {api.url}/api/snapshots with the same job_id "
-                "to retrieve the idempotently saved snapshot; do not start a new calculation."
+                "to retrieve the idempotently saved snapshot; do not start a new calculation. "
+                "Alternatively call rcwa_save_snapshot with the same job_id and view=receipt for a bounded receipt."
                 f" If the volatile job expired, inspect HTTP GET {api.url}/api/projects "
                 "for its saved provenance.job_id, then GET the matching snapshot ID."
             )
@@ -275,6 +302,7 @@ def create_server(api: LocalAPI):
             )
             # These identifiers already passed the operation's bounded parser.
             message += f" Retrieve it with HTTP GET {api.url}/api/{collection}/{arguments[field]}."
+            message += f" Alternatively call {operation.name} with the same {field} and view=summary for bounded totals."
         else:
             message += " Use the corresponding documented local HTTP route."
         error = AdapterError("response_too_large", message, outcome_unknown=mutation)
@@ -305,12 +333,30 @@ def create_server(api: LocalAPI):
                 return result(invalid_arguments(exc), error=True)
             values = parsed.model_dump()
             path = operation.path.format(**values)
+            compact = values.get("view", "full") != "full"
+            if compact:
+                path += "?view=" + values["view"]
+            if operation.name == "rcwa_example" and values["example"] != "legacy_1d":
+                path += "?example=" + values["example"]
             body = values[operation.body_field] if operation.body_field else (
                 values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes", "rcwa_preview_stack_changes"} else None
             )
+            if operation.name == "rcwa_save_snapshot":
+                body = {"job_id": values["job_id"]}
             payload = await api.request(operation.method, path, body)
             try:
-                operation.response.model_validate(payload, strict=True)
+                expected_response = operation.response
+                if operation.name == "rcwa_example":
+                    expected_response = Project if values["example"] == "legacy_1d" else Project2D
+                elif operation.name == "rcwa_get_job":
+                    expected_response = JobSummary if compact else JobResponse
+                elif operation.name == "rcwa_get_snapshot":
+                    expected_response = SnapshotSummary if compact else SavedProject
+                elif operation.name == "rcwa_save_snapshot":
+                    expected_response = SnapshotReceipt if compact else ServerSnapshot
+                TypeAdapter(expected_response).validate_python(payload, strict=True)
+                if compact and len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > MAX_SUMMARY_BYTES:
+                    raise ValueError("API returned an oversized summary envelope")
                 if operation.name == "rcwa_preview_changes":
                     validate_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_preview_stack_changes":
@@ -322,17 +368,21 @@ def create_server(api: LocalAPI):
                     _, normalized, expected_hash = normalized_project_and_hash(submitted)
                     if payload["input_hash"] != expected_hash:
                         raise ValueError("API returned the wrong input hash")
-                    if operation.name == "rcwa_validate" and payload["project"] != normalized:
-                        raise ValueError("API validation returned a different project")
-                if operation.name == "rcwa_get_snapshot" and payload["provenance"]["source"] == "server_computed":
+                    if operation.name == "rcwa_validate":
+                        if payload["project"] != normalized:
+                            raise ValueError("API validation returned a different project")
+                        # HTTP receives the existing normalized project; reuse its
+                        # request-only diagnostic on this caller's original fields.
+                        payload["diagnostics"] += [item.model_dump() for item in material_default_diagnostics(parsed.project)]
+                if operation.name == "rcwa_get_snapshot" and not compact and payload["provenance"]["source"] == "server_computed":
                     StoredServerSnapshot.model_validate(payload, strict=True)
                 if operation.name == "rcwa_save_snapshot" and payload["provenance"]["source"] != "server_computed":
                     raise ValueError("Snapshot save must return server-owned provenance")
-                if operation.arguments is JobArguments:
+                if isinstance(parsed, JobArguments):
                     actual = payload["provenance"]["job_id"] if operation.name == "rcwa_save_snapshot" else payload["id"]
                     if actual != values["job_id"]:
                         raise ValueError("API returned the wrong job identity")
-                if operation.arguments is SnapshotArguments and payload["id"] != values["snapshot_id"]:
+                if isinstance(parsed, SnapshotArguments) and payload["id"] != values["snapshot_id"]:
                     raise ValueError("API returned the wrong snapshot identity")
             except (ValidationError, ValueError, KeyError) as exc:
                 mutation = operation.name in {"rcwa_submit", "rcwa_cancel_job", "rcwa_save_snapshot"}
@@ -350,7 +400,9 @@ def create_server(api: LocalAPI):
         "and inspect diagnostics, status and warnings. Poll with backoff. Use explicit bounded experiment budgets. "
         "No global-optimum, convergence, calibration or manufacturing claims follow from a successful run. "
         "Stdio protocol IDs are limited to 1024 serialized UTF-8 bytes; oversized IDs close the connection before invocation. "
-        "Responses are limited to an 8 MB JSON-RPC line including duplicated content; oversize responses provide an HTTP recovery route. "
+        "Responses are limited to an 8 MB JSON-RPC line including duplicated content. Use get_job/get_snapshot view=summary "
+        "and save_snapshot view=receipt for bounded totals; full responses and their HTTP recovery remain available. "
+        "Summaries omit order arrays and input/metadata; inspect warnings_omitted_count before interpretation. "
         "Ask the user before computations or saves when the host's policy requires it.",
     )
     server.middleware.append(bounded_tool_output)

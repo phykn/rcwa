@@ -2,7 +2,10 @@
 
 RCWA Workbench is **locally programmatic and agent-ready through HTTP/OpenAPI**. An external program can discover the supported model, validate an input, start a bounded calculation, inspect the result, and save its exact server-owned input/result pair. This is a local interface and example client, not a deployed agent, built-in language model, autonomous design optimizer, or hosted integration. A remotely hosted agent needs an execution route that can reach the user's local API; universal remote connectivity is not provided.
 
-Project schema 1.1 supports one to eight top-to-bottom finite layers, each an isotropic centered rectangular 1D grating or homogeneous slab, sharing one period in classical mounting. Project 1.0 remains the exact one-rectangle legacy contract; its defaults and normalized hashes are unchanged. Read [physical conventions](physics.md) before comparing results. The synthetic CD recovery demo (`kind: "fit"`) requires exactly one rectangular layer, is a separate operation, and is not a general design optimizer.
+Project schema 1.2 supports explicit centered circular-hole or rectangular 2D
+patterns and homogeneous layers. Request its current synthetic circle input with
+`GET /api/example?example=circular_hole_2d`. The no-argument example remains
+legacy-compatible. Project schema 1.1 supports one to eight top-to-bottom finite layers, each an isotropic centered rectangular 1D grating or homogeneous slab, sharing one period in classical mounting. Project 1.0 remains the exact one-rectangle legacy contract; its defaults and normalized hashes are unchanged. Read [physical conventions](physics.md) before comparing results. The synthetic CD recovery demo (`kind: "fit"`) requires exactly one rectangular layer, is a separate operation, and is not a general design optimizer.
 
 An [optional local stdio MCP adapter](mcp-tools.md) exposes the same API to general
 AI tool clients. HTTP/OpenAPI remains available independently of MCP.
@@ -63,15 +66,15 @@ Explore the running API at `http://127.0.0.1:8000/docs` or fetch `http://127.0.0
 | Step | Method and path | Request / response |
 | --- | --- | --- |
 | Discover | `GET /api/capabilities` | Actual physics, units, observable conventions, limits, engine availability, versions, persistence, and local-only restrictions |
-| Seed | `GET /api/example` | Canonical Project 1.0 example; optical constants are synthetic |
+| Seed | `GET /api/example` or `GET /api/example?example=circular_hole_2d` | Unchanged Project 1.0 default or explicit current circular Project 1.2 input; synthetic constants, no result |
 | Validate | `POST /api/validate` | Send a Project directly, without a `project` wrapper. Returns `{valid, project, diagnostics, input_hash}` for schema-valid inputs; `project` is normalized. Schema-invalid requests return HTTP 422 with structured diagnostics |
 | Preview edits | `POST /api/change-preview` | `{"base_project": Project, "changes": {"cd_nm": 140}}` → a versioned geometry proposal, normalized inputs, hashes, typed diff and candidate preflight diagnostics; no solve, save or apply |
 | Preview stack | `POST /api/stack-change-preview` | `{"base_project": Project, "changes": {"period_nm": 390, "layers": [Layer, ...]}}` → proposal 1.1 with an atomic candidate and bounded summary diff; either change key may be omitted |
 | Submit | `POST /api/jobs` | `{"kind":"forward","project":<normalized Project>}` → HTTP 202 job envelope with ID and status |
-| Poll | `GET /api/jobs/{job_id}` | Job status, typed result when successful, readable error and stable `error_code` on failure |
+| Poll | `GET /api/jobs/{job_id}` | Full job by default; `?view=summary` returns bounded `result_summary` totals, status and error information |
 | Cancel | `DELETE /api/jobs/{job_id}` | Cancels a known running job; repeated cancellation is safe |
-| Save | `POST /api/snapshots` | `{"job_id":"<succeeded forward job ID>"}` → durable saved-project record; no replacement project, result, or provenance accepted |
-| Fetch | `GET /api/projects/{snapshot_id}` | Exact saved `project`, `result`, server-controlled provenance, ID and creation information |
+| Save | `POST /api/snapshots` | `{"job_id":"<succeeded forward job ID>"}` → full durable record; `?view=receipt` returns only bounded identity/provenance/totals while storing the same complete pair |
+| Fetch | `GET /api/projects/{snapshot_id}` | Exact full saved record; `?view=summary` returns bounded identity/provenance/totals without the full project or order arrays |
 | List | `GET /api/projects` | Saved-project entries for the local UI |
 
 Validation performs deterministic schema and preflight checks without launching a process or solving physics. Diagnostics have stable `code`, `severity`, `location`, and readable `message` fields. Schema-valid but inadmissible inputs return `valid: false`; inspect all diagnostics. Schema errors return HTTP 422 with `error.diagnostics`. Warnings are not a certificate of safety or convergence. A valid input may still fail an eigensolve or flux check during computation.
@@ -83,6 +86,51 @@ New HTTP requests require JSON numbers for physical values: booleans and numeric
 Malformed-request responses contain at most 50 diagnostics, including a final `diagnostics_truncated` marker when further diagnostics were omitted. Each diagnostic message and location is bounded to 512 serialized UTF-8 bytes; shortened text ends with `[truncated]`. A large invalid table or field name therefore cannot produce an unbounded error response.
 
 Job states are `running`, `succeeded`, `failed`, and `cancelled`; this local server does not maintain a durable queue. Forward results include wavelength lists, per-polarization spectra, per-order powers, metadata, and warnings. The synthetic-fit result is distinctly labeled and has a separate shape. A caller must check job status and kind before interpreting `result`.
+
+## Opt-in result summaries and snapshot receipts
+
+Omitting `view`, or choosing `view=full`, preserves the existing full responses.
+Summary/receipt queries do not change computation, storage, normalized identity,
+provenance or result binding. The same full record is validated before a compact
+view is returned. For example:
+
+```text
+GET  /api/jobs/{job_id}?view=summary
+POST /api/snapshots?view=receipt   body: {"job_id":"..."}
+GET  /api/projects/{snapshot_id}?view=summary
+```
+
+A job summary retains its ID, kind, status, input hash, timestamps and errors,
+and replaces the full `result` member with `result_summary`. A snapshot summary
+or receipt retains durable ID, name, timestamps, original provenance, canonical
+input hash, `status: "stored"`, and `result_summary`. Neither includes the full
+project or material tables. Saving with a receipt still persists the **full**
+server-owned pair and remains idempotent by job ID.
+
+The `rcwa-forward-summary/1.0` projection copies every wavelength/polarization's
+`R`, `T`, `R_specular`, `T_specular` and `A_balance` unchanged. It excludes order
+arrays and full metadata and records its source result version and input hash
+when present (required for 1.2). This is not an importable result, full export,
+or convergence certification. Synthetic-fit job summaries are separately typed
+`rcwa-fit-summary/1.0`; target/prediction totals are available but full optimizer
+diagnostics and the fitted project stay in the full result.
+
+Compact envelopes are capped at 128,000 UTF-8 JSON bytes. Each warning list keeps
+a prefix of at most 64 whole messages and 16,000 encoded bytes, with an explicit
+`warnings_omitted_count`; messages are never shortened. If any were omitted,
+inspect the full result's warnings before interpreting it. Unusual legacy data
+that cannot provide a bounded projection returns `summary_unavailable` rather
+than invented or silently truncated powers. A failure to generate a receipt
+after saving returns a 5xx uncertainty error; it must not trigger a new job.
+Full routes and their existing request/transport limits remain available.
+
+Material names are display labels, not database lookups. A constant
+`{"name":"Silicon"}` retains the historical `n=1`, `k=0` defaults and does not
+load silicon data. Validation reports `material_name_only` when the current
+request provided a name but neither optical constant. Supply explicit `n`/`k`
+or a tabulated material and check the normalized response. Normalized historical
+data has explicit constants and is not retroactively flagged. Hashes and core
+material defaults are unchanged.
 
 ## Review a caller-specified geometry change
 
@@ -293,7 +341,7 @@ Unicode serialization remain unchanged.
 
 The frontend opens the exact synthetic 1.2 example and supports direct 2D editing.
 The HTTP `/api/example` route deliberately retains its legacy fixture for existing
-clients. Fitting and both change-proposal routes remain unavailable for 1.2; a 1.2
+clients; `?example=circular_hole_2d` explicitly returns the current circular input. Fitting and both change-proposal routes remain unavailable for 1.2; a 1.2
 request to those legacy-only operations fails before worker allocation. See the
 [2D editor](ui/2d-editor.md) for browser workflow and input/result identity.
 

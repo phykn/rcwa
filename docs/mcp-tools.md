@@ -89,15 +89,15 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | Tool | Arguments | What it returns or does |
 | --- | --- | --- |
 | `rcwa_capabilities` | `{}` | Backend physics, engine availability/version, units, limits and restrictions |
-| `rcwa_example` | `{}` | Canonical project with synthetic optical constants |
+| `rcwa_example` | `{}` or `{"example":"circular_hole_2d"}` | Legacy 1D default or explicit current circular 1.2 input; synthetic constants, no spectra |
 | `rcwa_validate` | `{"project": Project}` | Normalized project, input hash, admissibility and diagnostics; no numerical job |
 | `rcwa_preview_changes` | `{"base_project": Project, "changes": {"cd_nm": 140}}` | Versioned geometry proposal, typed diff and candidate preflight diagnostics; read-only, no solve, storage or apply |
 | `rcwa_preview_stack_changes` | `{"base_project": Project, "changes": {"layers": [Layer, ...]}}` | Read-only atomic stack proposal 1.1; common period and/or complete 1–8 layer replacement, bounded summary diff |
 | `rcwa_submit` | `{"request": {"kind": "forward", "project": Project}}` | Starts one bounded job; returns a temporary job ID and status |
-| `rcwa_get_job` | `{"job_id": "..."}` | Job status, typed result, warnings or failure information |
+| `rcwa_get_job` | `{"job_id": "...", "view":"summary"}` | Bounded status/totals/warnings; omit `view` for the unchanged full result |
 | `rcwa_cancel_job` | `{"job_id": "..."}` | Cancels that running API job; safe to repeat |
-| `rcwa_save_snapshot` | `{"job_id": "..."}` | Saves the exact server-owned input/result of a succeeded forward job |
-| `rcwa_get_snapshot` | `{"snapshot_id": "..."}` | Reads a durable saved project/result, including its provenance |
+| `rcwa_save_snapshot` | `{"job_id": "...", "view":"receipt"}` | Saves the exact full server-owned input/result and returns a bounded durable receipt; omit `view` for the full snapshot |
+| `rcwa_get_snapshot` | `{"snapshot_id": "...", "view":"summary"}` | Bounded durable identity/provenance/totals; omit `view` for the full saved project/result |
 
 `tools/list` publishes nested JSON Schemas generated from the same runtime
 Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
@@ -126,16 +126,22 @@ measured-data inversion. Its result has its own type and cannot be saved with
 
 ## A bounded workflow for any tool-capable AI
 
-1. Read capabilities and example. Explain the supported physical model and agree
-   an objective, an explicit finite candidate budget, and a stopping condition.
+1. Read capabilities and an explicit example. Use `rcwa_example` with
+   `{"example":"circular_hole_2d"}` for the current circular 1.2 input. The
+   no-argument call still returns legacy 1D. Explain the supported physical model
+   and agree an objective, a finite candidate budget, and a stopping condition.
 2. Validate each project. Check `valid` and every diagnostic before submission.
-3. Submit one job. Record its returned ID. Poll `rcwa_get_job` with backoff, for
+3. Submit one job. Record its returned ID. Poll `rcwa_get_job` with
+   `{"job_id":"...","view":"summary"}` and backoff, for
    example 0.1, 0.2, 0.5, then 1–2 seconds, within your own overall deadline.
 4. Check `kind` and `status`. Only a `succeeded` forward job contains the forward
-   result to compare. Report failures and all warnings. Use `rcwa_cancel_job` to
+   `result_summary` to compare. Report failures and warnings; inspect the full
+   warnings first if `warnings_omitted_count` is nonzero. Use `rcwa_cancel_job` to
    stop known jobs that are no longer wanted.
-5. Save the selected successful forward job and fetch its durable snapshot.
-   Repeated saves of the same successful job return the same snapshot ID.
+5. Save with `rcwa_save_snapshot({"job_id":"...","view":"receipt"})`.
+   Keep its durable `id` and `input_hash`, then reload using
+   `rcwa_get_snapshot({"snapshot_id":"...","view":"summary"})`.
+   Repeated saves return the same ID and the full input/result remains stored.
 
 The [HTTP example](agent-api.md) provides a complete finite-candidate experiment
 with reports and an export. MCP adds no hidden loop, optimizer, or unlimited
@@ -147,6 +153,44 @@ marked destructive, and snapshot save is an idempotent write.
 
 The workbench UI's **Saved projects** list can open these same snapshots. The
 public static preview is still precomputed and makes no live API requests.
+
+## Compact results and material labels
+
+The forward `result_summary` is explicitly tagged
+`summary_schema_version: "rcwa-forward-summary/1.0"`. It copies **every** wavelength
+and polarization's total `R`, `T`, `R_specular`, `T_specular`, and `A_balance`
+without rounding, interpolation, sampling or recomputation. It retains the
+source result version and the result's input hash when present (required for
+1.2). It omits order arrays, the complete input and full result metadata.
+A synthetic-fit job has a separate `rcwa-fit-summary/1.0` projection, with fit
+status, CD/RMSE and target/prediction totals; full optimizer diagnostics remain
+in the full result. A summary is not a full result or an importable project file.
+
+Each summary/receipt envelope is bounded to 128,000 UTF-8 JSON bytes before MCP's
+version-specific encoding. Warnings preserve complete messages in order, up to
+64 entries and 16,000 UTF-8 JSON bytes per warning list. No warning is shortened.
+`warnings_omitted_count` explicitly counts remaining messages; if it is nonzero,
+read all original warnings from the full result before interpreting the totals.
+All normal computed warnings fit. Unusual legacy records that cannot form a
+supported bounded projection fail explicitly with `summary_unavailable` instead
+of returning invented or silently truncated powers. Snapshot provenance is
+unchanged: an unverified import stays unverified. Hashes identify inputs; they
+do not certify physics or sign a snapshot.
+
+For a lightweight tool-connection test, copy the explicit circular example,
+set wavelengths to `[650.0]` and both integer harmonic settings to `1`, and run
+one forward job. This changes the input and is only a contract smoke test; it
+is not the archived H5 spectrum or a convergence test. A full circle example
+retains its approved H5 settings. Every actual calculation remains explicit.
+
+Material `name` is a display label, never a database lookup. For example,
+`{"name":"Silicon"}` is accepted for compatibility but defaults to `n=1`, `k=0`;
+it is **not** silicon optical data. `rcwa_validate` returns an actionable
+`material_name_only` warning when the current request supplied a constant
+material name and omitted both `n` and `k`. Supply explicit optical constants or
+a supported tabulated material and inspect the returned normalized project.
+Already normalized historical inputs have explicit constants and are not
+retroactively flagged. This diagnostic changes neither normalization nor hashes.
 
 ## Review geometry without running a calculation
 
@@ -219,8 +263,10 @@ and HTTP request bodies still allow only 2 MB. Oversize errors are explicit.
 
 ## Results, errors and provenance
 
-Successful tool results contain unchanged API JSON in `structuredContent` and
-the same JSON in a text content block for compatible clients. Response shapes
+Successful tool results contain API JSON in `structuredContent` and the same
+JSON in a text content block for compatible clients. Validation also uses the
+shared request-only material diagnostic before omitted fields lose their meaning
+in the adapter's normalized HTTP request. Response shapes
 are checked strictly against shared API models before success is reported.
 Tool inputs also use strict types; numeric strings and booleans are not numbers. Returned job
 and snapshot identities are checked against requested IDs. The adapter does not
@@ -303,7 +349,10 @@ OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests/test_change_preview.py bac
 Tests use the official SDK Client over a real stdio subprocess, then real HTTP
 against an isolated local API and SQLite database. The Windows CI job runs
 discovery, example, validation, API-down and normal process-teardown checks;
-Linux CI additionally runs the full numerical solve/snapshot workflow. They cover legacy
+Linux CI additionally runs the full numerical solve/snapshot workflow and the
+compact circle H1 run → inspect → receipt → reload journey. Archived rectangular
+and circular max-resource snapshots exercise compact transport without an H5
+recalculation; their original generation evidence is unchanged. They cover legacy
 initialize/list/call (`2025-11-25`) and current SDK discovery (`2026-07-28`), a real
 single-layer and mixed-stack forward solves, exact snapshot reload, idempotence, cancellation, API-down
 errors, and real read-only geometry/stack previews. Genuine historical snapshot fixtures verify preserved result-1.0 provenance while current jobs and saves require result-1.1. Preview boundary coverage includes
@@ -325,9 +374,10 @@ The existing forward/validate/job/snapshot tools share the API's explicit 1.2
 contracts, including the explicit `circular_hole_2d` geometry and its
 `diameter_nm`, hole-fill `material`, and host `background`. They do not implement
 another solver. Read the geometry list in the version-specific capability
-profile before submitting a circle. The canonical example, fitting
-and change-preview tools remain legacy-only in this backend increment; inspect
-version-specific capability profiles before using an operation. Harmonics use
+profile before submitting a circle. The no-argument example remains legacy;
+`example="circular_hole_2d"` explicitly selects the current 1.2 input. Fitting
+and change-preview tools remain legacy-only; inspect version-specific capability
+profiles before using an operation. Harmonics use
 strict integer JSON tokens, so `3.0` is rejected even though JSON Schema's integer
 semantics treat it as integral.
 
@@ -344,17 +394,23 @@ not truncated physics data. For a mutation it sets `outcome_unknown` and says no
 to resubmit blindly. The tool cannot return the blocked complete payload.
 
 A large snapshot can be about 4.23 MB as HTTP JSON but about 8.98 MB as the MCP
-line, so these limits intentionally differ. For an oversized snapshot-save
-response, use the existing HTTP `POST /api/snapshots` with the same job ID to
-retrieve the idempotently saved snapshot; do not launch a new calculation. Known
-snapshots/jobs can be read with the existing HTTP GET route stated in the error.
+line, so these limits intentionally differ. Routine MCP-only workflows use the
+opt-in summary/receipt views and do not need an HTTP escape. After an oversized
+full snapshot-save response, call `rcwa_save_snapshot` with the **same job ID**
+and `view="receipt"` to recover its durable ID and totals; do not launch a new
+calculation. Alternatively, the existing HTTP `POST /api/snapshots` with that
+job ID retrieves the idempotently saved full snapshot. Known snapshots/jobs can
+be read through `view="summary"`, or in full through the HTTP GET route in the
+error. No compact view claims to contain the omitted full data.
 That ID-only save recovery requires the volatile job to remain retained. After
 eviction or restart, inspect existing `GET /api/projects` summaries (latest 100),
 match `provenance.job_id`, and read the saved snapshot ID with
 `GET /api/projects/{id}`. Retain snapshot IDs for older records. These are HTTP
-recovery instructions, not a claim that an MCP-only client can fetch a payload
-that its tool response limit blocks.
-No new pagination/export service or automatic retry is introduced.
+recovery instructions for discovering a lost ID. An MCP-only client cannot fetch
+a full payload that its response cap blocks; it can read its explicit summary
+when it retained the snapshot ID.
+No new pagination/export service or automatic retry is introduced. The 2 MB
+request, 8 MB full-response and 1024-byte protocol-ID limits are unchanged.
 
 The pinned SDK's standard input reader shields blocking reads, which can stall
 connection closure while a client leaves stdin open. A small input wrapper makes

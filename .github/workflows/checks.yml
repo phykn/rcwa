@@ -59,7 +59,7 @@ jobs:
           RCWA_STDIO_DIAGNOSTIC_DIR: artifacts/windows-stdio-stacks
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
+          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Retain Windows transport diagnostics
         if: always()
@@ -184,9 +184,15 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Test fail-closed Pages evidence gate
+        run: node --test ../scripts/tests/pages_evidence_gate.test.mjs
       - run: npm ci
       - run: npm run build
       - run: npm test
+      - name: Test and build the exact static preview mode
+        run: npm test && npm run build
+        env:
+          VITE_STATIC_PREVIEW: 'true'
       - run: npm run lint
 
   browser:
@@ -255,6 +261,7 @@ jobs:
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs) || status=1
+          (cd frontend && timeout 240s node scripts/design-handoff-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/multilayer-browser-qa.mjs) || status=1
           exit "$status"
       - name: Collect local browser server logs
@@ -282,6 +289,7 @@ jobs:
             artifacts/snapshot-browser-qa.json
             artifacts/contract-browser-qa.json
             artifacts/workflow-browser-qa.json
+            artifacts/design-handoff-*
             artifacts/multilayer-browser-qa.json
             artifacts/agent-report.json
             artifacts/rcwa-*.log

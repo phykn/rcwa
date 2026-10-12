@@ -1,5 +1,6 @@
 """Public HTTP envelopes. Runtime models also generate the OpenAPI contract."""
 
+import json
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BeforeValidator, ConfigDict, Field, TypeAdapter, field_validator, model_validator
@@ -12,6 +13,22 @@ from rcwa_core.preflight import Diagnostic, EngineInfo
 from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, parse_project, validate_result_for_project
 from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
 from rcwa_core.schemas_2d import Project2D
+
+
+MAX_SUMMARY_BYTES = 128_000
+MAX_SUMMARY_WARNING_BYTES = 16_000
+MAX_SUMMARY_WARNINGS = 64
+
+
+def _bounded_summary_warnings(warnings):
+    if len(json.dumps(warnings, ensure_ascii=False).encode("utf-8")) > MAX_SUMMARY_WARNING_BYTES:
+        raise ValueError("Summary warnings exceed the 16 KB UTF-8 JSON limit")
+    return warnings
+
+
+SummaryWarnings = Annotated[
+    list[str], Field(max_length=MAX_SUMMARY_WARNINGS), AfterValidator(_bounded_summary_warnings),
+]
 
 
 def _strict_project(value):
@@ -85,6 +102,86 @@ class JobResponse(StrictModel):
             self.kind != "forward" or self.status != "succeeded" or self.input_hash != self.result.metadata.input_hash
         ):
             raise ValueError("2D job status, kind or input hash disagrees with its result")
+        return self
+
+
+class TotalPowerSpectrum(StrictModel):
+    R: list[float] = Field(min_length=1, max_length=81)
+    T: list[float] = Field(min_length=1, max_length=81)
+    R_specular: list[float] = Field(min_length=1, max_length=81)
+    T_specular: list[float] = Field(min_length=1, max_length=81)
+    A_balance: list[float] = Field(min_length=1, max_length=81)
+
+
+class ForwardResultSummary(StrictModel):
+    summary_schema_version: Literal["rcwa-forward-summary/1.0"]
+    result_type: Literal["forward"]
+    source_result_schema_version: Literal["1.0", "1.1", "1.2"]
+    input_hash: str | None = Field(pattern=r"^[0-9a-f]{64}$")
+    wavelengths_nm: list[float] = Field(min_length=1, max_length=81)
+    spectra: dict[Literal["s", "p"], TotalPowerSpectrum] = Field(min_length=1, max_length=2)
+    warnings: SummaryWarnings
+    warnings_omitted_count: int = Field(ge=0)
+    meaning: Literal["Totals projection only; not a full result, import file, or convergence certification. "
+                     "If warnings_omitted_count is nonzero, inspect all warnings in the full result before interpretation."] = (
+        "Totals projection only; not a full result, import file, or convergence certification. "
+        "If warnings_omitted_count is nonzero, inspect all warnings in the full result before interpretation."
+    )
+
+    @model_validator(mode="after")
+    def aligned_totals(self):
+        if self.source_result_schema_version == "1.2" and self.input_hash is None:
+            raise ValueError("A 1.2 result summary must retain its input hash")
+        for series in self.spectra.values():
+            if any(len(getattr(series, key)) != len(self.wavelengths_nm)
+                   for key in ("R", "T", "R_specular", "T_specular", "A_balance")):
+                raise ValueError("Summary totals must have one value per wavelength")
+        return self
+
+
+class SyntheticFitResultSummary(StrictModel):
+    summary_schema_version: Literal["rcwa-fit-summary/1.0"]
+    result_type: Literal["synthetic_fit"]
+    status: Literal["converged", "not_converged"]
+    fit_cd_nm: float = Field(gt=0)
+    target_cd_nm: float = Field(gt=0)
+    rmse: float = Field(ge=0)
+    nfev: int = Field(ge=1)
+    prediction: ForwardResultSummary
+    target: ForwardResultSummary
+    warnings: SummaryWarnings
+    warnings_omitted_count: int = Field(ge=0)
+    meaning: Literal["Synthetic-fit projection only; fitted project and optimizer diagnostics are in the full result. "
+                     "Inspect omitted warnings before interpretation; not measured-data inversion or optimization certification."] = (
+        "Synthetic-fit projection only; fitted project and optimizer diagnostics are in the full result. "
+        "Inspect omitted warnings before interpretation; not measured-data inversion or optimization certification."
+    )
+
+
+class JobSummary(StrictModel):
+    view: Literal["summary"]
+    id: str
+    kind: Literal["forward", "fit"]
+    status: Literal["running", "succeeded", "failed", "cancelled"]
+    created_at: str
+    completed_at: str | None
+    input_hash: str
+    result_summary: ForwardResultSummary | SyntheticFitResultSummary | None
+    error: str | None
+    error_code: str | None
+
+    @model_validator(mode="after")
+    def result_matches_status(self):
+        if self.status == "succeeded" and self.result_summary is None:
+            raise ValueError("Succeeded job summaries must include their result projection")
+        if self.result_summary is not None and (
+            self.status != "succeeded" or (self.kind == "forward") != isinstance(self.result_summary, ForwardResultSummary)
+        ):
+            raise ValueError("Job summary kind/status disagree with the result projection")
+        if isinstance(self.result_summary, ForwardResultSummary) and (
+            self.result_summary.input_hash is not None and self.result_summary.input_hash != self.input_hash
+        ):
+            raise ValueError("Job summary input hash disagrees with its result projection")
         return self
 
 
@@ -269,6 +366,33 @@ class SavedSummary(StrictModel):
     created_at: str
     updated_at: str
     provenance: Provenance
+
+
+class SnapshotSummary(SavedSummary):
+    view: Literal["summary"]
+    status: Literal["stored"]
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    result_summary: ForwardResultSummary | None
+
+    @model_validator(mode="after")
+    def provenance_hash(self):
+        if self.provenance.source == "server_computed" and self.result_summary is None:
+            raise ValueError("Server-computed snapshot summaries must include forward totals and warnings")
+        if self.provenance.source == "server_computed" and self.provenance.input_hash != self.input_hash:
+            raise ValueError("Snapshot summary hash disagrees with server provenance")
+        if self.result_summary is not None:
+            if self.result_summary.input_hash is not None and self.result_summary.input_hash != self.input_hash:
+                raise ValueError("Snapshot summary input hash disagrees with its result projection")
+            if self.provenance.source == "server_computed" and (
+                self.provenance.result_schema_version != self.result_summary.source_result_schema_version
+            ):
+                raise ValueError("Snapshot summary result version disagrees with server provenance")
+        return self
+
+
+class SnapshotReceipt(SnapshotSummary):
+    view: Literal["receipt"]
+    result_summary: ForwardResultSummary
 
 
 class SavedProject(SavedSummary):

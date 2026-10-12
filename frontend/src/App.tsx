@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { LocalDesignHandoff } from "./LocalDesignHandoff";
+import {
+  browserDraftStorage,
+  inputDraftKey,
+  readInputDraft,
+  writeInputDraft,
+  INPUT_DRAFT_DELAY_MS,
+} from "./inputDraft";
+import type { DraftRead, DraftWrite } from "./inputDraft";
 import {
   api,
   apiDescription,
@@ -468,10 +477,18 @@ const legacyExample =
   typeof window !== "undefined" &&
   new URLSearchParams(window.location.search).get("example") === "1d";
 const initialProject = legacyExample ? defaultProject : default2DProject;
+const draftKey = inputDraftKey(example);
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : "An unexpected error occurred.";
 
 export default function App() {
+  const [recoveredDraft] = useState(() =>
+    readInputDraft(browserDraftStorage(), draftKey),
+  );
+  const [draftStatus, setDraftStatus] = useState<
+    DraftRead["status"] | DraftWrite | "pending"
+  >(recoveredDraft.status);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const inspector = useRef<HTMLDialogElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
@@ -499,7 +516,7 @@ export default function App() {
   }, [sheet]);
   const [history, setHistory] = useState(() =>
     createHistory({
-      project: structuredClone(initialProject),
+      project: structuredClone(recoveredDraft.project || initialProject),
       displayedRun: null,
       selectedLayer: 0,
     }),
@@ -544,14 +561,19 @@ export default function App() {
     "checking" | "online" | "offline"
   >("checking");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(
+    recoveredDraft.project
+      ? "Recovered the last saved valid inputs from this tab. Later unsaved edits may be missing. No result or undo history was restored."
+      : "",
+  );
   const [polarization, setPolarization] = useState<"s" | "p">("s");
   const [saved, setSaved] = useState<SavedSummary[]>([]);
   const [showSaved, setShowSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const inputFile = useRef<HTMLInputElement>(null);
-  const inputsChanged = useRef(false);
+  const inputsChanged = useRef(recoveredDraft.project !== null);
+  const persistedProject = useRef<Project | null>(project);
   const activeJob = useRef<string | null>(null);
   const jobStart = useRef(0);
   const forwardBusy =
@@ -564,6 +586,20 @@ export default function App() {
       : solverSupportError(capabilities, project);
   const is2D = project.schema_version === "1.2";
   const stale = result !== null && !sameInputs(resultProject, project);
+  const editedStaticDesign =
+    staticPreview &&
+    (!sameInputs(initialProject, project) ||
+      (!!recoveredDraft.project && !displayedRun));
+  const draftWarning =
+    draftStatus === "unavailable"
+      ? "Tab recovery is unavailable. Export inputs before reloading; an older draft may remain."
+      : draftStatus === "too-large"
+        ? "These inputs exceed the tab recovery limit. Export inputs before reloading; an older draft may remain."
+        : draftStatus === "invalid"
+          ? recoveredDraft.status === "invalid" && !inputsChanged.current
+            ? "Saved tab inputs could not be restored. The example is open; import an exported JSON to recover your design."
+            : "These inputs cannot be saved for tab recovery. Fix input errors or export valid inputs before reloading."
+          : "";
   const selectedLayer = validLayerIndex(project, history.present.selectedLayer);
   const layer = project.layers[selectedLayer];
   const waves = project.illumination.wavelengths_nm;
@@ -576,38 +612,39 @@ export default function App() {
     const version = actionVersion.current;
     const revision = historyRef.current.revision;
     const capabilityRequest = ++connectionRequest.current;
-    readReference()
-      .then((data) => {
-        if (
-          !alive ||
-          inputsChanged.current ||
-          version !== actionVersion.current ||
-          revision !== historyRef.current.revision
-        )
-          return;
-        const current = historyRef.current;
-        const editing = !!current.editTransaction;
-        dispatch({
-          type: "reset",
-          workspace: {
-            ...workspaceFromFile(data, "reference"),
-            selectedLayer: current.present.selectedLayer,
-          },
+    if (!recoveredDraft.project)
+      readReference()
+        .then((data) => {
+          if (
+            !alive ||
+            inputsChanged.current ||
+            version !== actionVersion.current ||
+            revision !== historyRef.current.revision
+          )
+            return;
+          const current = historyRef.current;
+          const editing = !!current.editTransaction;
+          dispatch({
+            type: "reset",
+            workspace: {
+              ...workspaceFromFile(data, "reference"),
+              selectedLayer: current.present.selectedLayer,
+            },
+          });
+          // A reference arriving during a focused, unchanged field does not
+          // retarget the editor or split its subsequent single edit transaction.
+          if (editing) beginEdit();
+        })
+        .catch((failure) => {
+          if (
+            alive &&
+            version === actionVersion.current &&
+            !inputsChanged.current
+          )
+            setError(
+              `${errorText(failure)} Inputs remain editable; no result was installed.`,
+            );
         });
-        // A reference arriving during a focused, unchanged field does not
-        // retarget the editor or split its subsequent single edit transaction.
-        if (editing) beginEdit();
-      })
-      .catch((failure) => {
-        if (
-          alive &&
-          version === actionVersion.current &&
-          !inputsChanged.current
-        )
-          setError(
-            `${errorText(failure)} Inputs remain editable; no result was installed.`,
-          );
-      });
     if (staticPreview) setConnection("offline");
     else
       api
@@ -624,6 +661,39 @@ export default function App() {
     return () => {
       alive = false;
       connectionRequest.current += 1;
+    };
+  }, []);
+  useEffect(() => {
+    if (!inputsChanged.current) return;
+    if (project === persistedProject.current) {
+      setDraftStatus("saved");
+      return;
+    }
+    setDraftStatus("pending");
+    const timer = window.setTimeout(() => {
+      const status = writeInputDraft(browserDraftStorage(), draftKey, project);
+      persistedProject.current = status === "saved" ? project : null;
+      setDraftStatus(status);
+    }, INPUT_DRAFT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [project]);
+  useEffect(() => {
+    function flushDraft() {
+      const current = historyRef.current.present.project;
+      if (!inputsChanged.current || current === persistedProject.current)
+        return;
+      const status = writeInputDraft(browserDraftStorage(), draftKey, current);
+      persistedProject.current = status === "saved" ? current : null;
+      setDraftStatus(status);
+    }
+    function onHidden() {
+      if (document.visibilityState === "hidden") flushDraft();
+    }
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", onHidden);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", onHidden);
     };
   }, []);
   useEffect(() => {
@@ -1530,6 +1600,7 @@ export default function App() {
         review ||
         comparison ||
         showSaved ||
+        handoffOpen ||
         target?.closest("input, textarea, select, [contenteditable=true]")
       )
         return;
@@ -1690,7 +1761,8 @@ export default function App() {
                 </button>
               </div>
               <small className="history-scope">
-                Edit history lasts for this browser session.
+                Undo history clears on reload. Valid inputs recover in this tab
+                only; export JSON to keep a copy.
               </small>
               <button
                 disabled={busy || staticPreview}
@@ -1875,12 +1947,21 @@ export default function App() {
               )}
               {staticPreview ? (
                 <>
-                  <a className="preview-result-button" href="#spectrum">
-                    {result && resultOrigin === "reference"
-                      ? "View example spectrum"
-                      : "View spectrum"}{" "}
-                    <span aria-hidden="true">↓</span>
-                  </a>
+                  {editedStaticDesign ? (
+                    <button
+                      className="preview-result-button"
+                      onClick={() => setHandoffOpen(true)}
+                    >
+                      Use this design locally <Icon name="arrow" />
+                    </button>
+                  ) : (
+                    <a className="preview-result-button" href="#spectrum">
+                      {result && resultOrigin === "reference"
+                        ? "View example spectrum"
+                        : "View spectrum"}{" "}
+                      <span aria-hidden="true">↓</span>
+                    </a>
+                  )}
                   <p className="static-edit-note">
                     Preview only. Edits won't calculate a new spectrum.
                   </p>
@@ -1905,6 +1986,18 @@ export default function App() {
                       : "Run simulation"}
                   <span>{forwardBusy ? `${elapsed}s` : "↵"}</span>
                 </button>
+              )}
+              {draftWarning && (
+                <div className="draft-warning" role="status">
+                  <p>{draftWarning}</p>
+                  {!errors.length && (
+                    <button
+                      onClick={() => downloadProject(project, null, null)}
+                    >
+                      Export inputs
+                    </button>
+                  )}
+                </div>
               )}
               {forwardBusy ? (
                 <div className="job-progress">
@@ -2718,6 +2811,12 @@ export default function App() {
           )}
         </div>
       </dialog>
+      {handoffOpen && (
+        <LocalDesignHandoff
+          project={project}
+          onClose={() => setHandoffOpen(false)}
+        />
+      )}
       {review && (
         <ReviewPanel
           title={review.title}

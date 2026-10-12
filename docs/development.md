@@ -1,6 +1,6 @@
 # Development setup
 
-Requires Python 3.12+ and Node.js 22+.
+Requires Git, Python 3.12+ and Node.js 22+. Start with the [complete Quickstart](../README.md#quickstart) for clone/cd steps, Windows PowerShell commands and importing an edited Pages design. The commands below assume your terminal is in the cloned repository root.
 
 ```sh
 python -m venv .venv
@@ -43,14 +43,19 @@ ruff check backend
 pytest -q
 cd frontend
 npm run lint
+npm test
 npm run build
+VITE_STATIC_PREVIEW=true npm test
+VITE_STATIC_PREVIEW=true npm run build
+cd ..
+node --test scripts/tests/pages_evidence_gate.test.mjs
 ```
 
 The PostgreSQL integration test runs when `TEST_POSTGRES_URL` is configured. GitHub CI provides a separate PostgreSQL service. Without a local test service, only that test is explicitly skipped. See [verification status](validation.md) for observed results and remaining limits.
 
 ## GitHub and mobile viewing
 
-GitHub Actions runs code and physics checks. GitHub Pages serves the static React interface. **Pages does not run the Python/meent solver.** The static preview displays a genuinely precomputed reference, makes no API requests, and disables live computation. Editing its inputs marks the displayed result as stale; it does not generate a new spectrum.
+GitHub Actions runs code and physics checks. GitHub Pages serves the static React interface. **Pages does not run the Python/meent solver.** The static preview displays a genuinely precomputed reference, makes no API requests, and disables live computation. Editing its inputs marks the displayed result as stale; it does not generate a new spectrum. The primary action becomes **Use this design locally**, with input-only export and exact setup/import steps. Pages sends no design to a server.
 
 For the normal local application, `VITE_API_BASE_URL` sets the API address at build time. An HTTPS page may be blocked by browser security rules when connecting to an HTTP local API.
 
@@ -63,7 +68,7 @@ stored spectrum. `?example=rectangle` retains the earlier rectangular 2D example
 legacy exploration and regression checks. Neither route computes on Pages.
 See [the 2D editor](ui/2d-editor.md) for controls and exact input/result binding.
 
-The workflow is prepared to publish the static preview after `Checks` succeeds on the main branch. Set repository Settings → Pages → Source to GitHub Actions. The `VITE_STATIC_PREVIEW=true` build displays only the stored example computed by the real Python solver. The local calculation API remains private. See [GitHub's official Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+The workflow publishes the static preview after verified exact-commit `Checks` evidence, either from a reviewed test branch already promoted unchanged to `main`, or from successful main-branch Checks. The full main Checks run remains enabled; see the [release evidence policy](release-evidence.md). Set repository Settings → Pages → Source to GitHub Actions. The `VITE_STATIC_PREVIEW=true` build displays only the stored example computed by the real Python solver. The local calculation API remains private. See [GitHub's official Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 ## Job and storage lifetime
 
@@ -154,8 +159,18 @@ status badges retain their text labels in addition to color.
 Undo and Redo live in the Project menu. Keyboard shortcuts are Ctrl/Cmd+Z and
 Ctrl/Cmd+Shift+Z outside text fields; Ctrl+Y also redoes. Native text-field undo
 is preserved. A pointer drag or focused numeric edit is one history step. This
-history keeps at most 30 committed edits in the current browser session; reload
-clears it. Undo restores the input and displayed result/origin together, and
+history keeps at most 30 committed edits while the page is open; reload
+clears it. A separate tab-local recovery draft keeps only the latest valid inputs
+(up to 512 KiB) in sessionStorage after a 300 ms debounce, and flushes pending
+valid edits when the page is hidden or left. It restores no result, provenance,
+job, selection or undo history, and never starts a calculation. The circle,
+explicit rectangle and explicit 1D routes have independent draft slots. The
+existing 1.0/1.1 and strict 1.2 input validators govern recovery. Closing the tab
+normally clears its drafts; browser session restore may retain them. This is
+not durable storage or a bridge between Pages and localhost. Corrupt or
+unsupported drafts are ignored with a notice; quota failures and oversized drafts invalidate the older saved draft when
+storage permits, preventing outdated recovery. Invalid edits preserve the last
+valid draft. Failed writes and invalid edits show export recovery guidance. Export JSON for a durable copy. Undo restores the input and displayed result/origin together, and
 never starts a calculation or saves a project.
 
 A live forward run is validated before submission. Its normalized input/hash,
@@ -231,8 +246,10 @@ failure, without hidden damping or perturbation.
 
 Changes are first published on a test branch. Full CI, independent numerical
 reference checks and inspection of the exact candidate's rendered screenshots
-must pass before that commit reaches main. The Pages workflow follows successful
-main checks and remains a static, precomputed-only preview.
+must pass before that commit reaches main. The Pages workflow validates exact-SHA
+Checks evidence and current main before build and deploy; the complete main Checks
+run remains enabled. Pages remains a static, precomputed-only preview. See the
+[release evidence policy](release-evidence.md) for trust boundaries and fallback behavior.
 
 ### First-use verification
 

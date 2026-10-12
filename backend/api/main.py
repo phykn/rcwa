@@ -6,7 +6,8 @@ import math
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import Annotated
+from typing import Annotated, Literal
+from pathlib import Path
 
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -14,6 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError, model_validator
 
+from api.material_diagnostics import material_default_diagnostics
 from api.diagnostics import (
     MAX_ERROR_DIAGNOSTICS as MAX_ERROR_DIAGNOSTICS,
     MAX_ERROR_LOCATION_BYTES as MAX_ERROR_LOCATION_BYTES,
@@ -40,7 +42,9 @@ from api.contracts import (
     ServerSnapshot,
     SnapshotRequest,
     ValidationResponse,
+    JobSummary, SnapshotSummary, SnapshotReceipt,
 )
+from api.result_summary import SummaryUnavailable, summarize_job, summarize_snapshot
 from rcwa_core.contracts import ForwardResult
 from rcwa_core.preflight import Diagnostic, engine_info
 from rcwa_core.project_io import preflight_project_any, validate_result_for_project
@@ -218,8 +222,12 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "authentication": "local-demo-only",
         }
 
-    @app.get("/api/example", response_model=Project)
-    async def example():
+    @app.get("/api/example", response_model=Project | Project2D)
+    async def example(example: Literal["legacy_1d", "circular_hole_2d"] = "legacy_1d"):
+        if example == "circular_hole_2d":
+            return Project2D.model_validate_json(
+                (Path(__file__).parent / "examples" / "circular-hole-2d.json").read_text(encoding="utf-8"), strict=True
+            )
         return Project().model_dump()
 
     @app.get("/api/capabilities", response_model=Capabilities)
@@ -300,7 +308,11 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "No phase, Jones, ellipsometry, arbitrary or offset/rotated geometry, anisotropy, or measured-data inversion",
                 "1.2 supports forward calculations; 2D fitting and change proposals are not supported",
                 "At most one 1.2 process within two total jobs; legacy limits above do not describe 1.2, use project_profiles",
-                "The example remains legacy. 1.2 requires explicit schema_version and every layer geometry tag",
+                "The no-argument example remains legacy; /api/example?example=circular_hole_2d returns the explicit 1.2 circular input",
+                "Material names are labels, not database lookups; supply constant n/k or a tabulated n/k table explicitly",
+                "Optional summary views omit order arrays and full input/metadata; they are not full results or import files. "
+                "Check warnings_omitted_count and inspect full warnings if nonzero. Summary envelopes are capped at 128 KB",
+                "GET jobs/projects supports ?view=summary; POST snapshots supports ?view=receipt; full responses remain the default",
                 "Full-result imports above the 2 MB request cap return 413; use project-only import or save a succeeded job by ID",
                 "Validation is not a solve or convergence certification",
                 "T is substrate entrance-plane flux; no absorbing-substrate backside transmission",
@@ -319,9 +331,13 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             )
         return diagnostics
 
-    @app.post("/api/validate", response_model=ValidationResponse)
+    @app.post("/api/validate", response_model=ValidationResponse, description=(
+        "Check admissibility without solving. Material names are display labels, never database lookups. "
+        "Supply explicit constant n/k or tabulated values. A name-only constant material uses n=1, k=0 "
+        "and receives a request-specific material_name_only warning; normalized historical data is unchanged."
+    ))
     async def validate(project: Annotated[InputProject, Body()]):
-        diagnostics = admissibility(project)
+        diagnostics = admissibility(project) + material_default_diagnostics(project)
         valid = not any(d.severity == "error" for d in diagnostics)
         return {
             "valid": valid,
@@ -343,6 +359,10 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 for item in error.errors()
             ]
             raise RequestValidationError(errors) from error
+
+    @app.exception_handler(SummaryUnavailable)
+    async def summary_unavailable(request, error):
+        return error_response(409, "summary_unavailable", str(error))
 
     @app.exception_handler(ProposalTooLarge)
     async def proposal_too_large(request, error):
@@ -375,13 +395,16 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         except RuntimeError as error:
             raise HTTPException(429, str(error)) from error
 
-    @app.get("/api/jobs/{job_id}", response_model=JobResponse)
-    async def get_job(job_id: str):
+    @app.get("/api/jobs/{job_id}", response_model=JobResponse | JobSummary)
+    async def get_job(job_id: str, view: Literal["full", "summary"] = "full"):
         job = app.state.jobs.get(job_id)
         if job is None:
             raise HTTPException(
                 404, {"code": "job_missing", "message": "Job missing or expired; jobs are lost on API restart"}
             )
+        if view == "summary":
+            JobResponse.model_validate(job, strict=True)
+            return summarize_job(job)
         return job
 
     @app.delete("/api/jobs/{job_id}", response_model=JobResponse)
@@ -391,8 +414,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             raise HTTPException(404, {"code": "job_missing", "message": "Job missing or expired"})
         return job
 
-    @app.post("/api/snapshots", status_code=201, response_model=ServerSnapshot)
-    async def save_snapshot(request: SnapshotRequest):
+    @app.post("/api/snapshots", status_code=201, response_model=ServerSnapshot | SnapshotReceipt)
+    async def save_snapshot(request: SnapshotRequest, view: Literal["full", "receipt"] = "full"):
         captured = app.state.jobs.capture(request.job_id)
         if captured is None:
             raise HTTPException(404, {"code": "job_missing", "message": "Job missing or expired; cannot save it"})
@@ -422,7 +445,18 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "completed_at": job["completed_at"],
             "canonicalization": "SHA-256; normalized Project; sorted JSON keys; compact separators; UTF-8; finite numbers",
         }
-        return app.state.store.save(project, result, provenance=provenance)
+        saved = app.state.store.save(project, result, provenance=provenance)
+        if view == "receipt":
+            # Validate the same full server-owned pair before projecting it.
+            # Any post-save failure is a 5xx: the mutation outcome must stay unknown.
+            try:
+                ServerSnapshot.model_validate(saved, strict=True)
+                return summarize_snapshot(saved, receipt=True)
+            except (ValueError, TypeError, KeyError) as error:
+                raise HTTPException(500, {"code": "snapshot_receipt_unavailable", "message":
+                    "Snapshot may have been saved, but its bounded receipt is unavailable. Do not start a new calculation; "
+                    "repeat this idempotent save by the same job ID or inspect saved projects."}) from error
+        return saved
 
     @app.post("/api/projects", status_code=201, response_model=SavedProject)
     async def save_project(request: SaveRequest):
@@ -432,8 +466,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
     async def list_projects():
         return app.state.store.list()
 
-    @app.get("/api/projects/{project_id}", response_model=SavedProject)
-    async def get_project(project_id: str):
+    @app.get("/api/projects/{project_id}", response_model=SavedProject | SnapshotSummary)
+    async def get_project(project_id: str, view: Literal["full", "summary"] = "full"):
         project = app.state.store.get(project_id)
         if project is None:
             raise HTTPException(404, "Project not found")
@@ -445,7 +479,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             raise HTTPException(
                 409, {"code": "invalid_stored_snapshot", "message": "Saved input/result failed integrity validation."}
             ) from error
-        return project
+        return summarize_snapshot(project) if view == "summary" else project
 
     return app
 

@@ -23,16 +23,38 @@ See the [2D editor and result identity](docs/ui/2d-editor.md) and [explicit 1.2 
 
 ## Quickstart
 
-Requires Python 3.12+ and Node.js 22+.
+Requires Git, Python 3.12+ and Node.js 22+. The API stays on your computer;
+no account or paid hosting is required. Keep the following two terminals open.
+
+### Terminal 1: get the code and start the Python solver
+
+macOS / Linux:
 
 ```sh
-python -m venv .venv
-. .venv/bin/activate
-pip install -r backend/requirements-lock.txt
-PYTHONPATH=backend uvicorn api.main:app --host 127.0.0.1 --port 8000
+git clone https://github.com/phykn/rcwa.git
+cd rcwa
+python3 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements-lock.txt
+.venv/bin/python -m uvicorn api.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-In another terminal:
+Windows PowerShell (Python 3.12 installed):
+
+```powershell
+git clone https://github.com/phykn/rcwa.git
+cd rcwa
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements-lock.txt
+.\.venv\Scripts\python.exe -m uvicorn api.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+These commands use the virtual environment's Python directly, so shell activation
+or a PowerShell execution-policy change is not needed. If you already cloned the
+repository, open that `rcwa` folder instead of cloning it again.
+
+### Terminal 2: start the editor
+
+Open another terminal **in the cloned `rcwa` folder**, then run on any platform:
 
 ```sh
 cd frontend
@@ -40,7 +62,32 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. SQLite is used by default; see [development setup](docs/development.md) for PostgreSQL and static-preview configuration.
+Open http://127.0.0.1:5173 and wait for **Solver connected**. Use the local editor
+for calculations; the hosted Pages preview cannot contact or run your solver.
+The default SQLite database requires no setup. Keep the API bound to 127.0.0.1;
+do not expose this unauthenticated development service through public hosting or
+a tunnel. See [development setup](docs/development.md) for PostgreSQL and
+static-preview configuration.
+
+### Bring an edited Pages design into the local solver
+
+1. On Pages, edit the design, choose **Use this design locally**, then
+   **Export current inputs**. This downloads input-only JSON; it does not include
+   the old example spectrum. The Project menu also provides JSON export.
+2. Start both local terminals above and open http://127.0.0.1:5173.
+3. Choose **Project → Import JSON** and select the downloaded file. Review the
+   imported dimensions, materials and illumination, then choose **Run simulation**.
+4. Wait for the calculation to complete. A new result applies only to its exact
+   inputs; edited designs need their own convergence/accuracy checks. Use
+   **Project → Export** to keep inputs and the complete result together, or
+   **Save to local server** for a server-owned snapshot.
+
+Valid input edits also recover after reload in the same browser tab and origin.
+This bounded session draft contains inputs only, never results or undo history.
+Closing the tab normally clears it; browser session restore may retain it. It is
+not a backup or a transfer between Pages and localhost. Export JSON to keep or
+move a design. If storage is blocked, full or the draft is invalid/too large, the
+editor reports the limitation and keeps export available for valid inputs.
 
 ## Project layout
 

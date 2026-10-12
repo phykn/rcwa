@@ -44,6 +44,10 @@ export async function assertMaterialImportOrdering(
   });
   async function reset() {
     await page.goto(legacyExampleUrl(url));
+    // Reload now recovers valid tab inputs. Explicitly reset between unrelated
+    // material-ordering scenarios rather than relying on former data loss.
+    await page.locator(".project-menu summary").click();
+    await page.getByRole("button", { name: "Reset example", exact: true }).click();
     await expect(page.locator(".result-badge")).toHaveText(
       "Precomputed example",
     );

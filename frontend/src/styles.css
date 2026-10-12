@@ -2669,3 +2669,114 @@ input[type="range"]:focus-visible {
   font-size: 10px;
   pointer-events: none;
 }
+
+/* Design handoff uses an opaque, WebGL-safe native-dialog backdrop. */
+button.preview-result-button {
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  cursor: pointer;
+}
+button.preview-result-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.local-handoff {
+  width: calc(100% - 32px);
+  max-width: 600px;
+  max-height: 88dvh;
+  overflow: auto;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-overlay);
+}
+.local-handoff::backdrop {
+  background: rgb(24 24 27 / 35%);
+  backdrop-filter: none;
+}
+.local-handoff-body {
+  padding: 24px;
+}
+.local-handoff .sheet-heading {
+  align-items: flex-start;
+}
+.local-handoff .sheet-heading h2 {
+  font-size: 24px;
+}
+.local-handoff p {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.local-handoff h3 {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+.local-handoff h4 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+.local-handoff-steps {
+  padding-left: 20px;
+  margin: 24px 0;
+}
+.local-handoff-steps > li {
+  padding-left: 4px;
+  margin-bottom: 24px;
+}
+.local-handoff-project,
+.local-handoff-note {
+  color: var(--text-secondary);
+}
+.local-handoff .local-handoff-note {
+  font-size: 12px;
+}
+.local-handoff summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+  font-size: 14px;
+}
+.local-handoff pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  font: 12px/1.65 var(--font-code);
+}
+.local-handoff-done,
+.draft-warning button {
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.local-handoff-done {
+  width: 100%;
+}
+.draft-warning {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.draft-warning p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .local-handoff-body {
+    padding: 20px 16px;
+  }
+  .local-handoff .sheet-heading h2 {
+    font-size: 22px;
+  }
+}

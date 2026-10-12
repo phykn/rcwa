@@ -54,12 +54,10 @@ def test_contract_and_no_process_validation(client, monkeypatch):
     assert caps["limits"]["layers"] == 8
     assert caps["limits"]["request_bytes"] == 2_000_000
     schema = client.get("/openapi.json").json()
-    assert schema["paths"]["/api/jobs/{job_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"][
-        "$ref"
-    ].endswith("JobResponse")
-    assert schema["paths"]["/api/snapshots"]["post"]["responses"]["201"]["content"]["application/json"]["schema"][
-        "$ref"
-    ].endswith("ServerSnapshot")
+    job_schema = schema["paths"]["/api/jobs/{job_id}"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert {item["$ref"].rsplit("/", 1)[-1] for item in job_schema["anyOf"]} == {"JobResponse", "JobSummary"}
+    snapshot_schema = schema["paths"]["/api/snapshots"]["post"]["responses"]["201"]["content"]["application/json"]["schema"]
+    assert {item["$ref"].rsplit("/", 1)[-1] for item in snapshot_schema["anyOf"]} == {"ServerSnapshot", "SnapshotReceipt"}
     assert schema["components"]["schemas"]["Project-Input"]["properties"]["layers"]["maxItems"] == 8
     assert "ForwardResult" in schema["components"]["schemas"]
     assert "SyntheticFitResult" in schema["components"]["schemas"]

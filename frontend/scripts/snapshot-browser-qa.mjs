@@ -228,8 +228,8 @@ try {
       preview.getByRole("button", { name: /Run simulation/ }),
     ).toHaveCount(0);
     await expect(
-      preview.getByRole("link", { name: "View spectrum", exact: true }),
-    ).toHaveAttribute("href", "#spectrum");
+      preview.getByRole("button", { name: "Use this design locally", exact: true }),
+    ).toBeVisible();
     await expect(
       preview.getByRole("link", { name: "View example spectrum" }),
     ).toHaveCount(0);
@@ -246,8 +246,8 @@ try {
         buffer: Buffer.from(JSON.stringify({ project: forged.project })),
       });
     await expect(
-      preview.getByRole("link", { name: "View spectrum", exact: true }),
-    ).toHaveAttribute("href", "#spectrum");
+      preview.getByRole("button", { name: "Use this design locally", exact: true }),
+    ).toBeVisible();
     await expect(
       preview.getByRole("link", { name: "View example spectrum" }),
     ).toHaveCount(0);

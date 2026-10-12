@@ -62,3 +62,26 @@ verify each fixture’s hashes and the public/shared Python binder without solvi
 The production 2D browser suite supplements the retained 1D suites. CI mobile
 contexts and accessibility-tree evidence do not claim real-phone onscreen-keyboard
 or spoken screen-reader validation.
+
+
+## Edited designs and reload recovery
+
+On the static Pages preview, changing the inputs replaces the example-spectrum
+primary action with **Use this design locally**. Its accessible dialog offers
+**Export current inputs** as the next action, plus macOS/Linux and Windows
+setup commands and the local **Project → Import JSON → Run simulation** flow.
+The export contains current inputs only, never the stale example result. The
+unchanged first-open example still links to its precomputed spectrum. All static
+editing and recovery remain API-free.
+
+A validated input-only draft is saved in sessionStorage for this browser tab and
+origin, up to 512 KiB, after a 300 ms debounce and when the page is hidden or left.
+Reload restores those inputs with no result, server provenance or undo history;
+the restored message says so. Closing the tab normally clears the draft, though
+browser session restore may keep it. Use JSON export for a durable copy or to
+move from Pages to localhost. Corrupt/unsupported drafts are ignored, and quota failures and oversized drafts remove the older saved draft when storage
+permits, so it is not mistaken for the newest edit. Invalid inputs preserve the
+last valid draft. Storage failures show export guidance; if a browser blocks even
+removal, the recovery message explicitly identifies inputs as the last saved
+valid draft, which can omit later unsaved edits. An
+explicit rectangle or 1D route uses its own draft slot and retains its schema.

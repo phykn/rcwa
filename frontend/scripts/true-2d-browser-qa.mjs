@@ -494,7 +494,10 @@ async function staticTasks(width) {
         ...(await assertScene(page, changed, true)),
       });
       await capture(page, report, output, `${width}-edited`);
-      await page.getByRole("link", { name: /View example spectrum/ }).click();
+      await page.getByRole("button", { name: "Use this design locally", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Use this design locally" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.locator("#spectrum").scrollIntoViewIfNeeded();
       await expect(page.locator(".spectrum-svg")).toBeVisible();
       await capture(page, report, output, `${width}-stale-spectrum`, {
         top: false,
