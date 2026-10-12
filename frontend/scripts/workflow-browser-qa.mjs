@@ -1985,7 +1985,10 @@ try {
       target.getByRole("button", { name: /Run simulation/ }),
     ).toHaveCount(0);
     await expect(target.locator(".history-scope").first()).toContainText(
-      "browser session",
+      "Undo history clears on reload.",
+    );
+    await expect(target.locator(".history-scope").first()).toContainText(
+      "Valid inputs recover in this tab only; export JSON to keep a copy.",
     );
     await target.keyboard.press("Escape");
     await assertNoOverflow(target);

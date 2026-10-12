@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
+import { recordNativeModalKeyboard } from "./browser-native-dialog-focus.mjs";
 import { capture, closeSheet, menuAction, importText, assertFullResult } from "./browser-2d-controls.mjs";
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 await fs.mkdir(output, {recursive: true});
@@ -11,7 +12,7 @@ const previewUrl = process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173";
 const appUrl = process.env.RCWA_APP_URL || "http://127.0.0.1:5173";
 const key = "rcwa:input-draft:1:circle";
 const original = JSON.parse(await fs.readFile(new URL("../src/fixtures/default-project-circular.json", import.meta.url), "utf8"));
-const report = {status: "running", checks: [], captures: [], screenshots: [], pageErrors: [], issues: [], limitations: ["Chromium touch emulation is not a real-device or spoken screen-reader test."]};
+const report = {status: "running", checks: [], captures: [], screenshots: [], pageErrors: [], issues: [], keyboard: [], limitations: ["Chromium touch emulation is not a real-device or spoken screen-reader test."]};
 let browser;
 const diameter = (page) => page.getByRole("button", {name: /^Edit Layer 1 diameter:/});
 const handoff = (page) => page.getByRole("button", {name: "Use this design locally", exact: true});
@@ -88,10 +89,7 @@ try {
     assert.equal(file.data.result_project, null);
     transferred = file;
     await shot(page, `${width}-dialog`);
-    for (let n = 0; n < 14; n++) {
-      await page.keyboard.press("Tab");
-      assert.equal(await dialog.evaluate((node) => node.contains(document.activeElement)), true);
-    }
+    await recordNativeModalKeyboard(page, dialog, report, width);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
     await expect(handoff(page)).toBeFocused();
