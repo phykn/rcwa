@@ -3,12 +3,72 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   DimensionRange,
+  beginDimensionRangeEdit,
   dimensionTrackBounds,
   dimensionKeyValue,
   dimensionPointerValue,
 } from "./DimensionRange";
 
+import { defaultProject } from "./model";
+import { createHistory, workspaceReducer } from "./workflow";
+
 describe("physical dimension range", () => {
+  it("separates focused exact typing from a touch drag without requiring blur", () => {
+    let state = createHistory({ project: defaultProject, displayedRun: null });
+    const begin = () => {
+      state = workspaceReducer(state, { type: "begin-edit" });
+    };
+    const end = () => {
+      state = workspaceReducer(state, { type: "end-edit" });
+    };
+    const width = () => {
+      const layer = state.present.project.layers[0];
+      if (layer.geometry !== "rectangle_1d")
+        throw new Error("Expected a ridge");
+      return layer.cd_nm;
+    };
+    const change = (value: number) => {
+      const project = structuredClone(state.present.project);
+      const layer = project.layers[0];
+      if (layer.geometry !== "rectangle_1d")
+        throw new Error("Expected a ridge");
+      layer.cd_nm = value;
+      state = workspaceReducer(state, { type: "replace-project", project });
+    };
+    begin();
+    change(180.125);
+    // No numeric blur: this is the mobile native-range focus sequence.
+    beginDimensionRangeEdit(false, begin, end);
+    change(190);
+    beginDimensionRangeEdit(true, begin, end);
+    change(205);
+    end();
+    expect(state.past).toHaveLength(2);
+    state = workspaceReducer(state, { type: "undo" });
+    expect(width()).toBe(180.125);
+    state = workspaceReducer(state, { type: "redo" });
+    expect(width()).toBe(205);
+    // Touch leaves the same number focused: its change capture reasserts start
+    // for every accepted keystroke, but the reducer groups the typing session.
+    begin();
+    change(205.125);
+    begin();
+    change(205.25);
+    end();
+    state = workspaceReducer(state, { type: "undo" });
+    expect(width()).toBe(205);
+
+    state = workspaceReducer(state, { type: "undo" });
+    state = workspaceReducer(state, { type: "undo" });
+    expect(width()).toBe(180);
+    // Ending an already-blurred field cannot invent an additional undo frame.
+    beginDimensionRangeEdit(false, begin, end);
+    change(181.125);
+    end();
+    expect(state.past).toHaveLength(1);
+    state = workspaceReducer(state, { type: "undo" });
+    expect(width()).toBe(180);
+  });
   it("uses useful local intervals capped by the true geometry", () => {
     expect(dimensionTrackBounds(150, 95, 5000)).toEqual({ min: 95, max: 300 });
     expect(dimensionTrackBounds(90, 0, 2000)).toEqual({ min: 0, max: 200 });

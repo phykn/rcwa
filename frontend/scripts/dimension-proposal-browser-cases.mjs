@@ -32,17 +32,25 @@ async function checkMobileFooter(page, record) {
   const buttons = [];
   record.footer = { before, afterScroll, buttons, keyboard: "Full inputs → Cancel → Apply changes" };
   for (const button of [cancel(page), apply(page)]) {
-    await expect(button).toBeVisible();
-    await expect(button).toBeInViewport({ ratio: 1 });
     const box = await button.evaluate((node) => {
       const rect = node.getBoundingClientRect();
+      const dialog = node.closest("dialog");
+      const port = dialog.getBoundingClientRect();
+      const style = window.getComputedStyle(dialog);
+      const clipTop = port.top + parseFloat(style.borderTopWidth);
+      const clipBottom = port.bottom - parseFloat(style.borderBottomWidth);
       return { label: node.textContent.trim(), x: rect.x, y: rect.y,
-        width: rect.width, height: rect.height,
+        width: rect.width, height: rect.height, top: rect.top, bottom: rect.bottom,
+        dialog: { clipTop, clipBottom, overflowY: style.overflowY,
+          scrollTop: dialog.scrollTop, scrollHeight: dialog.scrollHeight, clientHeight: dialog.clientHeight },
+        bottomClearance: clipBottom - rect.bottom,
         hit: [0.2, 0.5, 0.8].every((fraction) => node.contains(
           document.elementFromPoint(rect.x + rect.width * fraction, rect.y + rect.height / 2))),
       };
     });
-    buttons.push(box); // Retain measured bounds even if the next assertion fails.
+    buttons.push(box); // Retain bounds and the clipping ancestor before any assertion.
+    await expect(button).toBeVisible();
+    await expect(button).toBeInViewport({ ratio: 1 });
     assert.ok(box.width >= 44, `${box.label} touch width ${box.width} px is at least 44 px`);
     assert.ok(box.height >= 44, `${box.label} touch height ${box.height} px is at least 44 px`);
     assert.equal(box.hit, true, `${box.label} is unobstructed at its center and side touch points`);

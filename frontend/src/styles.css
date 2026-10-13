@@ -1908,6 +1908,8 @@ input[type="range"]:focus-visible {
 .workflow-actions > button {
   min-inline-size: 44px;
   min-block-size: 44px;
+  /* Keep the 6 px focus outline plus fractional scroll clearance in view. */
+  scroll-margin-block-end: 8px;
 }
 .workflow-actions .dialog-close {
   margin: 0;

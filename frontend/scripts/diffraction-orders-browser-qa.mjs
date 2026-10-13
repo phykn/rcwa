@@ -45,9 +45,8 @@ export async function assertOrders(
   await expect(page.locator(".order-sample")).toHaveText(
     `${result.wavelengths_nm[index]} nm · Incident ${polarization} · All ${rows.length} retained orders`,
   );
-  const actual = await page
-    .locator(".order-table tbody tr")
-    .evaluateAll((elements) =>
+  const readRows = () =>
+    page.locator(".order-table tbody tr").evaluateAll((elements) =>
       elements.map((row) => ({
         label: row.dataset.order,
         powers: Object.fromEntries(
@@ -59,6 +58,25 @@ export async function assertOrders(
         classes: [...row.querySelectorAll(".order-class")].map(
           (node) => node.textContent,
         ),
+      })),
+    );
+  await expect
+    .poll(readRows, {
+      message:
+        "Every retained row, exact signed power and stored port class matches the selected sample",
+    })
+    .toEqual(
+      rows.map((row) => ({
+        label: `${row.m},${row.n}`,
+        powers: Object.fromEntries(
+          (channels ? ["R", "R_s", "R_p", "T", "T_s", "T_p"] : ["R", "T"]).map(
+            (field) => [field, exact(row[field])],
+          ),
+        ),
+        classes: [
+          row.reflection_propagating ? "Propagating" : "Evanescent",
+          classes[row.transmission_class],
+        ],
       })),
     );
   const displayed = await page.locator(".order-power").evaluateAll((nodes) =>
@@ -92,22 +110,35 @@ export async function assertOrders(
       );
     }
   }
-  assert.deepEqual(
-    actual,
-    rows.map((row) => ({
-      label: `${row.m},${row.n}`,
-      powers: Object.fromEntries(
-        (channels ? ["R", "R_s", "R_p", "T", "T_s", "T_p"] : ["R", "T"]).map(
-          (field) => [field, exact(row[field])],
-        ),
-      ),
-      classes: [
-        row.reflection_propagating ? "Propagating" : "Evanescent",
-        classes[row.transmission_class],
-      ],
-    })),
-    "Every retained row, exact signed power and stored port class matches the selected sample",
+}
+
+export async function assertImportedOrders(page, result) {
+  if (result.schema_version !== "1.2") return;
+  const polarization = result.spectra.s ? "s" : "p";
+  await expect(
+    page.getByRole("button", {
+      name: polarization === "s" ? "s / TE" : "p / TM",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const slider = page.getByRole("slider", {
+    name: "Inspect wavelength sample",
+    exact: true,
+  });
+  let index = 0;
+  if (result.wavelengths_nm.length === 1) await expect(slider).toHaveCount(0);
+  else {
+    await expect(slider).toHaveAttribute(
+      "max",
+      String(result.wavelengths_nm.length - 1),
+    );
+    index = Number(await slider.inputValue());
+  }
+  await expect(page.locator(".sample-wavelength strong")).toHaveText(
+    `${result.wavelengths_nm[index]} nm`,
   );
+  const channels = (await page.locator(".order-channels").count()) > 0;
+  await assertOrders(page, result, polarization, index, channels);
 }
 
 async function inspectOrdersSession(
@@ -262,7 +293,7 @@ async function inspectOrdersSession(
     "rapid End starts before wavelength Home",
     "moved",
   );
-  report.orderStage = `${width}px: rapid native End then wavelength Home`;
+  report.orderStage = `${width}px: rapid table End then wavelength Home`;
   report.rapidOrderScroll ??= [];
   report.rapidOrderScroll.push({
     width,

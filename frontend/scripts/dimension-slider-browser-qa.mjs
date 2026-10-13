@@ -1,6 +1,7 @@
 // Production editor acceptance. Run only in CI's supported browser environment.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
+import { runBrowserScenario } from "./browser-scenario.mjs";
 import { chromium, expect } from "@playwright/test";
 import {
   capture,
@@ -16,6 +17,7 @@ const preview = process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173";
 const report = {
   status: "running",
   checks: [],
+  groups: [],
   captures: [],
   screenshots: [],
   pageErrors: [],
@@ -135,9 +137,14 @@ async function drag(page, range, touch, delta = 30, cancel = false) {
       await page.evaluate(() => window.dispatchEvent(new Event("blur")));
     await page.mouse.up();
   }
-  await expect
-    .poll(async () => +(await range.inputValue()))
-    .not.toBe(values.value);
+  if (delta === 0)
+    await expect
+      .poll(async () => +(await range.inputValue()))
+      .toBe(values.value);
+  else
+    await expect
+      .poll(async () => +(await range.inputValue()))
+      .not.toBe(values.value);
   assert.equal(await range.getAttribute("min"), String(values.min));
   assert.equal(await range.getAttribute("max"), String(values.max));
   return +(await range.inputValue());
@@ -193,6 +200,29 @@ async function reset(page) {
   await menuAction(page, "Reset example");
   await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
 }
+async function cleanExample(page) {
+  await page.keyboard.up("ArrowRight");
+  await page.mouse.up();
+  const open = await page.locator("dialog[open]").count();
+  for (let index = 0; index < open; index++)
+    await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await reset(page);
+}
+async function scenario(name, page, requests, run) {
+  await runBrowserScenario(report, name, async () => {
+    await cleanExample(page);
+    await run();
+    assert.deepEqual(requests, [], "Static slider scenarios remain API-free");
+  });
+  // Preserve completed and failed groups even if the existing suite deadline
+  // subsequently terminates this process. Partial evidence is never a pass.
+  await fs.writeFile(
+    `${output}/dimension-slider-browser-report.json`,
+    JSON.stringify(report, null, 2),
+  );
+}
+
 try {
   browser = await chromium.launch({
     headless: true,
@@ -226,189 +256,267 @@ try {
       });
       const url = new URL(preview);
       if (example !== "circle") url.searchParams.set("example", example);
-      await page.goto(url.href);
-      await expect(page.locator(".result-badge")).toHaveText(
-        "Precomputed example",
-      );
-      const baseline = await exported(page, `${name}-baseline`),
-        original = baseline.project;
-      const { card, number, range } = controls(page, "width", example);
-      await card.click();
-      const initial = +(await number.inputValue()),
-        typed = initial + 0.125;
-      await number.fill(String(typed));
-      await expect(range).toHaveAttribute(
-        "aria-valuetext",
-        `${typed} nanometers`,
-      );
-      const afterDrag = await drag(page, range, touch);
-      await expect(number).toHaveValue(String(afterDrag));
-      await capture(page, report, output, `${name}-width-slider`, {
-        prefix: "dimension-slider",
-      });
-      await closeSheet(page);
-      await preserved(
-        page,
-        changedWidth(original, example, afterDrag),
-        baseline,
-        `${name}-drag`,
-      );
-      await menuAction(page, "↶ Undo");
-      await preserved(
-        page,
-        changedWidth(original, example, typed),
-        baseline,
-        `${name}-undo-drag`,
-      );
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-undo-typing`);
-      await menuAction(page, "↷ Redo");
-      await menuAction(page, "↷ Redo");
-      await preserved(
-        page,
-        changedWidth(original, example, afterDrag),
-        baseline,
-        `${name}-redo`,
-      );
-      await reset(page);
-
-      // A canceled gesture and a fresh gesture on the still-focused range are
-      // exactly two edits, even when the browser sends multiple end signals.
-      await card.click();
-      const canceled = await drag(page, range, touch, 24, true);
-      const second = await drag(page, range, touch, 24);
-      await closeSheet(page, "Escape");
-      await menuAction(page, "↶ Undo");
-      await preserved(
-        page,
-        changedWidth(original, example, canceled),
-        baseline,
-        `${name}-undo-second`,
-      );
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-undo-canceled`);
-      assert.notEqual(second, canceled);
-      await reset(page);
-
-      await card.click();
-      await range.focus();
-      for (let count = 0; count < 3; count++)
-        await page.keyboard.down("ArrowRight");
-      await page.keyboard.up("ArrowRight");
-      await expect(number).toHaveValue(String(initial + 3));
-      await closeSheet(page, "Close settings");
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-held-key-undo`);
-      await reset(page);
-
-      await card.click();
-      await range.focus();
-      await page.keyboard.down("ArrowRight");
-      await closeSheet(page, "Escape");
-      await page.keyboard.up("ArrowRight");
-      await card.click();
-      await number.fill(String(initial + 2));
-      await closeSheet(page);
-      await menuAction(page, "↶ Undo");
-      await preserved(
-        page,
-        changedWidth(original, example, initial + 1),
-        baseline,
-        `${name}-escape-new-edit-undo`,
-      );
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-escape-held-key-undo`);
-      await reset(page);
-
-      const pitch = controls(page, "pitch", example);
-      await pitch.card.click();
-      await expect(pitch.range).toHaveAttribute(
-        "max",
-        String(Math.ceil(Math.max(200, 2 * original.period_nm) / 100) * 100),
-      );
-      await pitch.number.fill("4200.123456789");
-      await expect(pitch.range).toHaveAttribute("max", "5000");
-      await expect(pitch.number).toHaveValue("4200.123456789");
-      await expect(pitch.range).toHaveAttribute(
-        "aria-valuetext",
-        "4200.123456789 nanometers",
-      );
-      await capture(page, report, output, `${name}-exact-large-pitch`, {
-        prefix: "dimension-slider",
-      });
-      await closeSheet(page, "Escape");
-      const large = structuredClone(original);
-      large.period_nm = 4200.123456789;
-      await preserved(page, large, baseline, `${name}-exact-large`);
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-undo-large`);
-      await reset(page);
-
-      const thickness = controls(page, "height", example);
-      await thickness.card.click();
-      await expect(thickness.range).toHaveAttribute(
-        "max",
-        String(
-          Math.min(
-            2000,
-            Math.ceil(
-              Math.max(200, 2 * original.layers[0].thickness_nm) / 100,
-            ) * 100,
-          ),
-        ),
-      );
-      await thickness.range.focus();
-      await page.keyboard.press("Home");
-      await expect(thickness.number).toHaveValue("0");
-      await closeSheet(page);
-      await menuAction(page, "↶ Undo");
-      await preserved(page, original, baseline, `${name}-zero-thickness-undo`);
-      await reset(page);
-      if (width === 360) {
-        await page
-          .getByRole("button", {
-            name: example === "1d" ? "Layer settings" : "Layer settings ↗",
-            exact: true,
-          })
-          .click();
-        const layerRange = page
-          .locator("dialog.inspector .dimension-field .dimension-range input")
-          .first();
-        await expect(layerRange).toHaveAccessibleName("Thickness range");
-        assert.equal(
-          await page.evaluate(
-            () => document.documentElement.scrollWidth <= innerWidth,
-          ),
-          true,
+      try {
+        let baseline;
+        const ready = await runBrowserScenario(
+          report,
+          `${name}-setup`,
+          async () => {
+            await page.goto(url.href);
+            await expect(page.locator(".result-badge")).toHaveText(
+              "Precomputed example",
+            );
+            baseline = await exported(page, `${name}-baseline`);
+          },
         );
-        assert.equal(
-          await page
-            .locator("dialog.inspector")
-            .evaluate((node) => node.scrollWidth <= node.clientWidth),
-          true,
-        );
-        await swipeVertically(page, layerRange);
-        await capture(page, report, output, `${name}-layer-settings-scroll`, {
-          prefix: "dimension-slider",
+        if (!ready) continue;
+        const original = baseline.project;
+        const { card, number, range } = controls(page, "width", example);
+        const initial =
+          original.layers[0][
+            example === "circle"
+              ? "diameter_nm"
+              : example === "1d"
+                ? "cd_nm"
+                : "cd_x_nm"
+          ];
+        await scenario(`${name}-typed-to-drag`, page, requests, async () => {
+          await card.click();
+          const typed = initial + 0.125;
+          await number.fill(String(typed));
+          await expect(range).toHaveAttribute(
+            "aria-valuetext",
+            `${typed} nanometers`,
+          );
+          const afterDrag = await drag(page, range, touch);
+          await expect(number).toHaveValue(String(afterDrag));
+          await capture(page, report, output, `${name}-width-slider`, {
+            prefix: "dimension-slider",
+          });
+          await closeSheet(page);
+          await preserved(
+            page,
+            changedWidth(original, example, afterDrag),
+            baseline,
+            `${name}-drag`,
+          );
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            changedWidth(original, example, typed),
+            baseline,
+            `${name}-undo-drag`,
+          );
+          await menuAction(page, "↶ Undo");
+          await preserved(page, original, baseline, `${name}-undo-typing`);
+          await menuAction(page, "↷ Redo");
+          await menuAction(page, "↷ Redo");
+          await preserved(
+            page,
+            changedWidth(original, example, afterDrag),
+            baseline,
+            `${name}-redo`,
+          );
         });
-        const depth = await drag(page, layerRange, true, 24);
-        await closeSheet(page, "Close settings");
-        const edited = structuredClone(original);
-        edited.layers[0].thickness_nm = depth;
-        await preserved(page, edited, baseline, `${name}-layer-drag`);
-        await menuAction(page, "↶ Undo");
-        await preserved(page, original, baseline, `${name}-layer-drag-undo`);
-        await reset(page);
+        await scenario(`${name}-drag-to-typing`, page, requests, async () => {
+          await card.click();
+          const changed = await drag(page, range, touch);
+          if (touch) await expect(number).toBeFocused();
+          await number.fill(String(changed + 0.125));
+          await number.fill(String(changed + 0.25));
+          await closeSheet(page);
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            changedWidth(original, example, changed),
+            baseline,
+            `${name}-undo-resumed-typing`,
+          );
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            original,
+            baseline,
+            `${name}-undo-before-resumed-typing`,
+          );
+        });
+        await scenario(`${name}-no-op-touch`, page, requests, async () => {
+          await card.click();
+          await number.fill(String(initial + 1));
+          await drag(page, range, touch, 0);
+          if (touch) {
+            await expect(number).toBeFocused();
+            await number.fill(String(initial + 2));
+          }
+          await closeSheet(page);
+          await menuAction(page, "↶ Undo");
+          await preserved(page, original, baseline, `${name}-no-op-touch-undo`);
+        });
+        await scenario(`${name}-canceled-repeat`, page, requests, async () => {
+          // A canceled gesture and a fresh gesture on the still-focused range are
+          // exactly two edits, even when the browser sends multiple end signals.
+          await card.click();
+          const canceled = await drag(page, range, touch, 24, true);
+          const second = await drag(page, range, touch, 24);
+          await closeSheet(page, "Escape");
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            changedWidth(original, example, canceled),
+            baseline,
+            `${name}-undo-second`,
+          );
+          await menuAction(page, "↶ Undo");
+          await preserved(page, original, baseline, `${name}-undo-canceled`);
+          assert.notEqual(second, canceled);
+        });
+        await scenario(`${name}-held-key`, page, requests, async () => {
+          await card.click();
+          await range.focus();
+          for (let count = 0; count < 3; count++)
+            await page.keyboard.down("ArrowRight");
+          await page.keyboard.up("ArrowRight");
+          await expect(number).toHaveValue(String(initial + 3));
+          await closeSheet(page, "Close settings");
+          await menuAction(page, "↶ Undo");
+          await preserved(page, original, baseline, `${name}-held-key-undo`);
+        });
+        await scenario(`${name}-escape-key`, page, requests, async () => {
+          await card.click();
+          await range.focus();
+          await page.keyboard.down("ArrowRight");
+          await closeSheet(page, "Escape");
+          await page.keyboard.up("ArrowRight");
+          await card.click();
+          await number.fill(String(initial + 2));
+          await closeSheet(page);
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            changedWidth(original, example, initial + 1),
+            baseline,
+            `${name}-escape-new-edit-undo`,
+          );
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            original,
+            baseline,
+            `${name}-escape-held-key-undo`,
+          );
+        });
+        await scenario(`${name}-exact-pitch`, page, requests, async () => {
+          const pitch = controls(page, "pitch", example);
+          await pitch.card.click();
+          await expect(pitch.range).toHaveAttribute(
+            "max",
+            String(
+              Math.ceil(Math.max(200, 2 * original.period_nm) / 100) * 100,
+            ),
+          );
+          await pitch.number.fill("4200.123456789");
+          await expect(pitch.range).toHaveAttribute("max", "5000");
+          await expect(pitch.number).toHaveValue("4200.123456789");
+          await expect(pitch.range).toHaveAttribute(
+            "aria-valuetext",
+            "4200.123456789 nanometers",
+          );
+          await capture(page, report, output, `${name}-exact-large-pitch`, {
+            prefix: "dimension-slider",
+          });
+          await closeSheet(page, "Escape");
+          const large = structuredClone(original);
+          large.period_nm = 4200.123456789;
+          await preserved(page, large, baseline, `${name}-exact-large`);
+          await menuAction(page, "↶ Undo");
+          await preserved(page, original, baseline, `${name}-undo-large`);
+        });
+        await scenario(`${name}-zero-thickness`, page, requests, async () => {
+          const thickness = controls(page, "height", example);
+          await thickness.card.click();
+          await expect(thickness.range).toHaveAttribute(
+            "max",
+            String(
+              Math.min(
+                2000,
+                Math.ceil(
+                  Math.max(200, 2 * original.layers[0].thickness_nm) / 100,
+                ) * 100,
+              ),
+            ),
+          );
+          await thickness.range.focus();
+          await page.keyboard.press("Home");
+          await expect(thickness.number).toHaveValue("0");
+          await closeSheet(page);
+          await menuAction(page, "↶ Undo");
+          await preserved(
+            page,
+            original,
+            baseline,
+            `${name}-zero-thickness-undo`,
+          );
+        });
+        if (width === 360)
+          await scenario(`${name}-layer-scroll`, page, requests, async () => {
+            await page
+              .getByRole("button", {
+                name: example === "1d" ? "Layer settings" : "Layer settings ↗",
+                exact: true,
+              })
+              .click();
+            const layerRange = page
+              .locator(
+                "dialog.inspector .dimension-field .dimension-range input",
+              )
+              .first();
+            await expect(layerRange).toHaveAccessibleName("Thickness range");
+            assert.equal(
+              await page.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+              ),
+              true,
+            );
+            assert.equal(
+              await page
+                .locator("dialog.inspector")
+                .evaluate((node) => node.scrollWidth <= node.clientWidth),
+              true,
+            );
+            await swipeVertically(page, layerRange);
+            await capture(
+              page,
+              report,
+              output,
+              `${name}-layer-settings-scroll`,
+              {
+                prefix: "dimension-slider",
+              },
+            );
+            const depth = await drag(page, layerRange, true, 24);
+            await closeSheet(page, "Close settings");
+            const edited = structuredClone(original);
+            edited.layers[0].thickness_nm = depth;
+            await preserved(page, edited, baseline, `${name}-layer-drag`);
+            await menuAction(page, "↶ Undo");
+            await preserved(
+              page,
+              original,
+              baseline,
+              `${name}-layer-drag-undo`,
+            );
+          });
+        if (
+          report.groups
+            .filter((group) => group.name.startsWith(`${name}-`))
+            .every((group) => group.status === "passed")
+        )
+          report.checks.push(
+            `${name}: all native pointer, keyboard, exact-value and history scenarios passed.`,
+          );
+      } finally {
+        await context.close();
       }
-      assert.deepEqual(
-        requests,
-        [],
-        "Static slider interactions never request validation, solving or saving",
-      );
-      report.checks.push(
-        `${name}: native ${touch ? "touch + touchcancel" : "mouse + window-blur"}, typed-to-drag separation, repeated gestures, exact Undo/Redo/result identity, held physical keys, local bounds and full-domain exact entry passed.`,
-      );
-      await context.close();
     }
 
   // Fractional true limits, zero-span pitch and huge-period/small-hole reuse.
@@ -429,77 +537,89 @@ try {
   await page.goto(preview);
   await expect(page.locator(".result-badge")).toHaveText("Precomputed example");
   const baseline = await exported(page, "edge-baseline");
-  const edge = structuredClone(baseline.project);
-  edge.period_nm = 5000;
-  edge.period_y_nm = 140.25;
-  edge.layers[0].diameter_nm = 70.123456789;
-  await importText(page, { project: edge }, "slider-fractional-edge");
-  await applyImportedDesign(page);
   const field = controls(page, "width", "circle");
-  await field.card.click();
-  await expect(field.number).toHaveValue("70.123456789");
-  await expect(field.range).toHaveAttribute("max", "140.25");
-  await field.range.focus();
-  await page.keyboard.press("End");
-  await expect(field.number).toHaveValue("140.25");
-  await closeSheet(page);
-  await menuAction(page, "↶ Undo");
-  await preserved(page, edge, baseline, "fractional-endpoint-undo");
-  edge.period_y_nm = 5000;
-  await importText(page, { project: edge }, "slider-huge-pitch");
-  await applyImportedDesign(page);
-  await field.card.click();
-  await expect(field.range).toHaveAttribute("max", "200");
-  await closeSheet(page);
-  edge.layers[0].diameter_nm = 5000;
-  await importText(page, { project: edge }, "slider-zero-span");
-  await applyImportedDesign(page);
-  const pitch = controls(page, "pitch", "circle");
-  await pitch.card.click();
-  await expect(pitch.range).toBeDisabled();
-  await expect(pitch.range).toHaveAttribute("min", "5000");
-  await expect(pitch.range).toHaveAttribute("max", "5000");
-  await expect(pitch.number).toHaveValue("5000");
-  await closeSheet(page);
-  const fractional = structuredClone(baseline.project);
-  fractional.period_nm = 150.12345678901234;
-  fractional.period_y_nm = 140.12345678901234;
-  fractional.layers[0].geometry = "rectangle_2d";
-  fractional.layers[0].cd_x_nm = 70.12345678901234;
-  fractional.layers[0].cd_y_nm = 60.12345678901234;
-  delete fractional.layers[0].diameter_nm;
-  await importText(page, { project: fractional }, "slider-long-grid-labels");
-  await applyImportedDesign(page);
-  await page
-    .getByRole("button", { name: "Layer settings ↗", exact: true })
-    .click();
-  const grid = page.locator("dialog.inspector .field-grid");
-  await grid.scrollIntoViewIfNeeded();
-  assert.equal(
+  await scenario("edge-fractional-endpoint", page, edgeRequests, async () => {
+    const edge = structuredClone(baseline.project);
+    edge.period_nm = 5000;
+    edge.period_y_nm = 140.25;
+    edge.layers[0].diameter_nm = 70.123456789;
+    await importText(page, { project: edge }, "slider-fractional-edge");
+    await applyImportedDesign(page);
+    await field.card.click();
+    await expect(field.number).toHaveValue("70.123456789");
+    await expect(field.range).toHaveAttribute("max", "140.25");
+    await field.range.focus();
+    await page.keyboard.press("End");
+    await expect(field.number).toHaveValue("140.25");
+    await closeSheet(page);
+    await menuAction(page, "↶ Undo");
+    await preserved(page, edge, baseline, "fractional-endpoint-undo");
+  });
+  await scenario("edge-huge-pitch", page, edgeRequests, async () => {
+    const edge = structuredClone(baseline.project);
+    edge.period_nm = 5000;
+    edge.period_y_nm = 5000;
+    edge.layers[0].diameter_nm = 70.123456789;
+    await importText(page, { project: edge }, "slider-huge-pitch");
+    await applyImportedDesign(page);
+    await field.card.click();
+    await expect(field.range).toHaveAttribute("max", "200");
+    await closeSheet(page);
+  });
+  await scenario("edge-zero-span", page, edgeRequests, async () => {
+    const edge = structuredClone(baseline.project);
+    edge.period_nm = 5000;
+    edge.period_y_nm = 5000;
+    edge.layers[0].diameter_nm = 5000;
+    await importText(page, { project: edge }, "slider-zero-span");
+    await applyImportedDesign(page);
+    const pitch = controls(page, "pitch", "circle");
+    await pitch.card.click();
+    await expect(pitch.range).toBeDisabled();
+    await expect(pitch.range).toHaveAttribute("min", "5000");
+    await expect(pitch.range).toHaveAttribute("max", "5000");
+    await expect(pitch.number).toHaveValue("5000");
+    await closeSheet(page);
+  });
+  await scenario("edge-fractional-grid", page, edgeRequests, async () => {
+    const fractional = structuredClone(baseline.project);
+    fractional.period_nm = 150.12345678901234;
+    fractional.period_y_nm = 140.12345678901234;
+    fractional.layers[0].geometry = "rectangle_2d";
+    fractional.layers[0].cd_x_nm = 70.12345678901234;
+    fractional.layers[0].cd_y_nm = 60.12345678901234;
+    delete fractional.layers[0].diameter_nm;
+    await importText(page, { project: fractional }, "slider-long-grid-labels");
+    await applyImportedDesign(page);
     await page
-      .locator("dialog.inspector")
-      .evaluate((node) => node.scrollWidth <= node.clientWidth),
-    true,
-  );
-  for (const label of await grid.locator(".range-labels > span").all())
+      .getByRole("button", { name: "Layer settings ↗", exact: true })
+      .click();
+    const grid = page.locator("dialog.inspector .field-grid");
+    await grid.scrollIntoViewIfNeeded();
     assert.equal(
-      await label.evaluate((node) => node.scrollWidth <= node.clientWidth),
+      await page
+        .locator("dialog.inspector")
+        .evaluate((node) => node.scrollWidth <= node.clientWidth),
       true,
     );
-  await capture(page, report, output, "fractional-grid-endpoints", {
-    prefix: "dimension-slider",
+    for (const label of await grid.locator(".range-labels > span").all())
+      assert.equal(
+        await label.evaluate((node) => node.scrollWidth <= node.clientWidth),
+        true,
+      );
+    await capture(page, report, output, "fractional-grid-endpoints", {
+      prefix: "dimension-slider",
+    });
+    await closeSheet(page, "Close settings");
   });
-  await closeSheet(page, "Close settings");
-  assert.deepEqual(
-    edgeRequests,
-    [],
-    "Edge imports and slider edits are API-free",
-  );
   await context.close();
-  report.checks.push(
-    "Fractional physical max remains reachable; off-grid exact imports do not snap; huge periods retain a usable small-diameter range; a zero-span range is disabled.",
-  );
   assert.deepEqual(report.pageErrors, []);
+  assert.equal(
+    report.groups.length,
+    88,
+    "Every required scenario and setup was reported",
+  );
+  assert.deepEqual(report.issues, [], "Every independent scenario must pass");
   report.status = "passed";
 } catch (error) {
   report.status = "failed";

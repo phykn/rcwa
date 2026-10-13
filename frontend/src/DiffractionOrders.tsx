@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { PublicForwardResult2D, PublicOrderPower2D } from "./result2d";
 import "./diffractionOrders.css";
 
@@ -28,6 +29,23 @@ export function resetOrderTableScroll(
   table: Pick<HTMLDivElement, "scrollTo"> | null,
 ) {
   table?.scrollTo({ top: 0, behavior: "instant" });
+}
+/** Own boundary navigation only while the table region itself has focus. */
+export function handleOrderTableKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+  if (
+    event.target !== event.currentTarget ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    event.shiftKey ||
+    (event.key !== "Home" && event.key !== "End")
+  )
+    return;
+  event.preventDefault();
+  event.currentTarget.scrollTo({
+    top: event.key === "Home" ? 0 : event.currentTarget.scrollHeight,
+    behavior: "instant",
+  });
 }
 function Power({
   value,
@@ -176,6 +194,7 @@ export function DiffractionOrders({
         role="region"
         aria-label="All retained diffraction orders"
         tabIndex={0}
+        onKeyDown={handleOrderTableKeyDown}
       >
         <table className="order-table">
           <caption className="sr-only">

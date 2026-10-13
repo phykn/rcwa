@@ -276,20 +276,24 @@ jobs:
         working-directory: frontend
         env:
           VITE_STATIC_PREVIEW: 'true'
-      - name: Check live solver and mobile static preview
+      - name: Prepare shared browser servers and reference inputs
+        id: browser_setup
         shell: bash
         run: |
           set -euo pipefail
           python scripts/build_2d_ui_reference.py --check
           python scripts/build_circular_ui_reference.py --check
           python scripts/generate_frontend_2d_conformance.py --check
-          PYTHONPATH=backend python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 > /tmp/rcwa-api.log 2>&1 &
-          api_pid=$!
-          (cd frontend && npm run dev -- --strictPort) > /tmp/rcwa-vite.log 2>&1 &
-          vite_pid=$!
-          python -m http.server 4173 --bind 127.0.0.1 --directory frontend/dist > /tmp/rcwa-static.log 2>&1 &
-          static_pid=$!
-          trap 'kill "$api_pid" "$vite_pid" "$static_pid" 2>/dev/null || true' EXIT
+          mkdir -p artifacts
+          : > "$RUNNER_TEMP/rcwa-browser-server-pids"
+          # Owned process groups survive step boundaries and are stopped below,
+          # including npm/Vite children; do not start duplicate solver servers.
+          setsid env PYTHONPATH=backend python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 > /tmp/rcwa-api.log 2>&1 &
+          echo "$!" >> "$RUNNER_TEMP/rcwa-browser-server-pids"
+          setsid bash -c 'cd frontend && exec npm run dev -- --strictPort' > /tmp/rcwa-vite.log 2>&1 &
+          echo "$!" >> "$RUNNER_TEMP/rcwa-browser-server-pids"
+          setsid python -m http.server 4173 --bind 127.0.0.1 --directory frontend/dist > /tmp/rcwa-static.log 2>&1 &
+          echo "$!" >> "$RUNNER_TEMP/rcwa-browser-server-pids"
           for url in http://127.0.0.1:8000/api/health http://127.0.0.1:5173 http://127.0.0.1:4173; do
             ready=false
             for attempt in $(seq 1 60); do
@@ -301,8 +305,45 @@ jobs:
               exit 1
             fi
           done
-          # Each suite starts independent browser sessions. Collect every suite's
-          # evidence even if one fails, while preserving an aggregate failure.
+      - name: Check spectrum, import review and dimension sliders early
+        id: browser_early
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Spectrum needs this genuine one-wavelength CLI export. Produce it
+          # once here; the later workflow suite reuses the same export/report.
+          status=0
+          timeout 60s python scripts/agent_example.py \
+            --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
+            --output artifacts/circular-agent-best.json --report artifacts/circular-agent-report.json \
+            > artifacts/circular-agent-cli.log 2>&1 || status=1
+          (cd frontend && timeout 240s node scripts/spectrum-browser-qa.mjs) 2>&1 | tee artifacts/spectrum-browser-qa.log || status=1
+          (cd frontend && timeout 240s node scripts/import-review-browser-qa.mjs) 2>&1 | tee artifacts/import-review-browser-qa.log || status=1
+          (cd frontend && timeout 240s node scripts/dimension-slider-browser-qa.mjs) 2>&1 | tee artifacts/dimension-slider-browser-qa.log || status=1
+          exit "$status"
+      - name: Retain early browser failure evidence immediately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-qa-early
+          path: |
+            artifacts/spectrum-*
+            artifacts/import-review-*
+            artifacts/dimension-slider-*
+            artifacts/circular-agent-*
+            /tmp/rcwa-api.log
+            /tmp/rcwa-vite.log
+            /tmp/rcwa-static.log
+          retention-days: 1
+          if-no-files-found: warn
+      - name: Check remaining live solver and mobile static preview suites
+        id: browser_remaining
+        if: ${{ !cancelled() && steps.browser_setup.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Continue after an early assertion or upload failure. Each suite still
+          # contributes its real exit status; no continue-on-error can mask it.
           status=0
           (cd frontend && timeout 180s node scripts/first-use-browser-qa.mjs) || status=1
           (cd frontend && timeout 120s node scripts/first-use-touch-qa.mjs) || status=1
@@ -311,25 +352,37 @@ jobs:
           (cd frontend && timeout 300s node scripts/svg-fallback-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/progressive-renderer-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/circular-browser-qa.mjs) || status=1
-          (cd frontend && timeout 240s node scripts/dimension-slider-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
-          timeout 60s python scripts/agent_example.py \
-            --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
-            --output artifacts/circular-agent-best.json --report artifacts/circular-agent-report.json \
-            > artifacts/circular-agent-cli.log 2>&1 || status=1
-          (cd frontend && timeout 240s node scripts/spectrum-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/design-handoff-browser-qa.mjs) || status=1
-          (cd frontend && timeout 240s node scripts/import-review-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/multilayer-browser-qa.mjs) || status=1
           exit "$status"
-      - name: Collect local browser server logs
+      - name: Stop owned browser servers and collect logs
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
+          if [ -f "$RUNNER_TEMP/rcwa-browser-server-pids" ]; then
+            mapfile -t server_pids < "$RUNNER_TEMP/rcwa-browser-server-pids"
+            for pid in "${server_pids[@]}"; do
+              kill -TERM -- "-$pid" 2>/dev/null || true
+            done
+            for attempt in $(seq 1 40); do
+              running=false
+              for pid in "${server_pids[@]}"; do
+                if kill -0 -- "-$pid" 2>/dev/null; then running=true; fi
+              done
+              if [ "$running" = false ]; then break; fi
+              sleep 0.25
+            done
+            for pid in "${server_pids[@]}"; do
+              kill -KILL -- "-$pid" 2>/dev/null || true
+            done
+            rm "$RUNNER_TEMP/rcwa-browser-server-pids"
+          fi
           mkdir -p artifacts
           for log in /tmp/rcwa-api.log /tmp/rcwa-vite.log /tmp/rcwa-static.log; do
             if [ -f "$log" ]; then cp "$log" artifacts/; fi
@@ -363,3 +416,14 @@ jobs:
             artifacts/rcwa-*.log
           retention-days: 1
           if-no-files-found: warn
+      - name: Require every browser group to pass
+        if: always()
+        env:
+          SETUP_RESULT: ${{ steps.browser_setup.outcome }}
+          EARLY_RESULT: ${{ steps.browser_early.outcome }}
+          REMAINING_RESULT: ${{ steps.browser_remaining.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Browser groups: setup=%s early=%s remaining=%s\n' "$SETUP_RESULT" "$EARLY_RESULT" "$REMAINING_RESULT"
+          [[ "$SETUP_RESULT" == success && "$EARLY_RESULT" == success && "$REMAINING_RESULT" == success ]]

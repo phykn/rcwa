@@ -85,8 +85,11 @@ R/T contributions first, with original retained order breaking ties. Every
 small signed contribution, including signed zero, remains unchanged and visible. **Exact values** exposes the
 full stored numeric values; **Outgoing local s/p** adds the local reflected and
 transmitted port components, distinct from incident polarization. The table is
-keyboard-focusable and scrolls within the spectrum panel. Changing the selected
-sample, polarization or result resets only table scroll, without moving focus.
+keyboard-focusable and scrolls within the spectrum panel. When the table region
+itself is focused, unmodified Home/End immediately jump to its top/bottom without
+moving focus. Arrow/Page keys, modified keys and child controls keep native
+behavior. Changing the selected sample, polarization or result resets only table
+scroll, without moving focus.
 
 The table always follows the displayed, input-bound result, even while edited
 inputs make it stale. It never derives ports from current geometry, filters

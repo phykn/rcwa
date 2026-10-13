@@ -2489,6 +2489,17 @@ export default function App() {
             )
               beginEdit();
           }}
+          onChangeCapture={(event) => {
+            // Native touch ranges can leave a number field focused. Reopen its
+            // typing transaction after the range gesture ends, without a blur.
+            if (
+              !(is2D && (sheet === "width" || sheet === "pitch")) &&
+              (event.target as HTMLElement).matches(
+                "input:not([type=file]):not([type=range]), textarea",
+              )
+            )
+              beginEdit();
+          }}
           onBlurCapture={(event) => {
             if (
               !(is2D && (sheet === "width" || sheet === "pitch")) &&

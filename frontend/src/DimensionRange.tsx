@@ -58,6 +58,16 @@ export function dimensionPointerValue(
   return Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
 }
 
+/** Native touch can leave the exact number field focused throughout a drag. */
+export function beginDimensionRangeEdit(
+  active: boolean,
+  onBeginEdit: () => void,
+  onEndEdit: () => void,
+): void {
+  if (!active) onEndEdit();
+  onBeginEdit();
+}
+
 const exactText = (value: number) =>
   Object.is(value, -0) ? "-0" : String(value);
 
@@ -139,9 +149,13 @@ export function DimensionRange({
       Object.is(next, value)
     )
       return;
-    // Reasserting this idempotent reducer action also handles native focus
-    // transfer: the number field's blur must not split a range gesture.
-    callbacks.current.onBeginEdit();
+    // Settle preceding exact typing even when native touch keeps its focus.
+    // Later frames only reassert the idempotent start, preserving one drag edit.
+    beginDimensionRangeEdit(
+      active.current,
+      callbacks.current.onBeginEdit,
+      callbacks.current.onEndEdit,
+    );
     active.current = true;
     callbacks.current.onChange(next);
     if (pointer.current === null && keys.current.size === 0) finish();
@@ -161,8 +175,8 @@ export function DimensionRange({
           if (disabled || !event.isPrimary || event.button !== 0) return;
           finish();
           pointer.current = event.pointerId;
-          // Native focus/blur happens before the first input event. Merely
-          // touching/focusing the control does not create an edit transaction.
+          // Merely touching/focusing the control does not create an edit.
+          // The first actual change separates any still-focused number edit.
         }}
         onLostPointerCapture={(event) => {
           if (event.pointerId === pointer.current) finish();

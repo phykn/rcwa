@@ -10,5 +10,6 @@ describe("review footer touch targets", () => {
     expect(rule).toBeDefined();
     expect(rule).toMatch(/min-inline-size:\s*44px\s*;/);
     expect(rule).toMatch(/min-block-size:\s*44px\s*;/);
+    expect(rule).toMatch(/scroll-margin-block-end:\s*8px\s*;/);
   });
 });

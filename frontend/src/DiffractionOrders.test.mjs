@@ -9,6 +9,7 @@ import {
   exactOrderPower,
   rankedDiffractionOrders,
   resetOrderTableScroll,
+  handleOrderTableKeyDown,
 } from "./DiffractionOrders";
 import { bindResult2D } from "./result2d";
 import { SpectrumPlot } from "./Visuals";
@@ -238,4 +239,60 @@ describe("deliberate table scroll reset", () => {
   it("does nothing after the table has unmounted", () => {
     expect(() => resetOrderTableScroll(null)).not.toThrow();
   });
+});
+
+describe("table-owned Home/End navigation", () => {
+  function event(key, changes = {}) {
+    const region = { scrollHeight: 13000, scrollTo: vi.fn(), focus: vi.fn() };
+    return {
+      key,
+      target: region,
+      currentTarget: region,
+      preventDefault: vi.fn(),
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+      ...changes,
+    };
+  }
+  it.each([
+    ["Home", 0],
+    ["End", 13000],
+  ])("handles unmodified %s instantly without changing focus", (key, top) => {
+    const press = event(key);
+    handleOrderTableKeyDown(press);
+    expect(press.preventDefault).toHaveBeenCalledTimes(1);
+    expect(press.currentTarget.scrollTo).toHaveBeenCalledExactlyOnceWith({
+      top,
+      behavior: "instant",
+    });
+    expect(press.currentTarget.focus).not.toHaveBeenCalled();
+  });
+  it.each(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Tab", "Escape"])(
+    "leaves %s native",
+    (key) => {
+      const press = event(key);
+      handleOrderTableKeyDown(press);
+      expect(press.preventDefault).not.toHaveBeenCalled();
+      expect(press.currentTarget.scrollTo).not.toHaveBeenCalled();
+    },
+  );
+  for (const key of ["Home", "End"]) {
+    it.each(["ctrlKey", "metaKey", "altKey", "shiftKey"])(
+      `leaves modified ${key} (%s) native`,
+      (modifier) => {
+        const press = event(key, { [modifier]: true });
+        handleOrderTableKeyDown(press);
+        expect(press.preventDefault).not.toHaveBeenCalled();
+        expect(press.currentTarget.scrollTo).not.toHaveBeenCalled();
+      },
+    );
+    it(`does not handle ${key} from a child control`, () => {
+      const press = event(key, { target: {} });
+      handleOrderTableKeyDown(press);
+      expect(press.preventDefault).not.toHaveBeenCalled();
+      expect(press.currentTarget.scrollTo).not.toHaveBeenCalled();
+    });
+  }
 });

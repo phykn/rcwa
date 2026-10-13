@@ -6,6 +6,7 @@ import { chromium, expect } from "@playwright/test";
 import { capture, importText } from "./browser-2d-controls.mjs";
 import {
   assertOrders,
+  assertImportedOrders,
   inspectOrders,
 } from "./diffraction-orders-browser-qa.mjs";
 
@@ -72,6 +73,9 @@ async function imported(page, data, name) {
   await importText(page, data, name);
   await expect(page.locator(".result-badge")).toHaveText("Unverified import");
   await expect(page.locator(".message.success")).toContainText("JSON loaded.");
+  // Badge/notice text may already describe the preceding import. Wait for the
+  // actual incoming selected result, including every retained order and class.
+  await assertImportedOrders(page, data.result);
 }
 try {
   browser = await chromium.launch({
