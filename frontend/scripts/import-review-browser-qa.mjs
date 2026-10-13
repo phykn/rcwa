@@ -11,6 +11,7 @@ import {
   applyImportedDesign,
   capture,
 } from "./browser-2d-controls.mjs";
+import { dimensionProposalBrowserCases } from "./dimension-proposal-browser-cases.mjs";
 import { recordNativeModalKeyboard } from "./browser-native-dialog-focus.mjs";
 
 const output = new URL("../../artifacts/", import.meta.url).pathname;
@@ -794,6 +795,7 @@ try {
       await openReview(page, editedInputs(), `review-before-${name}`);
       await importFile(page, data, name);
       await expect(page.locator(".message.error")).toContainText(pattern);
+      await expect(page.locator(".message.error")).toContainText("remove the result and result_project fields");
       await noReview(page);
       await assertPreserved(page, baseline, `${name}-preserved`);
       await expect(page.locator(".result-badge")).toHaveText(
@@ -898,6 +900,7 @@ try {
     },
     true,
   );
+  await dimensionProposalBrowserCases({ group, exported, importFile, assertPreserved, shot, menuAction, editName });
   assert.deepEqual(
     report.issues,
     [],

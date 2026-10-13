@@ -169,7 +169,7 @@ async def test_mcp_snapshot_responses_are_bound_to_input_and_provenance(solved_2
 async def test_real_stdio_2d_compute_snapshot_and_reload(real_api, mode):
     async with Client(parameters(real_api), mode=mode, read_timeout_seconds=15) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-        assert len(tools) == 11
+        assert len(tools) == 12
         caps = await call(client, "rcwa_capabilities")
         Draft202012Validator(tools["rcwa_capabilities"].output_schema).validate(caps)
         assert caps["project_profiles"]["1.2"]["adapter_version"] == "1.3.0"

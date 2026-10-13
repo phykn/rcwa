@@ -276,7 +276,7 @@ async def test_transport_allows_only_exact_read_routes_and_no_discovery_argument
 
 def test_new_tool_advertises_readonly_bounded_schema_and_explicit_input_view():
     tools = {operation.name: operation.tool() for operation in OPERATIONS}
-    assert len(tools) == 11
+    assert len(tools) == 12
     listing = tools['rcwa_list_snapshots']
     assert listing.annotations.read_only_hint and listing.annotations.idempotent_hint
     assert not listing.annotations.destructive_hint and not listing.annotations.open_world_hint

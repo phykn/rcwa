@@ -82,7 +82,7 @@ jobs:
           RCWA_STDIO_DIAGNOSTIC_DIR: artifacts/windows-stdio-stacks
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py backend/tests/test_mcp_saved_design_reuse.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
+          python -m pytest backend/tests/test_2d_mcp_contracts.py backend/tests/test_2d_mcp_transport.py backend/tests/test_mcp_summaries.py backend/tests/test_mcp_saved_design_reuse.py backend/tests/test_mcp_2d_change_preview.py -q --junitxml=artifacts/windows-mcp-2d.xml 2>&1 | Tee-Object -FilePath artifacts/windows-mcp-2d.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/setup-node@v4
         with:
@@ -316,13 +316,13 @@ jobs:
             --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
             --output artifacts/circular-agent-best.json --report artifacts/circular-agent-report.json \
             > artifacts/circular-agent-cli.log 2>&1 || status=1
-          (cd frontend && timeout 180s node scripts/spectrum-browser-qa.mjs) || status=1
+          (cd frontend && timeout 240s node scripts/spectrum-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/snapshot-browser-qa.mjs) || status=1
           (cd frontend && timeout 180s node scripts/contract-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/workflow-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/design-handoff-browser-qa.mjs) || status=1
-          (cd frontend && timeout 180s node scripts/import-review-browser-qa.mjs) || status=1
+          (cd frontend && timeout 240s node scripts/import-review-browser-qa.mjs) || status=1
           (cd frontend && timeout 240s node scripts/multilayer-browser-qa.mjs) || status=1
           exit "$status"
       - name: Collect local browser server logs

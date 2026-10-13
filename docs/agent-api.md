@@ -131,6 +131,7 @@ Explore the running API at `http://127.0.0.1:8000/docs` or fetch `http://127.0.0
 | Seed | `GET /api/example` or `GET /api/example?example=circular_hole_2d` | Unchanged Project 1.0 default or explicit current circular Project 1.2 input; synthetic constants, no result |
 | Validate | `POST /api/validate` | Send a Project directly, without a `project` wrapper. Returns `{valid, project, diagnostics, input_hash}` for schema-valid inputs; `project` is normalized. Schema-invalid requests return HTTP 422 with structured diagnostics |
 | Preview edits | `POST /api/change-preview` | `{"base_project": Project, "changes": {"cd_nm": 140}}` → a versioned geometry proposal, normalized inputs, hashes, typed diff and candidate preflight diagnostics; no solve, save or apply |
+| Preview 2D dimensions | `POST /api/2d-change-preview` | Explicit Project 1.2 base plus shared pitches and indexed existing-layer dimensions → exact-base proposal 1.2; no solve, save or apply |
 | Preview stack | `POST /api/stack-change-preview` | `{"base_project": Project, "changes": {"period_nm": 390, "layers": [Layer, ...]}}` → proposal 1.1 with an atomic candidate and bounded summary diff; either change key may be omitted |
 | Submit | `POST /api/jobs` | `{"kind":"forward","project":<normalized Project>}` → HTTP 202 job envelope with ID and status |
 | Poll | `GET /api/jobs/{job_id}` | Full job by default; `?view=summary` returns bounded `result_summary` totals, status and error information |
@@ -439,8 +440,9 @@ Unicode serialization remain unchanged.
 
 The frontend opens the exact synthetic 1.2 example and supports direct 2D editing.
 The HTTP `/api/example` route deliberately retains its legacy fixture for existing
-clients; `?example=circular_hole_2d` explicitly returns the current circular input. Fitting and both change-proposal routes remain unavailable for 1.2; a 1.2
-request to those legacy-only operations fails before worker allocation. See the
+clients; `?example=circular_hole_2d` explicitly returns the current circular input. Fitting and the two legacy change-proposal routes remain unavailable for 1.2;
+a 1.2 request to those operations fails before worker allocation. Use the separate
+`/api/2d-change-preview` route for bounded dimension proposals. See the
 [2D editor](ui/2d-editor.md) for browser workflow and input/result identity.
 
 Job inputs are copied and normalized. A validated 2D result, its job and saved
@@ -482,3 +484,51 @@ Project-only imports within the cap and ID-only `POST /api/snapshots` remain
 available. A full valid snapshot can be retrieved with the existing
 `GET /api/projects/{snapshot_id}`. Browser-local file viewing is distinct from
 HTTP persistence and does not enlarge the POST cap.
+
+
+### Exact-base 2D dimension proposals
+
+`POST /api/2d-change-preview` accepts only `base_project` (explicit schema 1.2)
+and `changes`. It returns `rcwa-change-proposal/1.2`; legacy preview routes and
+proposal 1.0/1.1 behavior are unchanged. Example patch:
+
+```json
+{"period_nm": 160, "period_y_nm": 150, "layers": [
+  {"index": 0, "geometry": "circular_hole_2d", "diameter_nm": 70, "thickness_nm": 96}
+]}
+```
+
+Omit unchanged keys. `layers`, when supplied, contains 1–8 uniquely indexed
+patches, each with its existing `geometry` tag and at least one dimension.
+Indexes are zero-based strict integer JSON tokens. Every geometry permits
+`thickness_nm`; circles permit `diameter_nm`, rectangular 2D patterns permit
+`cd_x_nm`/`cd_y_nm`, and embedded 1D gratings permit `cd_nm`. Uniform layers
+permit thickness only. Shared pitches remain `period_nm`/`period_y_nm`.
+Nulls, booleans, numeric strings, nonfinite numbers, unknown/duplicate members,
+missing/nonexistent/duplicate indexes and mismatched tags are rejected. All
+changes are applied atomically before cross-field checks; no value is clamped.
+Names, optical tables/materials, layer order/count/shape, illumination and solver
+settings are preserved exactly.
+
+The response includes complete normalized base/candidate projects, the patch,
+canonical SHA-256 input hashes, a deterministic numeric `diff` (pitches first,
+then ascending layer index, at most 26 entries), existing numerical-preflight
+`diagnostics`, and `valid`. Signed float zero is significant to identity and diff.
+A successful response is a preview, including when `valid` is false; no engine
+lookup, job, calculation, storage, apply or convergence claim occurs. Requests
+remain bounded to 2,000,000 UTF-8 bytes; proposals to 8,000,000 bytes. MCP also
+checks its complete duplicated JSON-RPC representation against 8 MB.
+
+Import the complete response with **Project → Import JSON**. The browser strictly
+reconstructs the allowed candidate and diff, requires every canonical input key,
+and verifies both hashes before showing review. Only the exact current base can
+Apply; hashes prove consistency, never server provenance. Imported diagnostics
+are untrusted and not echoed. An inconsistent `valid`/error-severity combination
+rejects the file; a reported failure conservatively blocks Apply with a neutral
+message. A reported success does not establish numerical admissibility: the
+local server checks it when the user chooses **Run simulation**. Applying valid
+input edits makes one undo step and preserves the selected layer and old spectrum
+with its original inputs. Cancel, no-op, stale input/review and late file/hash
+responses cannot install changes. Apply does not save to the server; existing
+tab-local draft recovery still retains the edited inputs. Ordinary schema-1.2 input-only imports retain
+their non-base-bound full-input review; result-bearing imports are unchanged.

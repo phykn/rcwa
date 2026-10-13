@@ -22,6 +22,7 @@ from api.diagnostics import (
     MAX_ERROR_TEXT_BYTES as MAX_ERROR_TEXT_BYTES,
     _bounded_diagnostics, _bounded_text,
 )
+from api.dimension_change_preview import DimensionChangePreviewRequest, DimensionChangeProposal, preview_2d_changes
 from api.change_preview import preview_changes
 from api.stack_change_preview import ProposalTooLarge, bounded_proposal, preview_stack_changes
 from api.jobs import MAX_HISTORY_JOBS, JobManager
@@ -200,7 +201,17 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                     def reject_nonfinite(value):
                         raise ValueError(f"Non-finite JSON number: {value}")
 
-                    parsed = json.loads(body, parse_constant=reject_nonfinite)
+                    def unique_members(pairs):
+                        value = {}
+                        for key, item in pairs:
+                            if key in value:
+                                raise ValueError("Duplicate JSON member")
+                            value[key] = item
+                        return value
+
+                    parsed = json.loads(body, parse_constant=reject_nonfinite,
+                                        **({"object_pairs_hook": unique_members}
+                                           if request.url.path == "/api/2d-change-preview" else {}))
                     # ASCII escaping hides lone surrogates; reject them in keys
                     # and values before persistence or worker allocation.
                     json.dumps(parsed, allow_nan=False, ensure_ascii=False).encode("utf-8")
@@ -241,7 +252,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             "supported_result_schema_versions": ["1.0", "1.1", "1.2"],
             "engine": engine_info(),
             "operations": [
-                "validate", "preview_changes", "preview_stack_changes", "forward", "synthetic_fit", "poll", "cancel",
+                "validate", "preview_changes", "preview_stack_changes", "preview_2d_changes", "forward", "synthetic_fit", "poll", "cancel",
                 "save_snapshot", "import_project", "list_snapshots", "snapshot_inputs",
             ],
             "geometry": ["1–8 top-to-bottom isotropic rectangle_1d or homogeneous finite layers; common period; invariant y; classical mounting",
@@ -291,7 +302,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 version: {
                     "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project",
                                    "list_snapshots", "snapshot_inputs"]
-                    + ([] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
+                    + (["preview_2d_changes"] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
                     "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d", "circular_hole_2d"] if version == "1.2" else (
                         ["rectangle_1d"] if version == "1.0" else ["rectangle_1d", "homogeneous"]
                     ),
@@ -383,6 +394,15 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         """Preview one atomic stack replacement without solving, storing or applying."""
         try:
             return preview_stack_changes(request)
+        except ValidationError as error:
+            errors = [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()]
+            raise RequestValidationError(errors) from error
+
+    @app.post("/api/2d-change-preview", response_model=DimensionChangeProposal)
+    async def dimension_change_preview(request: DimensionChangePreviewRequest):
+        """Preview dimensions on an exact 1.2 base without engine lookup or side effects."""
+        try:
+            return preview_2d_changes(request)
         except ValidationError as error:
             errors = [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()]
             raise RequestValidationError(errors) from error

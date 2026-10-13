@@ -58,10 +58,40 @@ spectrum as stale. A compatible local server is discovered through its
 version-specific capability profile; Run simulation explicitly validates and
 submits the captured inputs. Validation, job and result hashes must agree before
 a new spectrum is installed. Unsupported, cancelled, failed or malformed responses
-preserve the previous result. Fitting and change proposals are not supported for
-1.2. Angular settings and separate Hx/Hy remain in existing disclosures.
+preserve the previous result. Fitting and legacy change-proposal formats remain
+unsupported for 1.2. The separate [dimension-only proposal format](../agent-api.md#exact-base-2d-dimension-proposals)
+supports exact-base review through Import JSON. Angular settings and separate
+Hx/Hy remain in existing disclosures.
+
+## Inspect diffraction orders
+
+Open **Diffraction orders** below the spectrum to inspect all retained `(m, n)`
+orders at the same exact wavelength sample and incident s/p selection as the
+plot. The initially closed view shows R/T as incident-power fractions and the
+stored port classifications. A copied display list puts the largest absolute
+R/T contributions first, with original retained order breaking ties. Every
+small signed contribution, including signed zero, remains unchanged and visible. **Exact values** exposes the
+full stored numeric values; **Outgoing local s/p** adds the local reflected and
+transmitted port components, distinct from incident polarization. The table is
+keyboard-focusable and scrolls within the spectrum panel. Changing the selected
+sample, polarization or result resets only table scroll, without moving focus.
+
+The table always follows the displayed, input-bound result, even while edited
+inputs make it stale. It never derives ports from current geometry, filters
+orders or starts a calculation. Absorbing-substrate T is interface flux into the
+half-space, not backside transmission; ordinary propagating/evanescent labels
+do not apply to those transmitted rows. This view supports validated schema-1.2
+results only and adds no physical-accuracy or convergence claim.
 
 ## Import, history and saving
+
+- `rcwa-change-proposal/1.2` files propose only dimensions on an exact existing
+  base. The browser verifies the allowed patch, complete input hashes and diff;
+  a stale base cannot Apply. Imported numerical claims are unverified. Reported
+  errors conservatively block Apply, while the local server checks numerical
+  admissibility when you choose **Run simulation**. Review/Apply do not calculate
+  or save to the server. The old spectrum retains its original inputs and the
+  selected layer is preserved; Apply is one undo step.
 
 - Input-only schema 1.2 JSON opens **Review imported design** with Current and
   Proposed inputs. **Apply changes** creates one undo step and keeps the displayed

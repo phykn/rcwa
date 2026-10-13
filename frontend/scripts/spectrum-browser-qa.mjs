@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, expect } from "@playwright/test";
 import { capture, importText } from "./browser-2d-controls.mjs";
+import {
+  assertOrders,
+  inspectOrders,
+} from "./diffraction-orders-browser-qa.mjs";
 
 const output = new URL("../../artifacts/", import.meta.url).pathname;
 const previewUrl = process.env.RCWA_PREVIEW_URL || "http://127.0.0.1:4173";
@@ -21,7 +25,10 @@ assert.equal(
   1,
   "Use the real single-wavelength CLI result",
 );
+const started = Date.now();
 const report = {
+  startedAt: new Date(started).toISOString(),
+  suiteBudgetMs: 240_000,
   status: "running",
   checks: [],
   captures: [],
@@ -48,6 +55,7 @@ quantities.all = [...quantities.total, ...quantities.specular];
 async function values(page, result, polarization, index, mode) {
   const series = result.spectra[polarization];
   const wavelength = result.wavelengths_nm[index];
+  await assertOrders(page, result, polarization, index);
   await expect(page.locator(".sample-wavelength strong")).toHaveText(
     `${wavelength} nm`,
   );
@@ -222,6 +230,7 @@ try {
     report.checks.push(
       `${width}px: one exact centered tick and no range/path; real CLI R/T/specular values; no fake slider tab stop; removed-slider focus transfers to quantity without stealing another control's focus; multi-sample keyboard, pointer, s/p and result binding restored`,
     );
+    await inspectOrders(page, report, output, width, imported);
     await page.close();
   }
   assert.deepEqual(report.pageErrors, []);
@@ -236,6 +245,8 @@ try {
   report.error = String(error);
   throw error;
 } finally {
+  report.finishedAt = new Date().toISOString();
+  report.durationMs = Date.now() - started;
   await fs.writeFile(
     `${output}/spectrum-browser-qa.json`,
     JSON.stringify(report, null, 2),

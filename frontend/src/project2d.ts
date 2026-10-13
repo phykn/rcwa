@@ -625,7 +625,10 @@ function isIntegerPath(path: JsonPath): boolean {
 /** Inspect raw tokens before integer spellings and signed-zero origins vanish.
  * Actual schema-1.2 input/result subtrees fail closed on duplicate members.
  * Ignored envelope metadata and legacy inputs retain JSON.parse behavior. */
-export function parseJSONWith2DNumberGate(text: string): unknown {
+export function parseJSONWith2DNumberGate(
+  text: string,
+  options: { dimensionProposal?: boolean } = {},
+): unknown {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -669,15 +672,17 @@ export function parseJSONWith2DNumberGate(text: string): unknown {
     }
     return value;
   }
-  const roots = candidates.filter((path) => {
-    const value = atPath(path);
-    return (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      (value as RecordValue).schema_version === "1.2"
-    );
-  });
+  const roots: JsonPath[] = options.dimensionProposal
+    ? [[]]
+    : candidates.filter((path) => {
+        const value = atPath(path);
+        return (
+          value &&
+          typeof value === "object" &&
+          !Array.isArray(value) &&
+          (value as RecordValue).schema_version === "1.2"
+        );
+      });
   if (!roots.length) return parsed;
   const prefix = (a: JsonPath, b: JsonPath) =>
     a.length <= b.length && a.every((part, i) => part === b[i]);
@@ -789,7 +794,18 @@ export function parseJSONWith2DNumberGate(text: string): unknown {
     if (typeof value === "number") {
       const token = tokens.get(JSON.stringify(absolute));
       if (
-        isIntegerPath(relative) &&
+        (options.dimensionProposal
+          ? ((relative[0] === "base_project" ||
+              relative[0] === "candidate_project") &&
+              isIntegerPath(relative.slice(1))) ||
+            (relative.length === 4 &&
+              relative[0] === "changes" &&
+              relative[1] === "layers" &&
+              relative[3] === "index") ||
+            (relative.length === 4 &&
+              relative[0] === "diagnostics" &&
+              relative[2] === "location")
+          : isIntegerPath(relative)) &&
         (!token || !/^-?(?:0|[1-9]\d*)$/.test(token))
       )
         fail(

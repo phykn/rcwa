@@ -68,3 +68,25 @@ must never submit a calculation or save. The existing circle, rectangle, fallbac
 and local-handoff suites explicitly Apply valid changed input-only imports.
 These are CI acceptance tests, not a claim of local browser execution. Inspect
 the exact candidate's retained screenshots before release.
+
+## Diffraction-order inspection
+
+The existing `spectrum-browser-qa.mjs` runner also checks the collapsed
+schema-1.2 order inspector on desktop and at 360/390 px. It reuses stored
+production results from `multiple-open-channels-gate.json.gz` (121 orders) and
+`lossy-mixed-eight-layer-gate.json.gz` (99 orders, Hx=5/Hy=4), plus the real CLI
+result already produced earlier in browser CI. A p-only selection fixture
+projects the unchanged archived p arrays with a checked input binding; it is UI
+contract coverage, not a newly computed numerical result. No extra solve runs.
+
+Assertions compare every row by `(m, n)`, exact signed power and port class;
+cover shared wavelength/polarization selection, exact/outgoing-local-s/p options,
+keyboard table scrolling, replacement focus, stale substrate edits, Undo/Redo,
+imports and legacy/no-result transitions. Exports must preserve the old result
+and original inputs, and static API requests remain zero. The bounded runner
+retains `spectrum-orders-*` viewport screenshots and its normal JSON report.
+Its suite budget is 240 seconds for the additional checks and six viewport
+captures; existing per-capture deadlines and numerical job limits are unchanged.
+Inspect the candidate's actual multi-open and absorbing/exact images before
+release. Unit tests and syntax checks are not a browser, mobile or accessibility
+pass; local Chromium IPC restrictions leave those checks pending CI.

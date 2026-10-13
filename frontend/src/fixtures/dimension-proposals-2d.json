@@ -1,0 +1,1657 @@
+[
+  {
+    "name": "circle",
+    "proposal": {
+      "schema_version": "rcwa-change-proposal/1.2",
+      "base_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "candidate_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 145.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 96.0,
+            "diameter_nm": 70.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "changes": {
+        "period_y_nm": 145.0,
+        "layers": [
+          {
+            "index": 0,
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 96.0,
+            "diameter_nm": 70.0
+          }
+        ]
+      },
+      "base_input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+      "candidate_input_hash": "ad002c2d350cc037235a90816477a29e785092d28cea1e25062aebcb20b1d2e8",
+      "diff": [
+        {
+          "path": "period_y_nm",
+          "before": 140.0,
+          "after": 145.0
+        },
+        {
+          "path": "layers[0].thickness_nm",
+          "before": 90.0,
+          "after": 96.0
+        },
+        {
+          "path": "layers[0].diameter_nm",
+          "before": 65.0,
+          "after": 70.0
+        }
+      ],
+      "diagnostics": [],
+      "valid": true
+    }
+  },
+  {
+    "name": "noop",
+    "proposal": {
+      "schema_version": "rcwa-change-proposal/1.2",
+      "base_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "candidate_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "changes": {
+        "period_nm": 150.0
+      },
+      "base_input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+      "candidate_input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+      "diff": [],
+      "diagnostics": [],
+      "valid": true
+    }
+  },
+  {
+    "name": "signed-zero",
+    "proposal": {
+      "schema_version": "rcwa-change-proposal/1.2",
+      "base_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 0.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "candidate_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": -0.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "changes": {
+        "layers": [
+          {
+            "index": 0,
+            "geometry": "circular_hole_2d",
+            "thickness_nm": -0.0
+          }
+        ]
+      },
+      "base_input_hash": "45812665d0d18f78654ca1be5f1f91fa83de3b1a2a41fd43fc531b81ec75f578",
+      "candidate_input_hash": "799732a28a8643d96eebf6d85b2e177c5f601f4964837f2cfbc9c1095f9a483e",
+      "diff": [
+        {
+          "path": "layers[0].thickness_nm",
+          "before": 0.0,
+          "after": -0.0
+        }
+      ],
+      "diagnostics": [],
+      "valid": true
+    }
+  },
+  {
+    "name": "numerical-failure",
+    "proposal": {
+      "schema_version": "rcwa-change-proposal/1.2",
+      "base_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "candidate_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 2000.0,
+        "period_y_nm": 2000.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host B",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 120.0,
+            "diameter_nm": 80.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host B",
+              "kind": "constant",
+              "n": 1.55,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Circular air hole in synthetic host C",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 130.0,
+            "diameter_nm": 95.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host C",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "changes": {
+        "period_nm": 2000.0,
+        "period_y_nm": 2000.0
+      },
+      "base_input_hash": "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931",
+      "candidate_input_hash": "41efc7e2f42520dee5ba2964efb5484327bd5bada090ff586ba66b4dfd13be8d",
+      "diff": [
+        {
+          "path": "period_nm",
+          "before": 150.0,
+          "after": 2000.0
+        },
+        {
+          "path": "period_y_nm",
+          "before": 140.0,
+          "after": 2000.0
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 32 open or cutoff orders near 450 nm; first (m,n)=(-3, -7). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 21 open or cutoff orders near 470 nm; first (m,n)=(-4, -6). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 18 open or cutoff orders near 490 nm; first (m,n)=(-4, -6). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 13 open or cutoff orders near 510 nm; first (m,n)=(-3, -6). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 9 open or cutoff orders near 530 nm; first (m,n)=(-2, -6). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 4 open or cutoff orders near 550 nm; first (m,n)=(-6, -2). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 4 open or cutoff orders near 570 nm; first (m,n)=(-6, -2). Increase harmonics or reduce periods."
+        },
+        {
+          "code": "insufficient_harmonics",
+          "severity": "error",
+          "location": [
+            "solver"
+          ],
+          "message": "Retained x/y basis omits 2 open or cutoff orders near 590 nm; first (m,n)=(-6, -1). Increase harmonics or reduce periods."
+        }
+      ],
+      "valid": false
+    }
+  },
+  {
+    "name": "mixed-atomic",
+    "proposal": {
+      "schema_version": "rcwa-change-proposal/1.2",
+      "base_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 150.0,
+        "period_y_nm": 140.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 65.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Rect",
+            "geometry": "rectangle_2d",
+            "thickness_nm": 40.0,
+            "cd_x_nm": 100.0,
+            "cd_y_nm": 100.0,
+            "material": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Grating",
+            "geometry": "rectangle_1d",
+            "thickness_nm": 40.0,
+            "cd_nm": 100.0,
+            "material": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Film",
+            "geometry": "homogeneous",
+            "thickness_nm": 40.0,
+            "material": {
+              "name": "Synthetic substrate",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "candidate_project": {
+        "schema_version": "1.2",
+        "name": "Synthetic circular-air-hole dielectric stack",
+        "period_nm": 60.0,
+        "period_y_nm": 60.0,
+        "ambient": {
+          "name": "Air",
+          "kind": "constant",
+          "n": 1.0,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "substrate": {
+          "name": "Synthetic substrate",
+          "kind": "constant",
+          "n": 1.5,
+          "k": 0.0,
+          "wavelengths_nm": null,
+          "n_values": null,
+          "k_values": null,
+          "source": "User-defined synthetic optical constants"
+        },
+        "layers": [
+          {
+            "name": "Circular air hole in synthetic host A",
+            "geometry": "circular_hole_2d",
+            "thickness_nm": 90.0,
+            "diameter_nm": 50.0,
+            "material": {
+              "name": "Air hole",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Rect",
+            "geometry": "rectangle_2d",
+            "thickness_nm": 40.0,
+            "cd_x_nm": 50.0,
+            "cd_y_nm": 50.0,
+            "material": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Grating",
+            "geometry": "rectangle_1d",
+            "thickness_nm": 40.0,
+            "cd_nm": 50.0,
+            "material": {
+              "name": "Synthetic host A",
+              "kind": "constant",
+              "n": 1.45,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            },
+            "background": {
+              "name": "Air",
+              "kind": "constant",
+              "n": 1.0,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          },
+          {
+            "name": "Film",
+            "geometry": "homogeneous",
+            "thickness_nm": 45.0,
+            "material": {
+              "name": "Synthetic substrate",
+              "kind": "constant",
+              "n": 1.5,
+              "k": 0.0,
+              "wavelengths_nm": null,
+              "n_values": null,
+              "k_values": null,
+              "source": "User-defined synthetic optical constants"
+            }
+          }
+        ],
+        "illumination": {
+          "wavelengths_nm": [
+            450.0,
+            470.0,
+            490.0,
+            510.0,
+            530.0,
+            550.0,
+            570.0,
+            590.0,
+            610.0,
+            630.0,
+            650.0,
+            670.0,
+            690.0,
+            710.0,
+            730.0,
+            750.0,
+            770.0,
+            790.0,
+            810.0,
+            830.0,
+            850.0
+          ],
+          "angle_deg": 20.0,
+          "polarization": "both",
+          "azimuth_deg": 25.0
+        },
+        "solver": {
+          "harmonics_x": 5,
+          "harmonics_y": 5
+        }
+      },
+      "changes": {
+        "period_nm": 60.0,
+        "period_y_nm": 60.0,
+        "layers": [
+          {
+            "index": 3,
+            "geometry": "homogeneous",
+            "thickness_nm": 45.0
+          },
+          {
+            "index": 2,
+            "geometry": "rectangle_1d",
+            "cd_nm": 50.0
+          },
+          {
+            "index": 1,
+            "geometry": "rectangle_2d",
+            "cd_x_nm": 50.0,
+            "cd_y_nm": 50.0
+          },
+          {
+            "index": 0,
+            "geometry": "circular_hole_2d",
+            "diameter_nm": 50.0
+          }
+        ]
+      },
+      "base_input_hash": "3fbfa757a68b0d0e90d29debabbbd581e251bb84efd4976820224a09c2b4933d",
+      "candidate_input_hash": "b73009a700df8e6c36dad6a2fd8682f160a820b8a0915fcd5c32c701609270eb",
+      "diff": [
+        {
+          "path": "period_nm",
+          "before": 150.0,
+          "after": 60.0
+        },
+        {
+          "path": "period_y_nm",
+          "before": 140.0,
+          "after": 60.0
+        },
+        {
+          "path": "layers[0].diameter_nm",
+          "before": 65.0,
+          "after": 50.0
+        },
+        {
+          "path": "layers[1].cd_x_nm",
+          "before": 100.0,
+          "after": 50.0
+        },
+        {
+          "path": "layers[1].cd_y_nm",
+          "before": 100.0,
+          "after": 50.0
+        },
+        {
+          "path": "layers[2].cd_nm",
+          "before": 100.0,
+          "after": 50.0
+        },
+        {
+          "path": "layers[3].thickness_nm",
+          "before": 40.0,
+          "after": 45.0
+        }
+      ],
+      "diagnostics": [],
+      "valid": true
+    }
+  }
+]

@@ -31,6 +31,9 @@ from api.contracts import (
 )
 from api.diagnostics import _bounded_diagnostics
 from api.material_diagnostics import material_default_diagnostics
+from api.dimension_change_preview import (
+    DimensionChangePreviewRequest, DimensionChangeProposal, validate_2d_proposal_binding,
+)
 from api.change_preview import validate_proposal_binding
 from api.stack_change_preview import validate_stack_proposal_binding
 from rcwa_core.identity import canonical_hash
@@ -217,6 +220,12 @@ OPERATIONS = [
               "Inspect valid and diagnostics; an empty diff is a no-op. Save the returned JSON with your own client "
               "and use the workbench Import JSON action to review it before explicitly applying.",
               ChangePreviewRequest, ChangeProposal, "POST", "/api/change-preview"),
+    Operation("rcwa_preview_2d_changes", "Preview a strict, atomic schema-1.2 dimension patch on an exact base. "
+              "Only shared x/y periods and up to eight uniquely indexed existing-layer dimensions are allowed; "
+              "each layer patch requires its matching geometry tag. Preserves shapes, materials, order and solver inputs. "
+              "Returns rcwa-change-proposal/1.2 for human Import JSON review and explicit Apply. "
+              "No engine lookup, solve, save or application; admissibility does not establish convergence.",
+              DimensionChangePreviewRequest, DimensionChangeProposal, "POST", "/api/2d-change-preview"),
     Operation("rcwa_preview_stack_changes", "Preview a bounded atomic change of common period and/or the complete "
               "top-to-bottom finite layer list. Returns rcwa-change-proposal/1.1, exact base/candidate projects, "
               "bounded summarized diff and preflight diagnostics. Candidate uses project schema 1.1. "
@@ -351,7 +360,7 @@ def create_server(api: LocalAPI):
             if operation.name == "rcwa_example" and values["example"] != "legacy_1d":
                 path += "?example=" + values["example"]
             body = values[operation.body_field] if operation.body_field else (
-                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes", "rcwa_preview_stack_changes"} else None
+                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes", "rcwa_preview_stack_changes", "rcwa_preview_2d_changes"} else None
             )
             if operation.name == "rcwa_save_snapshot":
                 body = {"job_id": values["job_id"]}
@@ -383,6 +392,8 @@ def create_server(api: LocalAPI):
                         raise ValueError("API returned non-normalized or mismatched snapshot inputs")
                 if operation.name == "rcwa_preview_changes":
                     validate_proposal_binding(payload, parsed)
+                if operation.name == "rcwa_preview_2d_changes":
+                    validate_2d_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_preview_stack_changes":
                     validate_stack_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:

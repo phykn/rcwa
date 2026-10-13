@@ -87,7 +87,7 @@ async def test_real_discovery_compute_and_durable_binding(real_api, mode, multil
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
         assert client.server_capabilities.tools is not None
         tools = (await client.list_tools()).tools
-        assert len(tools) == 11
+        assert len(tools) == 12
         assert all(t.input_schema["additionalProperties"] is False for t in tools)
         caps = await call(client, "rcwa_capabilities")
         assert caps["limits"]["simultaneous_jobs"] == 2
@@ -163,7 +163,7 @@ async def test_real_cancellation_and_missing_job(real_api):
 @pytest.mark.anyio
 async def test_api_down_is_a_tool_error_not_protocol_crash():
     async with Client(parameters(f"http://127.0.0.1:{available_port()}"), mode="legacy") as client:
-        assert len((await client.list_tools()).tools) == 11
+        assert len((await client.list_tools()).tools) == 12
         response = await call(client, "rcwa_capabilities", error=True)
         assert response["error"]["code"] == "api_unavailable"
         response = await call(client, "rcwa_submit", {"request": {"project": {}}}, error=True)
@@ -219,7 +219,7 @@ async def test_stdio_discovery_and_validation(real_api, mode, monkeypatch):
     async with Client(parameters(real_api), mode=mode, read_timeout_seconds=15) as client:
         assert client.server_info.name == "RCWA Workbench"
         assert client.protocol_version in {"2025-11-25", "2026-07-28"}
-        assert len((await client.list_tools()).tools) == 11
+        assert len((await client.list_tools()).tools) == 12
         caps = await call(client, "rcwa_capabilities")
         assert caps["project_schema_version"] == "1.2"
         example = await call(client, "rcwa_example")

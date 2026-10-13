@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ForwardResult, Spectrum } from "./model";
+import { DiffractionOrders } from "./DiffractionOrders";
 
 const series = [
   { key: "R", label: "Reflectance", color: "#c2410c", dash: "" },
@@ -22,6 +23,7 @@ export function SpectrumPlot({
   const [view, setView] = useState<"all" | "total" | "specular">("total");
   const plotRef = useRef<HTMLDivElement>(null);
   const quantityRef = useRef<HTMLSelectElement>(null);
+  const focusQuantity = useCallback(() => quantityRef.current?.focus(), []);
   const wavelengthRef = useCallback((node: HTMLInputElement | null) => {
     if (!node) return;
     return () => {
@@ -289,6 +291,14 @@ export function SpectrumPlot({
               ))}
             </div>
           </div>
+          {result?.schema_version === "1.2" && (
+            <DiffractionOrders
+              result={result}
+              polarization={polarization}
+              sampleIndex={selected}
+              onUnavailableFocus={focusQuantity}
+            />
+          )}
         </>
       )}
     </div>

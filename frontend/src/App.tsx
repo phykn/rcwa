@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { LocalDesignHandoff } from "./LocalDesignHandoff";
 import { reviewImportedDesign } from "./importReview";
+import { parse2DChangeProposal } from "./proposal2d";
 import {
   browserDraftStorage,
   inputDraftKey,
@@ -87,7 +88,8 @@ function sameInputs(a: Project | null, b: Project) {
 }
 type ReviewState = {
   // Input-only imports are reviewed against this exact editor frame, including
-  // selection and the displayed result. They are not base-bound AI proposals.
+  // selection and the displayed result. New 1.2 proposals also capture this frame;
+  // ordinary input-only imports themselves remain non-base-bound.
   importedBase?: Workspace;
   title: string;
   baseProject: Project;
@@ -1397,6 +1399,7 @@ export default function App() {
       revision === historyRef.current.revision &&
       baseWorkspace === historyRef.current.present;
     inputsChanged.current = true;
+    let is2DProposal = false;
     try {
       if (file.size > 20 * 1024 * 1024)
         throw new Error("Project JSON must be smaller than 20 MB.");
@@ -1409,34 +1412,47 @@ export default function App() {
         "schema_version" in envelope &&
         String(envelope.schema_version).startsWith("rcwa-change-proposal/")
       ) {
-        const proposal = parseChangeProposal(text);
+        is2DProposal = envelope.schema_version === "rcwa-change-proposal/1.2";
+        const proposal = is2DProposal
+          ? await parse2DChangeProposal(text)
+          : parseChangeProposal(text);
+        if (!current()) return;
         const mismatch = !sameInputs(
           proposal.base_project,
           historyRef.current.present.project,
         );
         presentReview({
-          title:
-            proposal.schema_version === "rcwa-change-proposal/1.1"
+          ...(is2DProposal ? { importedBase: baseWorkspace } : {}),
+          title: is2DProposal
+            ? "Review 2D dimension changes"
+            : proposal.schema_version === "rcwa-change-proposal/1.1"
               ? "Review stack changes"
               : "Review geometry changes",
           baseProject: historyRef.current.present.project,
           workspace: {
             project: proposal.candidate_project,
             displayedRun: historyRef.current.present.displayedRun,
+            ...(is2DProposal
+              ? { selectedLayer: baseWorkspace.selectedLayer }
+              : {}),
           },
           revision,
           actionVersion: version,
-          note: "Review this external proposal before applying it. Applying changes does not run the solver.",
+          note: is2DProposal
+            ? "Review dimensions against the exact original inputs. Applying does not calculate or save to the server. Imported numerical claims are unverified; the local solver checks admissibility when you choose Run simulation."
+            : "Review this external proposal before applying it. Applying changes does not run the solver.",
           warnings: proposal.diagnostics
             .filter((item) => item.severity !== "error")
             .map((item) => item.message),
           blockedReason: mismatch
             ? "This proposal was made for different inputs. Export the current project and request a new proposal."
             : !proposal.valid
-              ? proposal.diagnostics
-                  .filter((item) => item.severity === "error")
-                  .map((item) => item.message)
-                  .join(" ")
+              ? is2DProposal
+                ? "This file reports validation errors. Request a revised proposal; these checks have not been verified here."
+                : proposal.diagnostics
+                    .filter((item) => item.severity === "error")
+                    .map((item) => item.message)
+                    .join(" ")
               : !proposal.diff.length
                 ? "This proposal contains no changes."
                 : "",
@@ -1475,7 +1491,9 @@ export default function App() {
     } catch (e) {
       if (current())
         setError(
-          `${errorText(e)} If the inputs are valid, remove the result and result_project fields from the JSON file and import it again to recover inputs only.`,
+          is2DProposal
+            ? errorText(e)
+            : `${errorText(e)} If the inputs are valid, remove the result and result_project fields from the JSON file and import it again to recover inputs only.`,
         );
     } finally {
       if (pendingImportVersion.current === version)

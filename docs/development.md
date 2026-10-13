@@ -311,8 +311,9 @@ history/reset transitions and dismissal invalidate an older review or pending
 file read; Escape or opening an inspector also dismisses a queued read. Review
 and Apply do not calculate or save to the server. This is an input comparison,
 not a base-bound proposal or physical-accuracy check. Result-bearing imports and
-legacy imports retain their existing routes; schema-1.2 proposal endpoints
-remain unsupported.
+legacy imports retain their existing routes. Separately, schema-1.2 dimension
+proposal files use exact-base-bound review with verified input hashes; see the
+[2D proposal contract](agent-api.md#exact-base-2d-dimension-proposals).
 
 Undo and Redo live in the Project menu. Keyboard shortcuts are Ctrl/Cmd+Z and
 Ctrl/Cmd+Shift+Z outside text fields; Ctrl+Y also redoes. Native text-field undo

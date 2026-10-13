@@ -92,6 +92,7 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | `rcwa_example` | `{}` or `{"example":"circular_hole_2d"}` | Legacy 1D default or explicit current circular 1.2 input; synthetic constants, no spectra |
 | `rcwa_validate` | `{"project": Project}` | Normalized project, input hash, admissibility and diagnostics; no numerical job |
 | `rcwa_preview_changes` | `{"base_project": Project, "changes": {"cd_nm": 140}}` | Versioned geometry proposal, typed diff and candidate preflight diagnostics; read-only, no solve, storage or apply |
+| `rcwa_preview_2d_changes` | `{"base_project": Project1.2, "changes": {"layers": [{"index": 0, "geometry": "circular_hole_2d", "diameter_nm": 70}]}}` | Exact-base proposal 1.2; bounded dimensions only, read-only |
 | `rcwa_preview_stack_changes` | `{"base_project": Project, "changes": {"layers": [Layer, ...]}}` | Read-only atomic stack proposal 1.1; common period and/or complete 1–8 layer replacement, bounded summary diff |
 | `rcwa_submit` | `{"request": {"kind": "forward", "project": Project}}` | Starts one bounded job; returns a temporary job ID and status |
 | `rcwa_get_job` | `{"job_id": "...", "view":"summary"}` | Bounded status/totals/warnings; omit `view` for the unchanged full result |
@@ -105,7 +106,7 @@ Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
 not accept URLs, headers, paths, code, replacement results, or claimed provenance.
 Job and snapshot IDs accept only 1–100 ASCII letters, digits, underscores or
 hyphens. The backend capability response describes the whole backend, including
-operations beyond these eleven tools; the MCP list is the exposed subset.
+operations beyond these twelve tools; the MCP list is the exposed subset.
 
 `rcwa_submit` also accepts the existing synthetic-fit request:
 
@@ -335,7 +336,7 @@ The write may already have happened. Do not blindly resubmit a calculation.
 A returned HTTP 5xx on a mutation is conservatively treated as uncertain too.
 An MCP request cancellation or broken stdio connection may prevent even this
 error from reaching the client; treat an interrupted submission as uncertain.
-Validation, geometry-preview and stack-preview POSTs are read-only. Transport failure for them
+Validation, geometry-preview, stack-preview and 2D-dimension-preview POSTs are read-only. Transport failure for them
 does not claim an unknown mutation outcome; the adapter still performs no
 automatic retry.
 
@@ -416,8 +417,9 @@ contracts, including the explicit `circular_hole_2d` geometry and its
 another solver. Read the geometry list in the version-specific capability
 profile before submitting a circle. The no-argument example remains legacy;
 `example="circular_hole_2d"` explicitly selects the current 1.2 input. Fitting
-and change-preview tools remain legacy-only; inspect version-specific capability
-profiles before using an operation. Harmonics use
+and the existing geometry/stack preview tools remain legacy-only. The additive
+`rcwa_preview_2d_changes` tool is advertised only in the 1.2 capability profile;
+inspect that profile before using an operation. Harmonics use
 strict integer JSON tokens, so `3.0` is rejected even though JSON Schema's integer
 semantics treat it as integral.
 
@@ -464,3 +466,30 @@ policy as HTTP, including structured preflight expansion. The error JSON payload
 is below 64 KB; MCP's duplicated text/structured representation can be larger
 (about 98 KB in the adversarial fixture) and is still checked against the complete
 8 MB line cap. Large input text is not echoed without bounds.
+
+
+### Review exact-base 2D dimensions
+
+`rcwa_preview_2d_changes` calls only `/api/2d-change-preview`. It accepts an
+explicit schema-1.2 base and a nonempty patch containing x/y shared pitches and/or
+1–8 uniquely indexed existing-layer dimension patches. Each layer entry requires
+`index`, matching `geometry`, and a permitted numeric dimension. It cannot change
+materials, names, shape, layer count/order, illumination or solver settings. See
+[the complete dimension contract](agent-api.md#exact-base-2d-dimension-proposals).
+
+The adapter revalidates the entire returned artifact against the normalized
+request: canonical fields, exact patch, candidate, hashes, signed-zero-sensitive
+diff and direct-response diagnostics. An unrelated, incomplete or altered
+response becomes `invalid_api_response`, never a successful proposal. This is
+read-only, idempotent and closed-world; transport failures do not report an
+unknown mutation outcome. Existing 2 MB argument/request and complete 8 MB HTTP/
+stdio response bounds remain enforced, including legacy and current MCP modes.
+
+Save the returned `rcwa-change-proposal/1.2` JSON for human **Import JSON** review.
+The browser independently checks exact input/patch/hash binding, but treats file
+numerical diagnostics as unverified. Reported errors conservatively disable
+Apply without repeating the file's scientific messages; reported success is not
+a convergence or accuracy guarantee. **Run simulation** performs the local
+server's numerical admissibility check. Import, review and Apply never calculate
+or save to the server, and the old spectrum remains paired with its original
+inputs. Existing tab-local draft recovery still retains edited inputs.
