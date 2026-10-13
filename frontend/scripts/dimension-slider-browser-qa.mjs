@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { runBrowserScenario } from "./browser-scenario.mjs";
 import { chromium, expect } from "@playwright/test";
 import {
-  capture,
+  capture as capturePage,
   closeSheet,
   menuAction,
   importText,
@@ -27,6 +27,26 @@ const report = {
     "Cancellation and focus-loss injections verify interaction cleanup, not numerical accuracy.",
   ],
 };
+async function capture(page, report, output, name, options) {
+  const backdrop = await page
+    .locator("dialog.inspector[open]")
+    .evaluate((node) => {
+      const style = getComputedStyle(node, "::backdrop");
+      return {
+        filter: style.backdropFilter,
+        background: style.backgroundColor,
+      };
+    });
+  assert.deepEqual(backdrop, {
+    filter: "none",
+    background: "rgba(24, 24, 27, 0.35)",
+  });
+  await capturePage(page, report, output, name, {
+    ...options,
+    diagnostics: { backdrop },
+  });
+}
+
 let browser;
 async function exported(page, name) {
   const pending = page.waitForEvent("download");
@@ -420,6 +440,34 @@ try {
           await expect(pitch.range).toHaveAttribute(
             "aria-valuetext",
             "4200.123456789 nanometers",
+          );
+          const fit = await pitch.number.evaluate(async (node) => {
+            await document.fonts.ready;
+            const style = getComputedStyle(node);
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Text measurement is unavailable");
+            context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+            const letterSpacing = parseFloat(style.letterSpacing) || 0;
+            return {
+              value: node.value,
+              font: context.font,
+              fontSize: style.fontSize,
+              textWidth:
+                context.measureText(node.value).width +
+                Math.max(0, node.value.length - 1) * letterSpacing,
+              contentWidth:
+                node.clientWidth -
+                parseFloat(style.paddingLeft) -
+                parseFloat(style.paddingRight),
+            };
+          });
+          (report.numericFits ??= []).push({ name, ...fit });
+          assert.equal(fit.value, "4200.123456789");
+          assert.equal(fit.fontSize, "28px");
+          assert.ok(
+            fit.textWidth <= fit.contentWidth,
+            `${name}: complete exact pitch fits without hiding its leading digits`,
           );
           await capture(page, report, output, `${name}-exact-large-pitch`, {
             prefix: "dimension-slider",
