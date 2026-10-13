@@ -230,7 +230,7 @@ try {
     report.checks.push(
       `${width}px: one exact centered tick and no range/path; real CLI R/T/specular values; no fake slider tab stop; removed-slider focus transfers to quantity without stealing another control's focus; multi-sample keyboard, pointer, s/p and result binding restored`,
     );
-    await inspectOrders(page, report, output, width, imported);
+    await inspectOrders(page, report, output, width, imported, last);
     await page.close();
   }
   assert.deepEqual(report.pageErrors, []);

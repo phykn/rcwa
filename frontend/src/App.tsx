@@ -1439,7 +1439,7 @@ export default function App() {
           revision,
           actionVersion: version,
           note: is2DProposal
-            ? "Review dimensions against the exact original inputs. Applying does not calculate or save to the server. Imported numerical claims are unverified; the local solver checks admissibility when you choose Run simulation."
+            ? "Imported numerical checks are unverified. Run simulation validates and calculates locally."
             : "Review this external proposal before applying it. Applying changes does not run the solver.",
           warnings: proposal.diagnostics
             .filter((item) => item.severity !== "error")

@@ -11,6 +11,43 @@ const review = (page) => page.getByRole("dialog", { name: "Review 2D dimension c
 const apply = (page) => review(page).getByRole("button", { name: "Apply changes", exact: true });
 const cancel = (page) => review(page).getByRole("button", { name: "Cancel", exact: true });
 
+async function checkMobileFooter(page, record) {
+  const before = await review(page).evaluate((node) => {
+    const footer = node.querySelector(".workflow-actions").getBoundingClientRect();
+    const dialog = node.getBoundingClientRect();
+    return { scrollTop: node.scrollTop, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight,
+      footerFullyVisible: footer.top >= Math.max(0, dialog.top) && footer.bottom <= Math.min(window.innerHeight, dialog.bottom),
+    };
+  });
+  await apply(page).scrollIntoViewIfNeeded();
+  const afterScroll = await review(page).evaluate((node) => node.scrollTop);
+  if (!before.footerFullyVisible && before.scrollHeight > before.clientHeight + 1)
+    assert.ok(afterScroll > before.scrollTop, "The overflowing modal actually scrolls to its footer");
+  // Exercise real native keyboard navigation through the disclosure and footer.
+  await review(page).getByText("Full inputs", { exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(cancel(page)).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(apply(page)).toBeFocused();
+  const buttons = [];
+  for (const button of [cancel(page), apply(page)]) {
+    await expect(button).toBeVisible();
+    await expect(button).toBeInViewport({ ratio: 1 });
+    const box = await button.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { label: node.textContent.trim(), x: rect.x, y: rect.y,
+        width: rect.width, height: rect.height,
+        hit: [0.2, 0.5, 0.8].every((fraction) => node.contains(
+          document.elementFromPoint(rect.x + rect.width * fraction, rect.y + rect.height / 2))),
+      };
+    });
+    assert.ok(box.width >= 44 && box.height >= 44, `${box.label} has a 44 px touch target`);
+    assert.equal(box.hit, true, `${box.label} is unobstructed at its center and side touch points`);
+    buttons.push(box);
+  }
+  record.footer = { before, afterScroll, buttons, keyboard: "Full inputs → Cancel → Apply changes" };
+}
+
 export async function dimensionProposalBrowserCases({ group, exported, importFile, assertPreserved, shot, menuAction, editName }) {
   for (const width of [360, 390, 1440]) await group(`dimension-proposal-${width}`, width, async (page, record) => {
     const baseline = await exported(page, `proposal-${width}-baseline`);
@@ -21,7 +58,7 @@ export async function dimensionProposalBrowserCases({ group, exported, importFil
     await importFile(page, value, "dimension-proposal");
     await expect(review(page)).toBeVisible();
     await expect(apply(page)).toBeEnabled();
-    await expect(review(page).locator(".control-note")).toContainText("Imported numerical claims are unverified");
+    await expect(review(page).locator(".control-note")).toHaveText("Imported numerical checks are unverified. Run simulation validates and calculates locally.");
     await expect(review(page).locator(".change-list > div")).toHaveCount(3);
     const layout = await review(page).evaluate((node) => ({
       client: node.clientWidth, scroll: node.scrollWidth,
@@ -30,12 +67,17 @@ export async function dimensionProposalBrowserCases({ group, exported, importFil
     }));
     assert.ok(layout.left >= -1 && layout.right <= width + 1 && layout.document <= width + 1 && layout.scroll <= layout.client + 1);
     await shot(page, `proposal-${width}-review`);
+    if (width < 700) {
+      await checkMobileFooter(page, record);
+      await shot(page, `proposal-${width}-footer`);
+    }
     await cancel(page).click();
     await expect(review(page)).toHaveCount(0);
     await assertPreserved(page, baseline, `proposal-${width}-cancel`);
     await importFile(page, value, "dimension-proposal-apply");
     await expect(apply(page)).toBeEnabled();
-    await apply(page).evaluate((button) => { button.click(); button.click(); });
+    if (width === 360) await apply(page).tap();
+    else await apply(page).evaluate((button) => { button.click(); button.click(); });
     await expect(review(page)).toHaveCount(0);
     await expect(page.locator(".result-badge")).toHaveText("Inputs changed");
     await expect(page.getByRole("button", { name: /^Select layer 3:/ })).toHaveAttribute("aria-pressed", "true");
@@ -55,7 +97,9 @@ export async function dimensionProposalBrowserCases({ group, exported, importFil
     await page.locator(".project-menu > summary").click();
     await expect(page.getByRole("button", { name: "↶ Undo", exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "↷ Redo", exact: true })).toBeEnabled();
-    record.checks.push("Exact-base 1.2 proposal reviews three dimensions, fits viewport, Cancel is unchanged, repeated Apply is one undo step, Undo/Redo preserve exact original spectrum, selection and polarization; no-op retains Redo.");
+    record.checks.push("Exact-base 1.2 proposal reviews three dimensions, fits viewport, Cancel is unchanged, Undo/Redo preserve exact original spectrum, selection and polarization; no-op retains Redo.");
+    record.checks.push(width === 360 ? "Real touchscreen Apply creates one undo step." : "Repeated Apply in the same event turn creates one undo step.");
+    if (width < 700) record.checks.push("Complete footer captured after scrolling as needed; Cancel and Apply are fully visible, unobstructed, at least 44 px and keyboard reachable.");
   });
 
   await group("dimension-proposal-stale-invalid", 1440, async (page, record) => {

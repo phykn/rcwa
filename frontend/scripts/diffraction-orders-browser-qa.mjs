@@ -104,7 +104,14 @@ export async function assertOrders(
   );
 }
 
-export async function inspectOrders(page, report, output, width, imported) {
+export async function inspectOrders(
+  page,
+  report,
+  output,
+  width,
+  imported,
+  retainedIndex,
+) {
   const multipleOpen = orderFixture("multiple-open-channels");
   const absorbing = orderFixture("lossy-mixed-eight-layer");
   const inspector = page.locator(".diffraction-orders");
@@ -165,26 +172,41 @@ export async function inspectOrders(page, report, output, width, imported) {
   await imported(page, circular, "orders-multisample-scroll");
   await expect(region).toBeFocused();
   await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
-  await assertOrders(page, circular.result, "s", 0, true);
-  await region.press("End");
-  await expect
-    .poll(() => region.evaluate((node) => node.scrollTop))
-    .toBeGreaterThan(0);
   const slider = page.getByRole("slider", {
     name: "Inspect wavelength sample",
     exact: true,
   });
-  await slider.focus();
-  await slider.press("End");
-  await expect(slider).toBeFocused();
-  await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
-  await assertOrders(
-    page,
-    circular.result,
-    "s",
-    circular.result.wavelengths_nm.length - 1,
-    true,
+  // The preceding suite chose the last sample. A single-wavelength result
+  // clamps only the displayed index; restoring this grid retains that selection.
+  // Result replacement resets the table's scroll, not the plot's sample index.
+  assert.equal(retainedIndex, circular.result.wavelengths_nm.length - 1);
+  await expect(slider).toHaveValue(String(retainedIndex));
+  await expect(page.locator(".sample-wavelength strong")).toHaveText(
+    `${circular.result.wavelengths_nm[retainedIndex]} nm`,
   );
+  await assertOrders(page, circular.result, "s", retainedIndex, true);
+
+  // Both Home and End must change the selected sample, reset only table scroll,
+  // and leave focus on the wavelength control. Never rely on an implicit reset.
+  for (const [key, index] of [
+    ["Home", 0],
+    ["End", retainedIndex],
+  ]) {
+    await region.focus();
+    await region.press("End");
+    await expect
+      .poll(() => region.evaluate((node) => node.scrollTop))
+      .toBeGreaterThan(0);
+    await slider.focus();
+    await slider.press(key);
+    await expect(slider).toBeFocused();
+    await expect(slider).toHaveValue(String(index));
+    await expect(page.locator(".sample-wavelength strong")).toHaveText(
+      `${circular.result.wavelengths_nm[index]} nm`,
+    );
+    await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
+    await assertOrders(page, circular.result, "s", index, true);
+  }
   await region.focus();
   await region.press("End");
   const pButton = page.getByRole("button", { name: "p / TM", exact: true });
@@ -327,6 +349,6 @@ export async function inspectOrders(page, report, output, width, imported) {
   await expect(inspector).toHaveCount(0);
   await expect(quantity).toBeFocused();
   report.checks.push(
-    `${width}px orders: all exact keyed rows/classifications; 121-row real multi-open and 99-row absorbing Hx5/Hy4 fixtures; keyboard disclosure/options/scroll; strongest-first copied sorting and sample/result scroll reset without focus theft; readable compact and visible exact local-channel values; p-only selection projection; unchanged stale result despite substrate edit; Undo/Redo; open replacement focus; legacy/no-result removal; no new solves`,
+    `${width}px orders: all exact keyed rows/classifications; 121-row real multi-open and 99-row absorbing Hx5/Hy4 fixtures; keyboard disclosure/options/scroll; strongest-first copied sorting; retained-index result replacement; explicit Home/End sample changes and sample/result scroll reset without focus theft; readable compact and visible exact local-channel values; p-only selection projection; unchanged stale result despite substrate edit; Undo/Redo; open replacement focus; legacy/no-result removal; no new solves`,
   );
 }
