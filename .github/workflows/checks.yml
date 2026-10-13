@@ -311,6 +311,7 @@ jobs:
           (cd frontend && timeout 300s node scripts/svg-fallback-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/progressive-renderer-browser-qa.mjs) || status=1
           (cd frontend && timeout 300s node scripts/circular-browser-qa.mjs) || status=1
+          (cd frontend && timeout 240s node scripts/dimension-slider-browser-qa.mjs) || status=1
           timeout 60s python scripts/agent_example.py --deadline-seconds 45 || status=1
           timeout 60s python scripts/agent_example.py \
             --example circular_hole_2d --diameters 45 65 85 --max-candidates 3 --deadline-seconds 45 \
@@ -348,6 +349,7 @@ jobs:
             artifacts/svg-fallback-*
             artifacts/progressive-*
             artifacts/circular-*
+            artifacts/dimension-slider-*
             artifacts/browser-qa.json
             artifacts/spectrum-*
             artifacts/snapshot-browser-qa.json

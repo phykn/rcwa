@@ -115,7 +115,8 @@ describe("additive circular-hole input and editor", () => {
         onDone: () => {},
       }),
     );
-    expect(sheet.match(/<input /g)).toHaveLength(1);
+    expect(sheet.match(/type="number"/g)).toHaveLength(1);
+    expect(sheet.match(/type="range"/g)).toHaveLength(1);
     expect(sheet).toContain("Diameter");
     expect(sheet).not.toContain("Width X");
     expect(sheet).not.toContain("Width Y");

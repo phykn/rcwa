@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { DimensionRange } from "./DimensionRange";
 import type { StructureGeometryProject2D } from "./structureGeometry2d";
 import "./structure2d.css";
 
@@ -197,6 +198,23 @@ function NumericDimensionField2D({
           lastApplied.current = next;
           onChange(next);
         }}
+      />
+      <DimensionRange
+        label={label}
+        value={value}
+        min={min}
+        max={max}
+        disabled={disabled}
+        onChange={(next) => {
+          lastApplied.current = next;
+          setDraft(exactDimensionText2D(next));
+          onChange(next);
+        }}
+        onBeginEdit={() => {
+          finish();
+          onBeginEdit();
+        }}
+        onEndEdit={onEndEdit}
       />
       {!valid && (
         <p id={`${id}-error`} className="s2-error" role="alert">

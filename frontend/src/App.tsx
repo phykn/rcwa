@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { DimensionRange } from "./DimensionRange";
 import { LocalDesignHandoff } from "./LocalDesignHandoff";
 import { reviewImportedDesign } from "./importReview";
 import { parse2DChangeProposal } from "./proposal2d";
@@ -219,11 +220,55 @@ function Field({
     </label>
   );
 }
+function DimensionField({
+  label,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+  onBeginEdit,
+  onEndEdit,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onBeginEdit: () => void;
+  onEndEdit: () => void;
+}) {
+  return (
+    <div className="dimension-field">
+      <Field
+        label={label}
+        value={value}
+        min={min}
+        max={max}
+        step={0.1}
+        unit="nm"
+        onChange={onChange}
+      />
+      <DimensionRange
+        disabled={disabled}
+        label={label}
+        value={value}
+        min={min}
+        max={max}
+        onChange={onChange}
+        onBeginEdit={onBeginEdit}
+        onEndEdit={onEndEdit}
+      />
+    </div>
+  );
+}
 function DimensionEditor({
   dimension,
   value,
   max,
   min,
+  disabled,
   onChange,
   onEditStart,
   onEditEnd,
@@ -232,30 +277,13 @@ function DimensionEditor({
   dimension: Dimension;
   value: number;
   max: number;
+  disabled: boolean;
   min: number;
   onChange: (value: number) => void;
   onEditStart: () => void;
   onEditEnd: () => void;
   onDone: () => void;
 }) {
-  const activePointer = useRef<number | null>(null);
-  const end = useRef(onEditEnd);
-  end.current = onEditEnd;
-  useEffect(() => {
-    function finish(event: globalThis.PointerEvent) {
-      if (event.pointerId === activePointer.current) {
-        activePointer.current = null;
-        end.current();
-      }
-    }
-    window.addEventListener("pointerup", finish);
-    window.addEventListener("pointercancel", finish);
-    return () => {
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-      if (activePointer.current !== null) end.current();
-    };
-  }, []);
   const help = {
     width: "The width of each ridge, also called critical dimension (CD).",
     height:
@@ -283,26 +311,22 @@ function DimensionEditor({
         unit="nm"
         onChange={onChange}
       />
-      <input
-        aria-label={`${dimension === "height" ? "thickness" : dimension === "pitch" ? "shared pitch" : dimension} range`}
-        type="range"
+      <DimensionRange
+        disabled={disabled}
+        label={
+          dimension === "height"
+            ? "thickness"
+            : dimension === "pitch"
+              ? "shared pitch"
+              : dimension
+        }
+        value={value}
         min={min}
         max={max}
-        step={1}
-        value={value}
-        onPointerDown={(event) => {
-          onEditEnd();
-          onEditStart();
-          activePointer.current = event.pointerId;
-        }}
-        onKeyDown={() => onEditStart()}
-        onKeyUp={() => onEditEnd()}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={onChange}
+        onBeginEdit={onEditStart}
+        onEndEdit={onEditEnd}
       />
-      <div className="range-labels">
-        <span>{min} nm</span>
-        <span>{max} nm</span>
-      </div>
       <button className="dialog-close dimension-done" onClick={onDone}>
         Done
       </button>
@@ -2460,7 +2484,7 @@ export default function App() {
             if (
               !(is2D && (sheet === "width" || sheet === "pitch")) &&
               (event.target as HTMLElement).matches(
-                "input:not([type=file]), textarea",
+                "input:not([type=file]):not([type=range]), textarea",
               )
             )
               beginEdit();
@@ -2469,7 +2493,7 @@ export default function App() {
             if (
               !(is2D && (sheet === "width" || sheet === "pitch")) &&
               (event.target as HTMLElement).matches(
-                "input:not([type=file]), textarea",
+                "input:not([type=file]):not([type=range]), textarea",
               )
             )
               endEdit();
@@ -2544,52 +2568,58 @@ export default function App() {
                     <option value="homogeneous">Uniform</option>
                   </select>
                 </label>
-                <Field
+                <DimensionField
+                  disabled={busy}
+                  onBeginEdit={beginEdit}
+                  onEndEdit={endEdit}
                   label="Thickness"
-                  unit="nm"
                   value={layer.thickness_nm}
                   min={0}
                   max={2000}
-                  step={0.1}
                   onChange={(thickness_nm) => updateLayer({ thickness_nm })}
                 />
                 {layer.geometry === "rectangle_1d" && (
-                  <Field
+                  <DimensionField
+                    disabled={busy}
+                    onBeginEdit={beginEdit}
+                    onEndEdit={endEdit}
                     label="Width (CD)"
-                    unit="nm"
                     value={layer.cd_nm}
                     min={0}
                     max={project.period_nm}
-                    step={0.1}
                     onChange={(cd_nm) => updateLayer({ cd_nm })}
                   />
                 )}
                 {layer.geometry === "circular_hole_2d" &&
                   project.schema_version === "1.2" && (
-                    <Field
+                    <DimensionField
+                      disabled={busy}
+                      onBeginEdit={beginEdit}
+                      onEndEdit={endEdit}
                       label="Diameter"
-                      unit="nm"
                       value={layer.diameter_nm}
                       min={0}
                       max={Math.min(project.period_nm, project.period_y_nm)}
-                      step={0.1}
                       onChange={(diameter_nm) => updateLayer({ diameter_nm })}
                     />
                   )}
                 {layer.geometry === "rectangle_2d" && (
                   <div className="field-grid">
-                    <Field
+                    <DimensionField
+                      disabled={busy}
+                      onBeginEdit={beginEdit}
+                      onEndEdit={endEdit}
                       label="Width X"
-                      unit="nm"
                       value={layer.cd_x_nm}
                       min={0}
                       max={project.period_nm}
-                      step={0.1}
                       onChange={(cd_x_nm) => updateLayer({ cd_x_nm })}
                     />
-                    <Field
+                    <DimensionField
+                      disabled={busy}
+                      onBeginEdit={beginEdit}
+                      onEndEdit={endEdit}
                       label="Width Y"
-                      unit="nm"
                       value={layer.cd_y_nm}
                       min={0}
                       max={
@@ -2597,7 +2627,6 @@ export default function App() {
                           ? project.period_y_nm
                           : 0
                       }
-                      step={0.1}
                       onChange={(cd_y_nm) => updateLayer({ cd_y_nm })}
                     />
                   </div>
@@ -2638,6 +2667,8 @@ export default function App() {
               sheet &&
               ["width", "height", "pitch"].includes(sheet) && (
                 <DimensionEditor
+                  key={`${sheet}-${selectedLayer}`}
+                  disabled={busy}
                   dimension={sheet as Dimension}
                   value={dimensionValues[sheet as Dimension]}
                   min={

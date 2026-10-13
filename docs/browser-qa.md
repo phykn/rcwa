@@ -90,3 +90,11 @@ captures; existing per-capture deadlines and numerical job limits are unchanged.
 Inspect the candidate's actual multi-open and absorbing/exact images before
 release. Unit tests and syntax checks are not a browser, mobile or accessibility
 pass; local Chromium IPC restrictions leave those checks pending CI.
+
+Order-scroll checks record named stages, selected plot/order samples, focused
+controls, table dimensions and bounded scroll trajectories before assertions.
+Both settled keyboard scrolling and a rapid End-to-sample transition keep the
+strict top-reset requirement; display-option toggles must not reset the table.
+An early desktop inspector capture and a bounded current-viewport capture on
+failure preserve useful evidence even when later checks fail. The original
+240-second suite budget and screenshot/assertion limits are unchanged.

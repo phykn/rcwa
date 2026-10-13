@@ -14,6 +14,12 @@ import {
   pOnlyOrderFixture,
 } from "./order-inspector-fixtures.mjs";
 
+import {
+  checkOrderScroll,
+  captureOrderFailure,
+  observeOrderScroll,
+} from "./order-scroll-evidence.mjs";
+
 const exact = (value) => (Object.is(value, -0) ? "-0" : String(value));
 const classes = {
   propagating: "Propagating",
@@ -104,7 +110,7 @@ export async function assertOrders(
   );
 }
 
-export async function inspectOrders(
+async function inspectOrdersSession(
   page,
   report,
   output,
@@ -112,6 +118,7 @@ export async function inspectOrders(
   imported,
   retainedIndex,
 ) {
+  report.orderStage = `${width}px: open inspector and exact/local components`;
   const multipleOpen = orderFixture("multiple-open-channels");
   const absorbing = orderFixture("lossy-mixed-eight-layer");
   const inspector = page.locator(".diffraction-orders");
@@ -141,6 +148,7 @@ export async function inspectOrders(
   await channelOption.press("Space");
 
   // Replace an open inspector without losing surviving checkbox focus/options.
+  report.orderStage = `${width}px: replace with real multiple-open result`;
   await imported(page, multipleOpen, "orders-multiple-open");
   await expect(channelOption).toBeFocused();
   await expect(exactOption).toBeChecked();
@@ -150,15 +158,35 @@ export async function inspectOrders(
   await expect(inspector).toContainText(
     "Largest power magnitudes first; all orders shown.",
   );
+  if (width === 1440) {
+    await inspector.evaluate((node) =>
+      window.scrollTo(0, node.getBoundingClientRect().top + scrollY - 12),
+    );
+    await capture(page, report, output, "orders-initial-open-1440", {
+      prefix: "spectrum",
+      top: false,
+      full: false,
+    });
+  }
   await page.keyboard.press("Tab");
   await expect(region).toBeFocused();
   await region.press("End");
-  await expect
-    .poll(() => region.evaluate((node) => node.scrollTop))
-    .toBeGreaterThan(0);
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "initial table End reaches bottom",
+    "bottom",
+  );
   await expect(page.locator(".order-table tbody tr").last()).toBeInViewport();
   await region.press("Home");
-  await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "initial table Home returns top",
+    "top",
+  );
 
   // Changing result, wavelength, or polarization resets only the table's scroll.
   // Read the genuine circular reference; no values are generated or interpolated.
@@ -169,9 +197,16 @@ export async function inspectOrders(
     ),
   );
   await region.press("End");
+  report.orderStage = `${width}px: replace with circular multi-sample result`;
   await imported(page, circular, "orders-multisample-scroll");
   await expect(region).toBeFocused();
-  await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "circular result replacement resets table",
+    "top",
+  );
   const slider = page.getByRole("slider", {
     name: "Inspect wavelength sample",
     exact: true,
@@ -192,11 +227,16 @@ export async function inspectOrders(
     ["Home", 0],
     ["End", retainedIndex],
   ]) {
+    report.orderStage = `${width}px: settled wavelength ${key} transition`;
     await region.focus();
     await region.press("End");
-    await expect
-      .poll(() => region.evaluate((node) => node.scrollTop))
-      .toBeGreaterThan(0);
+    await checkOrderScroll(
+      page,
+      report,
+      width,
+      `before wavelength ${key}: End reaches bottom`,
+      "bottom",
+    );
     await slider.focus();
     await slider.press(key);
     await expect(slider).toBeFocused();
@@ -204,20 +244,97 @@ export async function inspectOrders(
     await expect(page.locator(".sample-wavelength strong")).toHaveText(
       `${circular.result.wavelengths_nm[index]} nm`,
     );
-    await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
+    await checkOrderScroll(
+      page,
+      report,
+      width,
+      `wavelength ${key} resets table`,
+      "top",
+    );
     await assertOrders(page, circular.result, "s", index, true);
   }
   await region.focus();
   await region.press("End");
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "rapid End starts before wavelength Home",
+    "moved",
+  );
+  report.orderStage = `${width}px: rapid native End then wavelength Home`;
+  report.rapidOrderScroll ??= [];
+  report.rapidOrderScroll.push({
+    width,
+    beforeSampleChange: await observeOrderScroll(page),
+  });
+  await slider.focus();
+  await slider.press("Home");
+  await expect(slider).toBeFocused();
+  await expect(slider).toHaveValue("0");
+  await expect(page.locator(".sample-wavelength strong")).toHaveText(
+    `${circular.result.wavelengths_nm[0]} nm`,
+  );
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "rapid End then wavelength Home resets table",
+    "top",
+  );
+  await assertOrders(page, circular.result, "s", 0, true);
+  await region.focus();
+  await region.press("End");
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "before incident p: End reaches bottom",
+    "bottom",
+  );
+  report.orderStage = `${width}px: incident-polarization change`;
   const pButton = page.getByRole("button", { name: "p / TM", exact: true });
   await pButton.click();
   await expect(pButton).toBeFocused();
-  await expect.poll(() => region.evaluate((node) => node.scrollTop)).toBe(0);
+  await checkOrderScroll(page, report, width, "incident p resets table", "top");
   await assertOrders(page, circular.result, "p", 0, true);
   await imported(page, multipleOpen, "orders-multiple-open-return");
   await assertOrders(page, multipleOpen.result, "s", 0, true);
+  await region.focus();
+  await region.press("End");
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "before display options: End reaches bottom",
+    "bottom",
+  );
+  report.orderStage = `${width}px: exact/local-component display toggles`;
   await exactOption.uncheck();
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "exact-values toggle retains nonzero table scroll",
+    "moved",
+  );
   await channelOption.uncheck();
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "local-components toggle retains nonzero table scroll",
+    "moved",
+  );
+  await region.focus();
+  await region.press("Home");
+  await checkOrderScroll(
+    page,
+    report,
+    width,
+    "table Home after display options",
+    "top",
+  );
   await assertOrders(page, multipleOpen.result, "s", 0);
   await page
     .locator('.order-table [data-order="0,0"]')
@@ -254,6 +371,7 @@ export async function inspectOrders(
 
   // P-only is explicitly a selection fixture projected from archived p data.
   // No powers or wavelengths are synthesized, and import provenance stays unverified.
+  report.orderStage = `${width}px: p-only result replacement`;
   const pOnly = pOnlyOrderFixture();
   await imported(page, pOnly, "orders-p-only-selection");
   await expect(
@@ -266,6 +384,7 @@ export async function inspectOrders(
 
   await exactOption.check();
   await channelOption.check();
+  report.orderStage = `${width}px: absorbing unequal-basis result replacement`;
   await imported(page, absorbing, "orders-absorbing-unequal-basis");
   await assertOrders(page, absorbing.result, "s", 0, true);
   await expect(inspector).toContainText(
@@ -298,6 +417,7 @@ export async function inspectOrders(
     full: false,
   });
 
+  report.orderStage = `${width}px: input-only edit, stale result, and undo/redo`;
   const before = (await exportWorkspace(page, output, `orders-before-${width}`))
     .data;
   const edited = structuredClone(absorbing.project);
@@ -320,6 +440,7 @@ export async function inspectOrders(
   await assertOrders(page, absorbing.result, "s", 0, true);
 
   // Removing the focused inspector moves only its keyboard user to the plot.
+  report.orderStage = `${width}px: legacy and no-result focus transitions`;
   const legacy = JSON.parse(
     await fs.readFile(
       new URL("../public/reference-example.json", import.meta.url),
@@ -349,6 +470,29 @@ export async function inspectOrders(
   await expect(inspector).toHaveCount(0);
   await expect(quantity).toBeFocused();
   report.checks.push(
-    `${width}px orders: all exact keyed rows/classifications; 121-row real multi-open and 99-row absorbing Hx5/Hy4 fixtures; keyboard disclosure/options/scroll; strongest-first copied sorting; retained-index result replacement; explicit Home/End sample changes and sample/result scroll reset without focus theft; readable compact and visible exact local-channel values; p-only selection projection; unchanged stale result despite substrate edit; Undo/Redo; open replacement focus; legacy/no-result removal; no new solves`,
+    `${width}px orders: all exact keyed rows/classifications; 121-row real multi-open and 99-row absorbing Hx5/Hy4 fixtures; keyboard disclosure/options/scroll; strongest-first copied sorting; retained-index result replacement; settled and rapid Home/End sample changes and sample/result scroll reset without focus theft; readable compact and visible exact local-channel values; p-only selection projection; unchanged stale result despite substrate edit; Undo/Redo; open replacement focus; legacy/no-result removal; no new solves`,
   );
+}
+
+export async function inspectOrders(
+  page,
+  report,
+  output,
+  width,
+  imported,
+  retainedIndex,
+) {
+  try {
+    await inspectOrdersSession(
+      page,
+      report,
+      output,
+      width,
+      imported,
+      retainedIndex,
+    );
+  } catch (error) {
+    await captureOrderFailure(page, report, output, width, error);
+    throw error;
+  }
 }

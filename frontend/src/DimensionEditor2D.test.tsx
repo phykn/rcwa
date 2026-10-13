@@ -52,7 +52,7 @@ describe("2D numeric dimension contracts", () => {
       { axis: "y", label: "Width Y", value: 80, min: 0, max: 140 },
     ]);
     const html = editor(source, 2);
-    expect(html.match(/<input /g)).toHaveLength(2);
+    expect(html.match(/type="number"/g)).toHaveLength(2);
     expect(html.match(/<span>nm<\/span>/g)).toHaveLength(2);
     expect(html).toContain(
       'data-axis="x" type="number" inputMode="decimal" step="any" min="0" max="150"',
@@ -64,7 +64,7 @@ describe("2D numeric dimension contracts", () => {
     expect(html).toContain("Width Y");
     expect(html).toContain('value="95"');
     expect(html).toContain('value="80"');
-    expect(html).not.toContain('type="range"');
+    expect(html.match(/type="range"/g)).toHaveLength(2);
     expect(html).not.toContain("<dialog");
     expect(html).toContain(">Done</button>");
   });
@@ -117,9 +117,9 @@ describe("2D numeric dimension contracts", () => {
     expect(pitch[0].minimumReason).toContain("Layer 2");
     expect(pitch[1].min).toBe(60);
     expect(pitch[1].minimumReason).toContain("Layer 1");
-    expect(editor(mixed, 1).match(/<input /g)).toHaveLength(1);
+    expect(editor(mixed, 1).match(/type="number"/g)).toHaveLength(1);
     expect(editor(mixed, 1)).not.toContain("Width Y");
-    expect(editor(mixed, 1, "pitch").match(/<input /g)).toHaveLength(2);
+    expect(editor(mixed, 1, "pitch").match(/type="number"/g)).toHaveLength(2);
     expect(dimensionFields2D(mixed, 2, "width")).toEqual([]);
     expect(
       dimensionFields2D(
@@ -172,7 +172,7 @@ describe("2D numeric dimension contracts", () => {
 
   it("locks numeric fields during a run while keeping Done available", () => {
     const html = editor(source, 2, "width", true);
-    expect(html.match(/disabled=""/g)).toHaveLength(2);
+    expect(html.match(/disabled=""/g)).toHaveLength(4);
     expect(html).toContain(
       '<button type="button" class="s2-done">Done</button>',
     );

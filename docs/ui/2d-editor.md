@@ -7,6 +7,18 @@ layer. A value smaller than an existing feature is rejected while the last valid
 value remains. A uniform film has no width control; a 1D ridge in a 1.2 stack is
 uniform along Y. Layer settings retain names, materials, type and ordering.
 
+Each physical dimension also has a slider for coarse adjustment. The number
+field retains exact values and the full allowed range. Slider endpoints show a
+local linear interval: the lower physical bound through the smaller of the upper
+physical bound and `ceil(max(200, 2 × value, 2 × minimum) / 100) × 100` nm.
+This keeps small features easy to adjust even inside large periods. The interval
+stays fixed while the control is open, including drag release; typing outside it
+or changing its geometry bounds establishes a new interval without changing the
+entered value. Arrow keys adjust by 1 nm, Page Up/Down by 10 nm, and Home/End reach
+the displayed endpoints. A drag or held adjustment key creates one undo step.
+Closing, losing focus or canceling a touch keeps the last valid value; Undo
+reverts that gesture. Editing does not start a calculation or replace a spectrum.
+
 Centered circular holes or rectangular patterns repeat along both X and Y. The 3×3 scene uses
 one common physical scale. Cutaway hides a corner for inspection without moving
 layers or changing any input. Use View → Full stack to restore it. Colors identify

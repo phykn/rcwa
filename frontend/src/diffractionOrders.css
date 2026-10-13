@@ -42,6 +42,8 @@
   max-height: 26rem;
   overflow: auto;
   overscroll-behavior: contain;
+  /* Ranked rows deliberately reset on sample changes; do not preserve an old row anchor. */
+  overflow-anchor: none;
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }

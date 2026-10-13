@@ -8,6 +8,7 @@ import {
   compactOrderPower,
   exactOrderPower,
   rankedDiffractionOrders,
+  resetOrderTableScroll,
 } from "./DiffractionOrders";
 import { bindResult2D } from "./result2d";
 import { SpectrumPlot } from "./Visuals";
@@ -221,5 +222,20 @@ describe("power presentation without hiding small signed contributions", () => {
     expect(html).toContain(
       'data-value="-1e-12"><span aria-hidden="true">-1.000e-12</span><span class="sr-only">-1e-12</span>',
     );
+  });
+});
+
+describe("deliberate table scroll reset", () => {
+  it("requests an immediate top reset without touching focus or horizontal position", () => {
+    const table = { scrollTo: vi.fn(), focus: vi.fn() };
+    resetOrderTableScroll(table);
+    expect(table.scrollTo).toHaveBeenCalledExactlyOnceWith({
+      top: 0,
+      behavior: "instant",
+    });
+    expect(table.focus).not.toHaveBeenCalled();
+  });
+  it("does nothing after the table has unmounted", () => {
+    expect(() => resetOrderTableScroll(null)).not.toThrow();
   });
 });

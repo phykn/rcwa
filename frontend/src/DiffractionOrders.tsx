@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { PublicForwardResult2D, PublicOrderPower2D } from "./result2d";
 import "./diffractionOrders.css";
 
@@ -22,6 +22,12 @@ export function rankedDiffractionOrders(orders: readonly PublicOrderPower2D[]) {
     }))
     .sort((a, b) => b.magnitude - a.magnitude || a.index - b.index)
     .map(({ order }) => order);
+}
+/** Deliberate sample reset, independent of CSS/native smooth-scroll behavior. */
+export function resetOrderTableScroll(
+  table: Pick<HTMLDivElement, "scrollTo"> | null,
+) {
+  table?.scrollTo({ top: 0, behavior: "instant" });
 }
 function Power({
   value,
@@ -105,10 +111,11 @@ export function DiffractionOrders({
   const [exact, setExact] = useState(false);
   const [channels, setChannels] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    // A new selected sample starts at its strongest orders. Do not move focus,
+  useLayoutEffect(() => {
+    // Reset after row reordering and before paint, including during an active
+    // native scroll. A new sample starts at its strongest orders. Do not move focus,
     // the page, or the scroll position for exact/component display toggles.
-    if (tableRef.current) tableRef.current.scrollTop = 0;
+    resetOrderTableScroll(tableRef.current);
   }, [result, polarization, sampleIndex]);
   const rootRef = useCallback(
     (node: HTMLDetailsElement | null) => {

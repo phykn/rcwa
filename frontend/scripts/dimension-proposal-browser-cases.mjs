@@ -30,6 +30,7 @@ async function checkMobileFooter(page, record) {
   await page.keyboard.press("Tab");
   await expect(apply(page)).toBeFocused();
   const buttons = [];
+  record.footer = { before, afterScroll, buttons, keyboard: "Full inputs → Cancel → Apply changes" };
   for (const button of [cancel(page), apply(page)]) {
     await expect(button).toBeVisible();
     await expect(button).toBeInViewport({ ratio: 1 });
@@ -41,11 +42,11 @@ async function checkMobileFooter(page, record) {
           document.elementFromPoint(rect.x + rect.width * fraction, rect.y + rect.height / 2))),
       };
     });
-    assert.ok(box.width >= 44 && box.height >= 44, `${box.label} has a 44 px touch target`);
+    buttons.push(box); // Retain measured bounds even if the next assertion fails.
+    assert.ok(box.width >= 44, `${box.label} touch width ${box.width} px is at least 44 px`);
+    assert.ok(box.height >= 44, `${box.label} touch height ${box.height} px is at least 44 px`);
     assert.equal(box.hit, true, `${box.label} is unobstructed at its center and side touch points`);
-    buttons.push(box);
   }
-  record.footer = { before, afterScroll, buttons, keyboard: "Full inputs → Cancel → Apply changes" };
 }
 
 export async function dimensionProposalBrowserCases({ group, exported, importFile, assertPreserved, shot, menuAction, editName }) {

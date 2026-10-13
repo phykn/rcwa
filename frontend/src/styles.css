@@ -1905,6 +1905,10 @@ input[type="range"]:focus-visible {
   gap: 16px;
   margin-top: 20px;
 }
+.workflow-actions > button {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+}
 .workflow-actions .dialog-close {
   margin: 0;
   width: auto;
@@ -2830,4 +2834,67 @@ button.preview-result-button:disabled {
 }
 .saved-recovery button {
   flex-shrink: 0;
+}
+
+/* Physical dimension sliders use the displayed local nanometer range. */
+.dimension-field {
+  min-width: 0;
+  margin-bottom: 20px;
+}
+.dimension-field > .field {
+  margin-bottom: 0;
+}
+.dimension-range {
+  margin: 2px 0 12px;
+}
+.dimension-range input[type="range"] {
+  display: block;
+  height: 44px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(var(--border), var(--border)) center / 100% 4px
+    no-repeat;
+  box-shadow: none;
+  touch-action: pan-y;
+}
+.dimension-range input[type="range"]::-webkit-slider-thumb {
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--primary);
+  background: var(--surface);
+  box-shadow: none;
+}
+.dimension-range input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--primary);
+  background: var(--surface);
+  box-shadow: none;
+}
+.dimension-range input[type="range"]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 0;
+}
+.dimension-range input[type="range"]:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.field-grid > .dimension-field {
+  margin: 4px 0 12px;
+}
+.field-grid > .dimension-field > .field {
+  margin-top: 0;
+}
+.dimension-range .range-labels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.dimension-range .range-labels > span {
+  overflow-wrap: anywhere;
+}
+.dimension-range .range-labels > span:last-child {
+  text-align: right;
 }
