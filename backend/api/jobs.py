@@ -64,6 +64,10 @@ def calculate(kind: str, project: dict, fit: dict | None, output: str) -> None:
             from rcwa_core.fitting import fit_cd
 
             result = fit_cd(model, fit)
+        elif kind == "fit":
+            from rcwa_core.fit_2d import fit_2d
+
+            result = fit_2d(model, fit)
         else:
             raise ValueError("Unsupported calculation kind for this project")
         payload = {"result": result, "error": None, "error_code": None}
@@ -77,8 +81,13 @@ def calculate(kind: str, project: dict, fit: dict | None, output: str) -> None:
             "error": public,
             "error_code": error.code if isinstance(error, EngineUnavailableError) else "numerical_failure",
         }
+    try:
+        text = json.dumps(payload, allow_nan=False)
+    except (TypeError, ValueError):
+        # Non-finite or non-JSON output is a numerical failure, not a crashed worker.
+        text = json.dumps({"result": None, "error": "Numerical calculation failed.", "error_code": "numerical_failure"})
     # The observer reads only after exit; an interrupted/partial write is invalid.
-    Path(output).write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
+    Path(output).write_text(text, encoding="utf-8")
 
 
 @dataclass
@@ -121,8 +130,15 @@ class JobManager:
         # Normalize/revalidate copied input before reserving any worker resource.
         model, project, input_hash = normalized_project_and_hash(project)
         fit = deepcopy(fit)
-        if kind not in {"forward", "fit"} or (kind == "fit" and model.schema_version == "1.2"):
-            raise ValueError("Only forward calculations are supported for 1.2 projects")
+        if kind not in {"forward", "fit"}:
+            raise ValueError("Only forward calculations and fits are supported")
+        if kind == "fit" and model.schema_version == "1.2":
+            from rcwa_core.fit_2d import FitSpec
+
+            # A malformed spec must fail here, before any process is allocated.
+            fit = FitSpec.model_validate(fit or {}).model_dump()
+        elif kind == "fit" and fit is None:
+            raise ValueError("Fit jobs require fit options")
         if kind == "forward" and fit is not None:
             raise ValueError("Forward jobs must not include fit options")
         resource_class = "2d" if model.schema_version == "1.2" else "legacy"

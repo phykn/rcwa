@@ -47,8 +47,8 @@ def generate(check=False):
     }
     for path, content in {
         ROOT / "frontend/public/reference-circular.json": bundle,
-        ROOT / "frontend/src/fixtures/default-project-circular.json": project_bytes,
-        ROOT / "frontend/src/fixtures/reference-circular-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
+        ROOT / "frontend/src/core/fixtures/default-project-circular.json": project_bytes,
+        ROOT / "frontend/src/core/fixtures/reference-circular-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
     }.items():
         if check:
             assert path.read_bytes() == content, f"Circle reference packaging differs: {path.name}"

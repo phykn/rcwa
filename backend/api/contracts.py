@@ -8,6 +8,7 @@ from typing_extensions import TypedDict
 
 from rcwa_core.contracts import ForwardResult, ForwardResult1_0, SyntheticFitResult
 from rcwa_core.contracts_2d import PublicForwardResult2D
+from rcwa_core.fit_2d import DimensionFitResult, FitSpec
 from rcwa_core.identity import canonical_hash
 from rcwa_core.preflight import Diagnostic, EngineInfo
 from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, normalized_project_and_hash, parse_project, validate_result_for_project
@@ -46,7 +47,7 @@ LegacyInputProject = Annotated[Project, BeforeValidator(_strict_project)]
 CurrentForwardResult = Annotated[ForwardResult | PublicForwardResult2D, Field(discriminator="schema_version")]
 # OpenAPI discriminator mappings must be references, not an embedded nested union.
 # Literal result_type fields still make the forward/fit alternatives unambiguous.
-CurrentResult = CurrentForwardResult | SyntheticFitResult
+CurrentResult = CurrentForwardResult | SyntheticFitResult | DimensionFitResult
 StoredForwardResult = Annotated[
     ForwardResult1_0 | ForwardResult | PublicForwardResult2D, Field(discriminator="schema_version")
 ]
@@ -62,18 +63,26 @@ class JobRequest(StrictModel):
     kind: Literal["forward", "fit"] = "forward"
     project: InputProject
     fit: FitOptions | None = None
+    #: Measured-spectrum dimension fit for schema 1.2 projects.
+    fit_2d: FitSpec | None = None
 
     @model_validator(mode="after")
     def operation(self):
-        if self.kind == "forward" and self.fit is not None:
+        if self.kind == "forward" and (self.fit is not None or self.fit_2d is not None):
             raise ValueError("Forward jobs must not include fit options")
         if self.kind == "fit":
             if isinstance(self.project, Project2D):
-                raise ValueError("Schema 1.2 supports forward calculations only; 2D fitting is not supported")
-            if self.fit is None:
-                raise ValueError("Synthetic fit requires fit options")
-            FitRequest(project=self.project, **self.fit.model_dump())
+                if self.fit is not None or self.fit_2d is None:
+                    raise ValueError("Schema 1.2 fits take fit_2d (parameters, wavelengths_nm, values, quantity, polarization)")
+            else:
+                if self.fit_2d is not None or self.fit is None:
+                    raise ValueError("Legacy synthetic fits take fit options (target_cd_nm and CD bounds)")
+                FitRequest(project=self.project, **self.fit.model_dump())
         return self
+
+    def fit_options(self) -> dict | None:
+        options = self.fit_2d or self.fit
+        return options.model_dump() if options else None
 
 
 class ErrorDetail(StrictModel):
@@ -160,6 +169,16 @@ class SyntheticFitResultSummary(StrictModel):
     )
 
 
+class DimensionFitSummary(StrictModel):
+    summary_schema_version: Literal["rcwa-dimension-fit-summary/1.0"]
+    result_type: Literal["dimension_fit"]
+    values: list[float]
+    sigma: list[float | None]
+    at_bound: list[bool]
+    rms: float = Field(ge=0)
+    evaluations: int = Field(ge=1)
+
+
 class JobSummary(StrictModel):
     view: Literal["summary"]
     id: str
@@ -168,7 +187,7 @@ class JobSummary(StrictModel):
     created_at: str
     completed_at: str | None
     input_hash: str
-    result_summary: ForwardResultSummary | SyntheticFitResultSummary | None
+    result_summary: ForwardResultSummary | SyntheticFitResultSummary | DimensionFitSummary | None
     error: str | None
     error_code: str | None
 

@@ -108,7 +108,7 @@ Obvious destination conflicts and directory targets are rejected before HTTP.
 
 Start the local frontend with `cd frontend && npm run dev`, then open `http://localhost:5173`.
 
-- Use **Import JSON** to open `artifacts/agent-best.json` and inspect its geometry, selected wavelength/polarization, powers, and warnings.
+- Use **Open** to load `artifacts/agent-best.json` and inspect its geometry, selected wavelength/polarization, powers, and warnings.
 - Or open **Saved projects** and choose the durable snapshot from this run. Its ID is printed by the script and recorded in `agent-report.json`.
 - Editing the input makes the displayed result stale. Recompute before interpreting it as the result of your edited input.
 
@@ -233,7 +233,9 @@ ID, normalization/hash and server input-provenance binding and retains its final
 
 ## Review a caller-specified geometry change
 
-`POST /api/change-preview` accepts exactly `base_project` and `changes`. Use the
+`POST /api/change-preview` accepts exactly `base_project` and `changes`. These
+legacy (schema 1.0/1.1) proposals are for scripts; the workbench opens only
+`rcwa-change-proposal/1.2` dimension proposals. Use the
 current editor's exported Project as the base. A Project/result export contains
 it under `project`; pass that member as `base_project`, not the export wrapper.
 The base must have exactly one rectangular layer, using either supported Project schema. Multi-layer and homogeneous bases are rejected rather than modifying only layer zero. The strict `changes` object accepts one or more of these finite numeric fields:
@@ -282,7 +284,7 @@ storage, or apply inputs on the server. A successful preview predicts no optical
 improvement and does not certify numerical convergence.
 
 For the explicit local handoff, save the complete response object as a UTF-8 JSON
-file, then use **Import JSON** in the workbench. The proposal is shown for review
+file, then use **Open** in the workbench. The proposal is shown for review
 before an explicit Apply; cancel changes nothing and applying does not compute.
 The proposal response/import file limit is 8 MB; HTTP request bodies remain limited to 2 MB. Imported proposals are
 untrusted: the UI reconstructs the candidate and diff from the allowlisted
@@ -356,9 +358,10 @@ return `proposal_too_large` (HTTP 413). The MCP transport reports
 creates a job or applies edits. An 8 MB import allowance does not enlarge a
 later HTTP computation request.
 
-The UI reconstructs the full candidate and diff, recomputes preflight, checks
-that the entire base still matches the editor, and requires explicit Apply.
-A no-op cannot be applied. Hashes and imported diagnostics cannot establish
+The workbench rebuilds the candidate from the current design and the allowlisted
+dimension changes (it ignores the file's own candidate), checks that the entire
+base still matches the design, and requires explicit Apply. A no-op cannot be
+applied. Preflight runs with the normal preview after Apply. Hashes and imported diagnostics cannot establish
 computed provenance. No result/provenance fields, jobs, persistence, automatic
 apply, optimizer, LLM, or paid service are introduced.
 
@@ -440,10 +443,22 @@ Unicode serialization remain unchanged.
 
 The frontend opens the exact synthetic 1.2 example and supports direct 2D editing.
 The HTTP `/api/example` route deliberately retains its legacy fixture for existing
-clients; `?example=circular_hole_2d` explicitly returns the current circular input. Fitting and the two legacy change-proposal routes remain unavailable for 1.2;
-a 1.2 request to those operations fails before worker allocation. Use the separate
+clients; `?example=circular_hole_2d` explicitly returns the current circular input. The synthetic CD fit
+and the two legacy change-proposal routes remain unavailable for 1.2; a 1.2 request to those operations fails
+before worker allocation.
+
+1.2 projects instead support a measured-spectrum dimension fit as an ordinary job:
+`POST /api/jobs` with `{"kind": "fit", "project": <1.2 project>, "fit_2d": {...}}`, where `fit_2d` holds
+`parameters` (1–3 of `{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120, "linked": []}`;
+`linked` lists paths that take the same value, such as `["period_y_nm"]` for a square lattice),
+`wavelengths_nm` and `values` (3–31 measured fractions), `quantity` (`R`, `T`, `R_specular` or
+`T_specular`) and `polarization` (`s`, `p` or `avg`). The succeeded job's result has
+`result_type: "dimension_fit"` with fitted `values`, linearized `sigma`, `at_bound`, `rms`, the
+`fitted` curve and the evaluation `history`. The result is checked against its request (parameter count,
+wavelengths and bounds) before the job succeeds. Capabilities list it as `dimension_fit` under
+`project_profiles["1.2"].operations`. Use the separate
 `/api/2d-change-preview` route for bounded dimension proposals. See the
-[2D editor](ui/2d-editor.md) for browser workflow and input/result identity.
+[workbench guide](ui/workbench.md) for the browser workflow.
 
 Job inputs are copied and normalized. A validated 2D result, its job and saved
 snapshot share one UTF-8 canonical input hash. Snapshot provenance uses the actual

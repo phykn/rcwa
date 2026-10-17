@@ -25,7 +25,7 @@ from rcwa_core.project_io import normalized_project_and_hash, validate_result_fo
 from rcwa_core.preflight import refractive_index  # noqa: E402
 from rcwa_core.preflight_2d import wavevectors  # noqa: E402
 
-OUTPUT = ROOT / "frontend/src/fixtures/project-2d-conformance.json"
+OUTPUT = ROOT / "frontend/src/core/fixtures/project-2d-conformance.json"
 PROJECT_SHA = "8dbe8260fa61ba3ec8f82ffefc5a5749ea75587b035d9f381edf66b695755294"
 
 

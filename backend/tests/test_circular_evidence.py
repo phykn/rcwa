@@ -32,11 +32,23 @@ def s4_sample(reference):
     }}
 
 
+def check_frozen_circular_core(digests):
+    """Evidence binds to the archived source that generated it, not to later production edits.
+
+    test_exact_real_circular_default_all_wavelengths_and_channels separately requires
+    current production to reproduce the frozen circular result within 1e-10.
+    """
+    directory = FIXTURES / "circular-core"
+    manifest = json.loads((directory / "manifest.json").read_text())
+    assert manifest["files"] == digests
+    for path, digest in digests.items():
+        assert hashlib.sha256((directory / Path(path).name).read_bytes()).hexdigest() == digest
+
+
 def check_harmonic_gate(gate):
     project = Project2D.model_validate(gate["input"])
     assert gate["passed"] and gate["input_hash"] == input_hash_2d(project)
-    for path, expected in gate["production_source_sha256"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == expected
+    check_frozen_circular_core(gate["production_source_sha256"])
     for index, result in enumerate(gate["production"]):
         validate_result_2d(result, project, reference_basis=None if index == 0 else tuple(gate["bases"][index]))
     for key, ae, ai, be, bi, tolerance in (
@@ -141,8 +153,7 @@ def test_supplementary_offgrid_discovery_and_targeted_evidence():
     assert len(discovery["series"]) == 12
     assert all(len(values) == 201 for values in discovery["series"].values())
     assert not discovery["requires_scope_review"]
-    for path, digest in report["production_source_sha256"].items():
-        assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
+    check_frozen_circular_core(report["production_source_sha256"])
     for path, digest in report["harness_sha256"].items():
         assert hashlib.sha256((ROOT / path).read_bytes()).hexdigest() == digest
     from scipy.signal import find_peaks

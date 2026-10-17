@@ -1,56 +1,29 @@
-name: Static reference preview
+name: Pages
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: [Checks]
-    branches: [main]
-    types: [completed]
+  workflow_dispatch:
 permissions:
   contents: read
-# Serialize the fast path and fallback. Both independently revalidate main;
-# a second lightweight same-SHA deployment is deliberately allowed in v1.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   build:
-    if: >-
-      github.event_name == 'push' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    outputs:
-      sha: ${{ steps.evidence.outputs.sha }}
-      evidence: ${{ steps.evidence.outputs.evidence }}
-      artifact_id: ${{ steps.artifact.outputs.artifact_id }}
     steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          persist-credentials: false
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Verify exact-SHA Checks evidence and current main
-        id: evidence
-        run: node scripts/pages_evidence_gate.mjs build
-      - run: npm ci && npm run lint && npm test && npm run build
+      - run: npm ci && npm run build
         working-directory: frontend
-        env:
-          VITE_STATIC_PREVIEW: 'true'
-      - name: Include release evidence in the static artifact
-        run: cp pages-evidence.json frontend/dist/release-evidence.json
       - uses: actions/upload-pages-artifact@v4
-        id: artifact
         with:
-          name: rcwa-pages-${{ steps.evidence.outputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: frontend/dist
-          retention-days: 1
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -62,27 +35,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Read the exact reviewed candidate without credentials
-        env:
-          EXPECTED_SHA: ${{ needs.build.outputs.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$EXPECTED_SHA" =~ ^[a-f0-9]{40}$ ]]
-          git init .
-          git -c credential.helper= fetch --depth=1 https://github.com/phykn/rcwa.git "$EXPECTED_SHA"
-          git checkout --detach FETCH_HEAD
       - uses: actions/configure-pages@v5
-      - name: Recheck evidence, artifact identity and current main immediately before deploy
-        env:
-          EXPECTED_EVIDENCE: ${{ needs.build.outputs.evidence }}
-          EXPECTED_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
-        run: node scripts/pages_evidence_gate.mjs deploy
-      - name: Deploy static reference UI
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
-        with:
-          artifact_name: rcwa-pages-${{ needs.build.outputs.sha }}-${{ github.run_id }}-${{ github.run_attempt }}

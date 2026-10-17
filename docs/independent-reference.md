@@ -101,7 +101,7 @@ The original single-layer-only run completed at `2026-10-10T05:48:18.036970+00:0
 
 The JSON includes every model input, all compared per-order powers, total powers, tolerance, status, package versions, compiler/link command, source commit, timestamp, and hashes of the adapter, schema, reference script, and S4 executable. A failed build or solve raises an error; a discrepancy above the threshold returns a nonzero exit status. There is no mock spectrum or pass-by-fallback path.
 
-The original build and 150 single-layer numerical comparisons took about 15 seconds on the test machine. This is an observed validation runtime, not a production performance promise. The original single-layer evidence remains in [compressed legacy reference evidence](independent-reference-results.json.gz); current stack evidence is saved separately in [compressed multilayer reference evidence](multilayer-reference-results.json.gz). Reproduce into `artifacts/` to retain machine-specific evidence. The reference comparison is also a separate `independent-reference` CI job; it is not substituted for the ordinary backend tests.
+The original build and 150 single-layer numerical comparisons took about 15 seconds on the test machine. This is an observed validation runtime, not a production performance promise. The original single-layer evidence remains in [compressed legacy reference evidence](independent-reference-results.json.gz); current stack evidence is saved separately in [compressed multilayer reference evidence](multilayer-reference-results.json.gz). Reproduce into `artifacts/` to retain machine-specific evidence. Run it locally when the numerical core changes; it is not substituted for the ordinary backend tests.
 
 ## Remaining gates
 

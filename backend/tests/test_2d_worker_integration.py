@@ -252,8 +252,8 @@ def test_invalid_public_caps_never_allocate_a_process(controlled_manager, change
     assert not controlled_manager.jobs and not controlled_manager.inputs and not controlled_manager.test_processes
 
 
-def test_2d_fit_rejected_before_process_allocation(controlled_manager):
-    with pytest.raises(ValueError, match="forward"):
+def test_2d_fit_without_a_valid_spec_is_rejected_before_process_allocation(controlled_manager):
+    with pytest.raises(ValueError, match="parameters"):
         controlled_manager.submit("fit", small_project(), {})
     assert not controlled_manager.jobs and not controlled_manager.test_processes
 

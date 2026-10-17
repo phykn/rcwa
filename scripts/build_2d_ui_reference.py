@@ -46,8 +46,8 @@ def generate(check: bool) -> None:
     }
     outputs = {
         ROOT / "frontend/public/reference-2d.json": bundle,
-        ROOT / "frontend/src/fixtures/default-project-2d.json": project_bytes,
-        ROOT / "frontend/src/fixtures/reference-2d-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
+        ROOT / "frontend/src/core/fixtures/default-project-2d.json": project_bytes,
+        ROOT / "frontend/src/core/fixtures/reference-2d-manifest.json": (json.dumps(manifest, indent=2) + "\n").encode(),
     }
     for path, content in outputs.items():
         if check:

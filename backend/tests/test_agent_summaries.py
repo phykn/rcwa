@@ -52,7 +52,7 @@ def test_explicit_circular_example_matches_approved_input_and_legacy_default(cli
     assert client.get("/api/example").json() == original
     assert client.get("/api/example?example=legacy_1d").json() == original
     example = client.get("/api/example?example=circular_hole_2d").json()
-    assert example == json.loads((ROOT / "frontend/src/fixtures/default-project-circular.json").read_text())
+    assert example == json.loads((ROOT / "frontend/src/core/fixtures/default-project-circular.json").read_text())
     assert client.post("/api/validate", json=example).json()["valid"]
     assert "result" not in example and not client.app.state.jobs.jobs
     assert client.get("/api/example?example=unknown").status_code == 422
