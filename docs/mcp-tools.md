@@ -50,9 +50,8 @@ accept a configuration like this; the surrounding settings format varies:
 ```
 
 The launcher uses the official SDK’s cross-platform stdio implementation.
-Linux subprocess operation is tested locally. A dedicated Windows CI job checks
-a real SDK client, adapter subprocess and HTTP API; Windows verification is
-pending until that job passes. Individual AI applications are not certified. Do not run the
+Linux and macOS subprocess operation is tested locally; `backend/tests/test_mcp_protocol.py`
+also covers Windows when run there. Individual AI applications are not certified. Do not run the
 adapter as a web server. Stdin/stdout are its protocol connection, so it waits
 quietly when started directly in a terminal. Diagnostics go to stderr.
 
@@ -388,9 +387,9 @@ OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests/test_change_preview.py bac
 ```
 
 Tests use the official SDK Client over a real stdio subprocess, then real HTTP
-against an isolated local API and SQLite database. The Windows CI job runs
-discovery, example, validation, API-down and normal process-teardown checks;
-Linux CI additionally runs the full numerical solve/snapshot workflow and the
+against an isolated local API and SQLite database: discovery, example,
+validation, API-down and normal process-teardown checks, plus the full
+numerical solve/snapshot workflow and the
 compact circle H1 run → inspect → receipt → reload journey. Archived rectangular
 and circular max-resource snapshots exercise compact transport without an H5
 recalculation; their original generation evidence is unchanged. They cover legacy

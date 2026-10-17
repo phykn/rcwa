@@ -35,11 +35,11 @@ npm run test:engine
 RCWA_E2E_PYTHON=../.venv/bin/python npm run e2e
 ```
 
-Local PostgreSQL integration tests are explicitly skipped without `TEST_POSTGRES_URL`; the backend CI job supplies a PostgreSQL 17 service. Current pinned Python dependencies use meent 0.13.2, NumPy 2.5.3 and SciPy 1.17.1. An upstream Starlette/AnyIO deprecation warning is not a test failure.
+Local PostgreSQL integration tests are explicitly skipped without `TEST_POSTGRES_URL`; `docker compose up -d db` provides a PostgreSQL 17 service for it. Current pinned Python dependencies use meent 0.13.2, NumPy 2.5.3 and SciPy 1.17.1. An upstream Starlette/AnyIO deprecation warning is not a test failure.
 
-The new circular example has separate [spatial/harmonic and off-grid evidence](true-2d/circular-geometry.md). Historical rectangular evidence retains its original source binding; it is not transferred to circles. Circular evidence is bound to an archived copy of the core that generated it (`backend/tests/fixtures/true-2d/circular-core`), and current production must reproduce the frozen circular result within 1e-10. The `circular-reference` CI job reruns the complete default circle grid against independently constructed exact S4 circles.
+The new circular example has separate [spatial/harmonic and off-grid evidence](true-2d/circular-geometry.md). Historical rectangular evidence retains its original source binding; it is not transferred to circles. Circular evidence is bound to an archived copy of the core that generated it (`backend/tests/fixtures/true-2d/circular-core`), and current production must reproduce the frozen circular result within 1e-10. The circular S4 comparison (`scripts/circular_gate.py`) reruns the complete default circle grid against independently constructed exact S4 circles.
 
-The independent-reference CI job builds official S4 at the exact source commit described in [the reference guide](independent-reference.md), runs the application's normal forward adapter and retains the comparison JSON/build log. S4 is a test-only reference; it is not bundled in the application runtime.
+The independent reference comparison builds official S4 at the exact source commit described in [the reference guide](independent-reference.md), runs the application's normal forward adapter and retains the comparison JSON/build log. S4 is a test-only reference; it is not bundled in the application runtime.
 
 ## Browser engine and end-to-end checks
 
@@ -59,10 +59,10 @@ The independent-reference CI job builds official S4 at the exact source commit d
   guide. With `RCWA_E2E_PYTHON` it also starts the local API and checks that full
   calculations switch to it.
 
-Screenshots of failing tests and traces are kept in the `e2e-report` CI artifact.
+Screenshots of failing tests and traces are written to `frontend/test-results`.
 
 ## Publication policy and remaining limits
 
-Publish changes to a test branch first. All six CI jobs, independent reference checks, exact input/result/provenance regressions and inspection of the candidate commit's actual screenshots must pass before that exact commit reaches main. A running or failed test branch is not a release. Main's successful checks then gate the static Pages workflow.
+There is no CI. Run the checks above locally (and the S4 reference scripts when the numerical core changes) before merging to `main`; every push to `main` deploys Pages without further checks.
 
 Pages calculates in the visitor's browser with the same `rcwa_core`; it runs no server. Production authentication, multiuser isolation, instrument response, measured-sample validation, uncertainty estimates, phase and general inverse design remain outside this stage.

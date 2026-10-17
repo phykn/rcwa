@@ -161,23 +161,20 @@ npm test                 # unit and component tests (Vitest, jsdom)
 npm run test:engine      # Pyodide engine vs frozen native results (downloads Pyodide once)
 npx playwright install chromium
 RCWA_E2E_PYTHON=../.venv/bin/python npm run e2e   # build + browser end-to-end
-cd ..
-node --test scripts/tests/pages_evidence_gate.test.mjs
 ```
 
 `npm run test:engine` caches Pyodide's packages in `node_modules/pyodide`; the
 end-to-end suite serves them from there, so run it first on a fresh checkout.
 Without `RCWA_E2E_PYTHON` the local-server end-to-end check is skipped.
 
-The launcher acceptance suite runs real processes serially on Linux and Windows
-in CI, from a copied repository path containing spaces and a different working
-directory. Its raw server logs, JUnit results and real-eigensystem markers are
-retained with each run. It covers cancellation after real numerical work, saved
-circle snapshot identity across restart, occupied ports, startup interruption,
-service failure and stubborn owned descendants. A Linux-only local run does
-not establish Windows behavior; inspect the exact candidate's Windows CI result.
+There is no CI; run these checks locally before merging. The launcher acceptance
+suite (`scripts/tests/test_local_startup.py`) runs real processes from a copied
+repository path containing spaces and a different working directory. It inspects
+processes through Linux `/proc` or Windows APIs, so it does not run on macOS; a
+Linux-only run does not establish Windows behavior.
 
-The PostgreSQL integration test runs when `TEST_POSTGRES_URL` is configured. GitHub CI provides a separate PostgreSQL service. Without a local test service, only that test is explicitly skipped. See [verification status](validation.md) for observed results and remaining limits.
+The PostgreSQL integration test runs when `TEST_POSTGRES_URL` is configured
+(`docker compose up -d db` provides one). Without it, only that test is explicitly skipped. See [verification status](validation.md) for observed results and remaining limits.
 
 ## Project layout
 
@@ -199,7 +196,7 @@ and [the workbench guide](ui/workbench.md) for the interface.
 
 ## GitHub Pages
 
-GitHub Actions runs code and physics checks. GitHub Pages serves the static
+GitHub Pages serves the static
 build, which calculates with the in-browser engine. The first visit downloads
 the Python runtime and numerical packages (about 25 MB, from jsDelivr, pinned to
 Pyodide 0.28.3) and caches them; the bundled example result shows immediately
@@ -212,9 +209,9 @@ http://127.0.0.1:5173.
 
 The API is an unauthenticated local-development prototype. Do not expose it on the public internet or through a temporary tunnel. Multiuser authentication, production quotas, TLS configuration, and deployment operations are not implemented.
 
-The workflow publishes after verified exact-commit `Checks` evidence; see the
-[release evidence policy](release-evidence.md). Set repository Settings → Pages →
-Source to GitHub Actions.
+`.github/workflows/pages.yml` builds and deploys on every push to `main` (or a
+manual run); it runs no tests, so run the checks above first. Set repository
+Settings → Pages → Source to GitHub Actions.
 
 ## Job and storage lifetime
 
