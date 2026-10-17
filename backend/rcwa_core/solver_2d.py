@@ -140,7 +140,7 @@ def laurent_diagnostic_2d(project: Project2D, *, reference_basis=None):
 
 def _forward_2d(project, *, reference_basis, laurent_diagnostic, reference_circle_strips=None):
     project = Project2D.model_validate(project.model_dump())
-    from .circular_geometry import CIRCLE_STRIPS, circle_approximation_metadata, validate_circle_strips
+    from .circular_geometry import CIRCLE_STRIPS, validate_circle_strips
 
     circle_strips = CIRCLE_STRIPS if reference_circle_strips is None else validate_circle_strips(reference_circle_strips)
     circular = any(layer.geometry == "circular_hole_2d" for layer in project.layers)
@@ -149,85 +149,148 @@ def _forward_2d(project, *, reference_basis, laurent_diagnostic, reference_circl
     basis = reference_basis or (project.solver.harmonics_x, project.solver.harmonics_y)
     if not isinstance(basis, tuple) or len(basis) != 2 or any(type(h) is not int or not 0 <= h <= 15 for h in basis):
         raise ValueError("Offline reference basis must contain two integer half-widths from 0 through 15")
-    hx, hy = basis
     diagnostics = ensure_preflight_2d(project, basis=basis)
     engine = ensure_engine_available()
+    start = perf_counter()
+    partials = [
+        _solve_wavelength(project, wavelength, basis, circle_strips, laurent_diagnostic)
+        for wavelength in project.illumination.wavelengths_nm
+    ]
+    return _assemble(
+        project,
+        partials,
+        diagnostics,
+        engine,
+        basis,
+        circle_strips,
+        reference_basis=reference_basis,
+        reference_circle_strips=reference_circle_strips,
+        laurent_diagnostic=laurent_diagnostic,
+        elapsed=perf_counter() - start,
+    )
+
+
+def solve_wavelengths_2d(project: Project2D, indices) -> list[dict]:
+    """Production solve of selected wavelength indices, for sharded browser/worker runs.
+
+    Each partial is plain JSON. assemble_forward_2d merges all partials into the
+    same result forward_2d returns for the whole spectrum.
+    """
+    from .circular_geometry import CIRCLE_STRIPS
+
+    project = Project2D.model_validate(project.model_dump())
+    basis = (project.solver.harmonics_x, project.solver.harmonics_y)
+    ensure_preflight_2d(project, basis=basis)
+    ensure_engine_available()
+    wavelengths = project.illumination.wavelengths_nm
+    return [_solve_wavelength(project, wavelengths[i], basis, CIRCLE_STRIPS, False) for i in indices]
+
+
+def assemble_forward_2d(project: Project2D, partials, *, elapsed_seconds: float) -> dict:
+    from .circular_geometry import CIRCLE_STRIPS
+
+    project = Project2D.model_validate(project.model_dump())
+    if [p["wavelength_nm"] for p in partials] != project.illumination.wavelengths_nm:
+        raise ValueError("Partials must cover every project wavelength in order")
+    basis = (project.solver.harmonics_x, project.solver.harmonics_y)
+    diagnostics = ensure_preflight_2d(project, basis=basis)
+    engine = ensure_engine_available()
+    return _assemble(project, partials, diagnostics, engine, basis, CIRCLE_STRIPS, elapsed=elapsed_seconds)
+
+
+def _solve_wavelength(project, wavelength, basis, circle_strips, laurent_diagnostic):
     from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
 
-    start = perf_counter()
+    hx, hy = basis
     angle, phi = np.deg2rad([project.illumination.angle_deg, project.illumination.azimuth_deg])
+    labels = [(m, n) for n in range(-hy, hy + 1) for m in range(-hx, hx + 1)]
+    pols = ["s", "p"] if project.illumination.polarization == "both" else [project.illumination.polarization]
+    n0 = refractive_index(project.ambient, wavelength).real
+    ns = refractive_index(project.substrate, wavelength)
+    has_loss = stack_has_loss_2d(project, wavelength)
+    kx, ky = wavevectors(project, wavelength, hx, hy)
+    xx, yy = np.meshgrid(kx, ky)
+    q_top, q_bottom = n0**2 - xx**2 - yy**2, ns**2 - xx**2 - yy**2
+    cells, thicknesses = stack_cells_2d(project, wavelength, circle_strips=circle_strips)
+    try:
+        with np.errstate(divide="raise", invalid="raise", over="raise"):
+            if cells:
+                ex, ey, ezi = to_conv_mat_vector(cells, hx, hy, type_complex=np.complex128, use_pinv=False)
+                if laurent_diagnostic:
+                    ex = np.linalg.inv(ezi)
+                    ey = ex.copy()
+            else:
+                ex, ey, ezi = [], [], []
+            raw = _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, ex, ey, ezi)
+    except (np.linalg.LinAlgError, FloatingPointError) as exc:
+        raise SolverError(f"2D RCWA failed at {wavelength:g} nm: {exc}") from exc
+    partial = {"wavelength_nm": wavelength, "has_loss": bool(has_loss), "absorbing_port": bool(ns.imag != 0),
+               "lossless_error": 0.0, "series": {}}
+    for pol in pols:
+        result = raw["res_te_inc" if pol == "s" else "res_tm_inc"]
+        arrays = [np.asarray(result[k], dtype=float) for k in RAW_CHANNELS]
+        if any(a.shape != (2 * hy + 1, 2 * hx + 1) for a in arrays):
+            raise SolverError("2D RCWA output shape does not match its x/y basis")
+        values = np.stack(arrays)
+        if not np.all(np.isfinite(values)):
+            raise SolverError(f"2D RCWA produced nonfinite output at {wavelength:g} nm ({pol})")
+        r_orders, t_orders = arrays[0] + arrays[1], arrays[2] + arrays[3]
+        reflection, transmission = float(r_orders.sum()), float(t_orders.sum())
+        balance = 1 - reflection - transmission
+        if values.min() < -1e-8 or balance < -1e-6:
+            raise SolverError(f"2D passive flux check failed at {wavelength:g} nm ({pol}); no clipping")
+        if not has_loss:
+            partial["lossless_error"] = max(partial["lossless_error"], abs(balance))
+            if abs(balance) > 1e-6:
+                raise SolverError(f"2D lossless flux check failed at {wavelength:g} nm ({pol})")
+        rows = []
+        for m, n in labels:
+            iy, ix = n + hy, m + hx
+            rows.append(
+                {
+                    "m": m,
+                    "n": n,
+                    "kx_over_k0": float(xx[iy, ix]),
+                    "ky_over_k0": float(yy[iy, ix]),
+                    "R": float(r_orders[iy, ix]),
+                    "T": float(t_orders[iy, ix]),
+                    **{k: float(a[iy, ix]) for k, a in zip(CHANNELS, arrays)},
+                    "reflection_propagating": bool(q_top[iy, ix] > 0),
+                    "transmission_propagating": None if ns.imag else bool(q_bottom[iy, ix].real > 0),
+                    "transmission_class": "absorbing_half_space"
+                    if ns.imag
+                    else ("propagating" if q_bottom[iy, ix].real > 0 else "evanescent"),
+                }
+            )
+        partial["series"][pol] = {
+            "R": reflection,
+            "T": transmission,
+            "A_balance": balance,
+            "R_specular": float(r_orders[hy, hx]),
+            "T_specular": float(t_orders[hy, hx]),
+            "orders": rows,
+        }
+    return partial
+
+
+def _assemble(project, partials, diagnostics, engine, basis, circle_strips, *, reference_basis=None,
+              reference_circle_strips=None, laurent_diagnostic=False, elapsed):
+    from .circular_geometry import circle_approximation_metadata
+
+    hx, hy = basis
+    circular = any(layer.geometry == "circular_hole_2d" for layer in project.layers)
     labels = [(m, n) for n in range(-hy, hy + 1) for m in range(-hx, hx + 1)]
     pols = ["s", "p"] if project.illumination.polarization == "both" else [project.illumination.polarization]
     spectra = {pol: {k: [] for k in ("R", "T", "R_specular", "T_specular", "A_balance", "orders")} for pol in pols}
     max_lossless_error, any_loss, absorbing_port = 0.0, False, False
-    for wavelength in project.illumination.wavelengths_nm:
-        n0 = refractive_index(project.ambient, wavelength).real
-        ns = refractive_index(project.substrate, wavelength)
-        has_loss = stack_has_loss_2d(project, wavelength)
-        any_loss |= has_loss
-        absorbing_port |= ns.imag != 0
-        kx, ky = wavevectors(project, wavelength, hx, hy)
-        xx, yy = np.meshgrid(kx, ky)
-        q_top, q_bottom = n0**2 - xx**2 - yy**2, ns**2 - xx**2 - yy**2
-        cells, thicknesses = stack_cells_2d(project, wavelength, circle_strips=circle_strips)
-        try:
-            with np.errstate(divide="raise", invalid="raise", over="raise"):
-                if cells:
-                    ex, ey, ezi = to_conv_mat_vector(cells, hx, hy, type_complex=np.complex128, use_pinv=False)
-                    if laurent_diagnostic:
-                        ex = np.linalg.inv(ezi)
-                        ey = ex.copy()
-                else:
-                    ex, ey, ezi = [], [], []
-                raw = _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, ex, ey, ezi)
-        except (np.linalg.LinAlgError, FloatingPointError) as exc:
-            raise SolverError(f"2D RCWA failed at {wavelength:g} nm: {exc}") from exc
+    for partial in partials:
+        any_loss |= partial["has_loss"]
+        absorbing_port |= partial["absorbing_port"]
+        if not partial["has_loss"]:
+            max_lossless_error = max(max_lossless_error, partial["lossless_error"])
         for pol in pols:
-            result = raw["res_te_inc" if pol == "s" else "res_tm_inc"]
-            arrays = [np.asarray(result[k], dtype=float) for k in RAW_CHANNELS]
-            if any(a.shape != (2 * hy + 1, 2 * hx + 1) for a in arrays):
-                raise SolverError("2D RCWA output shape does not match its x/y basis")
-            values = np.stack(arrays)
-            if not np.all(np.isfinite(values)):
-                raise SolverError(f"2D RCWA produced nonfinite output at {wavelength:g} nm ({pol})")
-            r_orders, t_orders = arrays[0] + arrays[1], arrays[2] + arrays[3]
-            reflection, transmission = float(r_orders.sum()), float(t_orders.sum())
-            balance = 1 - reflection - transmission
-            if values.min() < -1e-8 or balance < -1e-6:
-                raise SolverError(f"2D passive flux check failed at {wavelength:g} nm ({pol}); no clipping")
-            if not has_loss:
-                max_lossless_error = max(max_lossless_error, abs(balance))
-                if abs(balance) > 1e-6:
-                    raise SolverError(f"2D lossless flux check failed at {wavelength:g} nm ({pol})")
-            series = spectra[pol]
-            for k, value in (
-                ("R", reflection),
-                ("T", transmission),
-                ("A_balance", balance),
-                ("R_specular", float(r_orders[hy, hx])),
-                ("T_specular", float(t_orders[hy, hx])),
-            ):
-                series[k].append(value)
-            rows = []
-            for m, n in labels:
-                iy, ix = n + hy, m + hx
-                rows.append(
-                    {
-                        "m": m,
-                        "n": n,
-                        "kx_over_k0": float(xx[iy, ix]),
-                        "ky_over_k0": float(yy[iy, ix]),
-                        "R": float(r_orders[iy, ix]),
-                        "T": float(t_orders[iy, ix]),
-                        **{k: float(a[iy, ix]) for k, a in zip(CHANNELS, arrays)},
-                        "reflection_propagating": bool(q_top[iy, ix] > 0),
-                        "transmission_propagating": None if ns.imag else bool(q_bottom[iy, ix].real > 0),
-                        "transmission_class": "absorbing_half_space"
-                        if ns.imag
-                        else ("propagating" if q_bottom[iy, ix].real > 0 else "evanescent"),
-                    }
-                )
-            series["orders"].append(rows)
+            for k, value in partial["series"][pol].items():
+                spectra[pol][k].append(value)
     warnings = ["Convergence not assessed for this input. A single run and flux balance do not certify accuracy."]
     warnings.extend(dict.fromkeys(d.message for d in diagnostics if d.severity == "warning"))
     if circular:
@@ -278,7 +341,7 @@ def _forward_2d(project, *, reference_basis, laurent_diagnostic, reference_circl
             "convergence_checked": False,
             "max_lossless_flux_error": None if any_loss else max_lossless_error,
             "regularization": "none; no damping, pseudoinverse, angular perturbation, or clipping",
-            "elapsed_seconds": perf_counter() - start,
+            "elapsed_seconds": elapsed,
         },
         "warnings": warnings,
     }
