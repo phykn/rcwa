@@ -46,8 +46,8 @@ export function LibraryDialog({ onClose }: { onClose: () => void }) {
                 <div>
                   <div className="library-name">{item.name}</div>
                   <div className="library-meta">
-                    {new Date(item.savedAt).toLocaleString()} · {item.design.layers.length} layers
-                    {item.result ? " · with spectrum" : ""}
+                    {new Date(item.savedAt).toLocaleString()}, {item.design.layers.length} layers
+                    {item.result ? ", with spectrum" : ""}
                   </div>
                 </div>
                 <div className="library-actions">

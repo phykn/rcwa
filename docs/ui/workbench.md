@@ -18,6 +18,14 @@ spectrum, so there is something to look at before the engine has started.
 Both paths run the same `rcwa_core` code. `npm run test:engine` checks the browser
 runtime against frozen native results (agreement better than 1e-10).
 
+## Simple and advanced mode
+
+The workbench opens in simple mode: layer shapes, thicknesses, sizes and
+materials, the pattern pitch, the light's range and angle, and the Spectrum,
+Sweep, Field and Fit views. **⋯ → Advanced mode** adds Fourier orders, azimuth,
+spectral sampling, polarization choice, specular curves, chart zoom, the Orders
+and Convergence views, sweep accuracy settings and run details.
+
 ## Editing
 
 - **Stack** (left) lists the incident medium, the layers from top to bottom and the

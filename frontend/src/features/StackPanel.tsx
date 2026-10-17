@@ -7,11 +7,11 @@ import { Popover } from "../ui/Popover";
 import { SHAPES } from "./Inspector";
 
 function summary(layer: Layer2D) {
-  const t = `${layer.thickness_nm} nm`;
-  if (layer.geometry === "circular_hole_2d") return `Holes ⌀${layer.diameter_nm} · ${t}`;
-  if (layer.geometry === "rectangle_2d") return `Blocks ${layer.cd_x_nm}×${layer.cd_y_nm} · ${t}`;
-  if (layer.geometry === "rectangle_1d") return `Lines ${layer.cd_nm} · ${t}`;
-  return `Film · ${t}`;
+  const t = `${layer.thickness_nm} nm thick`;
+  if (layer.geometry === "circular_hole_2d") return `⌀${layer.diameter_nm} nm holes, ${t}`;
+  if (layer.geometry === "rectangle_2d") return `${layer.cd_x_nm}×${layer.cd_y_nm} nm blocks, ${t}`;
+  if (layer.geometry === "rectangle_1d") return `${layer.cd_nm} nm lines, ${t}`;
+  return `Film, ${t}`;
 }
 
 function same(a: Selection, b: Selection) {

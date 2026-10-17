@@ -38,14 +38,19 @@ export const test = base.extend<{ app: Page }>({
 export { expect };
 
 export async function waitForEngine(page: Page) {
-  await expect(page.getByRole("status").filter({ hasText: /In browser · \d+ worker|Local server/ })).toBeVisible({ timeout: 180_000 });
+  await expect(page.getByRole("status").filter({ hasText: /Engine ready|Local server/ })).toBeVisible({ timeout: 180_000 });
 }
 
 export async function waitUpToDate(page: Page, timeout = 180_000) {
-  await expect(page.getByRole("status").filter({ hasText: /^Up to date/ })).toBeVisible({ timeout });
+  await expect(page.getByRole("status").filter({ hasText: /^Calculated in/ })).toBeVisible({ timeout });
 }
 
 export async function readout(page: Page) {
   const text = await page.getByLabel("Values at the inspected wavelength").locator("dl").innerText();
   return text.replace(/\s+/g, " ");
+}
+
+/** Turn on Advanced mode before the page loads. */
+export async function useAdvanced(page: Page) {
+  await page.addInitScript(() => localStorage.setItem("rcwa.settings.v2", JSON.stringify({ advanced: true })));
 }

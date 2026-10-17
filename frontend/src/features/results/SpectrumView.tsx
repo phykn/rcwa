@@ -7,7 +7,13 @@ import { SpectrumChart, type ChartLayer } from "./SpectrumChart";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
-function Swatch({ label, color }: { label: string; color: { css: string; hex: string; approximate: boolean } | null }) {
+function Swatch({
+  label,
+  color,
+}: {
+  label: string;
+  color: { css: string; hex: string; approximate: boolean } | null;
+}) {
   return (
     <div className="swatch">
       <span
@@ -16,7 +22,13 @@ function Swatch({ label, color }: { label: string; color: { css: string; hex: st
         aria-hidden
       />
       <span className="swatch-label">{label}</span>
-      <span className="swatch-value">{color ? `${color.hex}${color.approximate ? " · approximate, needs 400–700 nm" : ""}` : "Needs at least 450–650 nm"}</span>
+      <span className="swatch-value">
+        {color
+          ? color.approximate
+            ? "Approximate"
+            : color.hex
+          : "Needs 450–650 nm in range"}
+      </span>
     </div>
   );
 }
@@ -31,25 +43,59 @@ export function SpectrumView() {
   const setCursor = useStore((s) => s.setCursor);
   const settings = useStore((s) => s.settings);
   const update = useStore((s) => s.updateSettings);
-  const [showGhost, setShowGhost] = useState(true);
-  const [showAbsorption, setShowAbsorption] = useState(true);
+  const showGhost = true;
+  const showAbsorption = true;
   const [table, setTable] = useState(false);
   const [zoom, setZoom] = useState(false);
-  const pol = settings.polarization;
+  // Simple mode always shows unpolarized light (the mean of s and p when both exist).
+  const pol = settings.advanced ? settings.polarization : "avg";
   const current = !!full && full.key === key;
   const livePreview = !current && preview?.key === key ? preview : null;
 
   const layers = useMemo(() => {
     const out: ChartLayer[] = [];
-    if (full) out.push({ id: "full", label: current ? "Current" : "Previous inputs", series: series(full.result, pol), kind: current ? "main" : "stale" });
-    if (livePreview) out.push({ id: "preview", label: "Preview", series: series(livePreview.result, pol), kind: "preview" });
-    if (showGhost && ghost && current) out.push({ id: "ghost", label: "Before last change", series: series(ghost.result, pol), kind: "ghost" });
-    for (const o of overlays) out.push({ id: o.id, label: o.label, series: series(o.result, pol), kind: "overlay" });
+    if (full)
+      out.push({
+        id: "full",
+        label: current ? "Current" : "Previous inputs",
+        series: series(full.result, pol),
+        kind: current ? "main" : "stale",
+      });
+    if (livePreview)
+      out.push({
+        id: "preview",
+        label: "Preview",
+        series: series(livePreview.result, pol),
+        kind: "preview",
+      });
+    if (showGhost && ghost && current)
+      out.push({
+        id: "ghost",
+        label: "Before last change",
+        series: series(ghost.result, pol),
+        kind: "ghost",
+      });
+    for (const o of overlays)
+      out.push({
+        id: o.id,
+        label: o.label,
+        series: series(o.result, pol),
+        kind: "overlay",
+      });
     return out;
   }, [full, current, livePreview, ghost, showGhost, overlays, pol]);
 
-  const main = full ? series(full.result, pol) : livePreview ? series(livePreview.result, pol) : null;
-  if (!main) return <p className="empty-note">Results appear here after the first calculation.</p>;
+  const main = full
+    ? series(full.result, pol)
+    : livePreview
+      ? series(livePreview.result, pol)
+      : null;
+  if (!main)
+    return (
+      <p className="empty-note">
+        Results appear here after the first calculation.
+      </p>
+    );
   const i = nearestIndex(main.wavelengths, cursor);
   const reflected = spectrumColor(main.wavelengths, main.R);
   const transmitted = spectrumColor(main.wavelengths, main.T);
@@ -59,54 +105,57 @@ export function SpectrumView() {
     <div className="spectrum-view">
       <div className="spectrum-main">
         <div className="spectrum-toolbar">
-          <Segmented
-            label="Polarization shown"
-            value={pol}
-            options={[
-              { value: "avg", label: "Unpolarized" },
-              { value: "s", label: "s" },
-              { value: "p", label: "p" },
-            ]}
-            onChange={(polarization) => update({ polarization })}
-          />
+          {settings.advanced && (
+            <Segmented
+              label="Polarization shown"
+              hideLabel
+              value={pol}
+              options={[
+                { value: "avg", label: "Unpolarized" },
+                { value: "s", label: "s" },
+                { value: "p", label: "p" },
+              ]}
+              onChange={(polarization) => update({ polarization })}
+            />
+          )}
           <div className="legend" aria-label="Curves">
-            <span className="key key-r">R reflected</span>
-            <span className="key key-t">T transmitted</span>
-            <label className="toggle">
-              <input type="checkbox" checked={showAbsorption} onChange={(e) => setShowAbsorption(e.target.checked)} />
-              <span className="key key-a">A absorbed</span>
-            </label>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={settings.showSpecular}
-                onChange={(e) => update({ showSpecular: e.target.checked })}
-              />
-              Specular only (dashed)
-            </label>
-            <label className="toggle">
-              <input type="checkbox" checked={zoom} onChange={(e) => setZoom(e.target.checked)} />
-              Zoom to data
-            </label>
-            {ghost && (
-              <label className="toggle">
-                <input type="checkbox" checked={showGhost} onChange={(e) => setShowGhost(e.target.checked)} />
-                <span className="key key-ghost">Before last change</span>
-              </label>
+            <span className="key key-r">Reflected</span>
+            <span className="key key-t">Transmitted</span>
+            <span className="key key-a">Absorbed</span>
+            {ghost && <span className="key key-ghost">Before last change</span>}
+            {settings.advanced && (
+              <>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.showSpecular}
+                    onChange={(e) => update({ showSpecular: e.target.checked })}
+                  />
+                  Specular (dashed)
+                </label>
+                <label className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={zoom}
+                    onChange={(e) => setZoom(e.target.checked)}
+                  />
+                  Zoom to data
+                </label>
+              </>
             )}
           </div>
         </div>
         <SpectrumChart
           layers={layers}
-          showSpecular={settings.showSpecular}
+          showSpecular={settings.advanced && settings.showSpecular}
           showAbsorption={showAbsorption}
-          zoom={zoom}
+          zoom={settings.advanced && zoom}
           cursor={main.wavelengths[i]}
           onCursor={setCursor}
         />
         <input
           type="range"
-          className="cursor-slider"
+          className="field-slider cursor-slider"
           aria-label="Inspected wavelength"
           min={0}
           max={main.wavelengths.length - 1}
@@ -115,11 +164,17 @@ export function SpectrumView() {
         />
         {!current && full && (
           <p className="stale-note">
-            {livePreview ? "Dashed curves preview your edit with fewer orders. " : ""}Faded curves belong to the previous inputs.
+            {livePreview
+              ? "Dashed curves preview your edit with fewer orders. "
+              : ""}
+            Faded curves belong to the previous inputs.
           </p>
         )}
       </div>
-      <aside className="spectrum-side" aria-label="Values at the inspected wavelength">
+      <aside
+        className="spectrum-side"
+        aria-label="Values at the inspected wavelength"
+      >
         <div className="readout">
           <div className="readout-wl">
             {main.wavelengths[i]} <span>nm</span>
@@ -138,24 +193,28 @@ export function SpectrumView() {
               <dd>{pct(Math.max(0, main.A[i]))}</dd>
             </div>
           </dl>
-          <p className="readout-note">
-            {polLabel(source.result, pol)} light · {source.result.harmonics.join("×")} orders
-          </p>
+          {settings.advanced && (
+            <p className="readout-note">
+              {polLabel(source.result, pol)} light, {source.result.harmonics.join("×")} orders
+            </p>
+          )}
         </div>
         <div className="swatches">
-          <Swatch label="Reflected color" color={reflected} />
-          <Swatch label="Transmitted color" color={transmitted} />
+          <Swatch label="Reflects as" color={reflected} />
+          <Swatch label="Transmits as" color={transmitted} />
         </div>
-        {settings.expert && (
+        {settings.advanced && (
           <details className="details" open>
             <summary>Run details</summary>
             <p>
-              Engine: meent 0.13.2 {source.result.engine === "server" ? "on the local server" : "in this browser"} ·{" "}
-              {source.result.harmonics.join("×")} orders · {source.result.elapsedSeconds.toFixed(2)} s
+              Engine: meent 0.13.2 {source.result.engine === "server" ? "on the local server" : "in this browser"},{" "}
+              {source.result.harmonics.join("×")} orders, {source.result.elapsedSeconds.toFixed(2)} s
             </p>
             <p>
               Lossless flux error:{" "}
-              {source.result.maxLosslessFluxError === null ? "not applicable (lossy)" : source.result.maxLosslessFluxError.toExponential(1)}
+              {source.result.maxLosslessFluxError === null
+                ? "not applicable (lossy)"
+                : source.result.maxLosslessFluxError.toExponential(1)}
             </p>
             <p>Input hashes:</p>
             {source.result.inputHashes.map((h) => (
@@ -168,12 +227,22 @@ export function SpectrumView() {
             </ul>
           </details>
         )}
-        <button type="button" className="btn btn-quiet" onClick={() => setTable(!table)} aria-expanded={table}>
+        <button
+          type="button"
+          className="btn btn-quiet"
+          onClick={() => setTable(!table)}
+          aria-expanded={table}
+        >
           {table ? "Hide data table" : "Show data table"}
         </button>
       </aside>
       {table && (
-        <div className="table-scroll data-table" tabIndex={0} role="region" aria-label="Spectrum data">
+        <div
+          className="table-scroll data-table"
+          tabIndex={0}
+          role="region"
+          aria-label="Spectrum data"
+        >
           <table>
             <thead>
               <tr>

@@ -190,7 +190,9 @@ export function Viewport3D() {
     if (!framed.current || Math.abs(extent / framed.current - 1) > 0.35) {
       framed.current = extent;
       const direction = new THREE.Vector3(0.62, 0.5, 0.74).normalize();
-      s.camera.position.copy(direction.multiplyScalar(extent * 2.1));
+      // Narrow views need more distance to keep the whole 3×3 cell in frame.
+      const widthFactor = Math.max(1, 1.5 / Math.max(0.5, s.camera.aspect));
+      s.camera.position.copy(direction.multiplyScalar(extent * 2.6 * widthFactor));
       s.controls.target.set(0, 0, 0);
       s.controls.update();
     }
@@ -212,7 +214,7 @@ export function Viewport3D() {
           Cutaway
         </label>
         <span className="viewport-scale">
-          {design.period_nm} × {design.period_y_nm} nm cell · 3 × 3 shown
+          {design.period_nm} × {design.period_y_nm} nm cell, 3 × 3 shown
         </span>
       </div>
     </div>
