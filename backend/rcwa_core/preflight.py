@@ -126,6 +126,14 @@ def active_materials(project: Project):
                 yield layer.background
 
 
+def has_patterned_slab(project: Project) -> bool:
+    """A stack without an active ridge/background split cannot diffract."""
+    return any(
+        layer.geometry == "rectangle_1d" and layer.thickness_nm > 0 and 0 < layer.cd_nm < project.period_nm
+        for layer in project.layers
+    )
+
+
 def stack_has_loss(project: Project, wavelength_nm: float) -> bool:
     return any(refractive_index(material, wavelength_nm).imag != 0 for material in active_materials(project))
 
@@ -169,7 +177,9 @@ def preflight_project(project: Project) -> list[Diagnostic]:
     if diagnostics:
         return diagnostics
     harmonics = project.solver.harmonics
-    orders = np.arange(-harmonics, harmonics + 1)
+    patterned = has_patterned_slab(project)
+    # Uniform films couple only the specular order; other orders carry no power.
+    orders = np.arange(-harmonics, harmonics + 1) if patterned else np.array([0])
     angle = np.deg2rad(project.illumination.angle_deg)
     for wi, wavelength in enumerate(project.illumination.wavelengths_nm):
         n0 = refractive_index(project.ambient, wavelength)
@@ -178,7 +188,7 @@ def preflight_project(project: Project) -> list[Diagnostic]:
         kx = incident_kx + orders * wavelength / project.period_nm
         kx_outside = incident_kx + np.array([-harmonics - 1, harmonics + 1]) * wavelength / project.period_nm
         largest_lossless_port_index = max(n0.real, ns.real if ns.imag == 0 else n0.real)
-        if np.any(np.abs(kx_outside) <= largest_lossless_port_index):
+        if patterned and np.any(np.abs(kx_outside) <= largest_lossless_port_index):
             diagnostics.append(
                 Diagnostic(
                     code="insufficient_harmonics",

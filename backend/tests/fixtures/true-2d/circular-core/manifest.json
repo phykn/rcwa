@@ -1,0 +1,18 @@
+{
+  "source_commit": "65e7e619f618a32675e3ade174901ee576aa3937",
+  "scope": "Immutable production source that generated circular convergence and off-grid evidence; current production must reproduce the frozen circular result separately",
+  "files": {
+    "backend/rcwa_core/circular_geometry.py": "ee1ec0c8c723b9812bf5b3c56d12729d637e2d018241552dede12bec2e18063a",
+    "backend/rcwa_core/contracts.py": "241696a6015a35811d13b60906c4062a748fc4452b799e7f100ba3d7e5e7e3a9",
+    "backend/rcwa_core/contracts_2d.py": "5bf0cf57452e27657116d1d83d6449d3d4f0ceb953c2356e42361e0815583dcb",
+    "backend/rcwa_core/fitting.py": "559ba728e0147ee61e97f5418264e6b5aeaade72a4b7aa7c86e214665307e45b",
+    "backend/rcwa_core/identity.py": "32099c88687fb1e57ef5a160f4e8d77f5d0019b33c187ffb680b3db29d95dfcf",
+    "backend/rcwa_core/preflight.py": "c4c02f2831a99cd7d25bba669142e550d6465a507b03d4379c5c88e0ec66e3bb",
+    "backend/rcwa_core/preflight_2d.py": "3d7a4b41c934d4cec32196b598844ec6b60026b294608af10b635e71d7ab5b74",
+    "backend/rcwa_core/project_io.py": "b5e65afd8e416af7a23e43d0e28a080ce91c7e5072d78c9f57c465c2c0a77cde",
+    "backend/rcwa_core/schemas.py": "756e3afd5dae7e27acaea2ef39979b48b5cc5448c2de35c0b48ee7e4390e49f1",
+    "backend/rcwa_core/schemas_2d.py": "b23dbea3beebef3e5a875f1110d8b1123681b9fe2ae46559302d952e95e11037",
+    "backend/rcwa_core/solver.py": "bdc954b6d6ce53ec8449b1bd05f16f9439a712acf5d5427ae090d510cbf18f2f",
+    "backend/rcwa_core/solver_2d.py": "0b3296f56bff66c11e643e5d82180cf5ad8383c9515d8bf191a9ef8e08ea7d5c"
+  }
+}

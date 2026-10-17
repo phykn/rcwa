@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import math
 import os
 import re
@@ -106,6 +107,9 @@ class SaveRequest(StrictModel):
         return self
 
 
+logger = logging.getLogger(__name__)
+
+
 def _request_diagnostics(error):
     for item in error.errors():
         structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
@@ -124,8 +128,12 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         app.state.jobs = JobManager(timeout=job_timeout)
 
         async def observe():
+            # Cleanup can wait seconds on a stuck child; keep it off the event loop.
             while True:
-                app.state.jobs.poll()
+                try:
+                    await asyncio.to_thread(app.state.jobs.poll)
+                except Exception:
+                    logger.exception("Job observer poll failed; retrying")
                 await asyncio.sleep(0.1)
 
         observer = asyncio.create_task(observe())
@@ -142,7 +150,11 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
 
     responses = {code: {"model": ErrorResponse} for code in (400, 403, 404, 409, 413, 422, 429, 503)}
     app = FastAPI(title="RCWA Workbench", version="0.4.0", lifespan=lifespan, responses=responses)
-    origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    origins = [
+        origin.strip()
+        for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+        if origin.strip()
+    ]
 
     def error_response(status, code, message, diagnostics=None):
         message = _bounded_text(message)
@@ -223,7 +235,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return await call_next(request)
 
     @app.get("/api/health")
-    async def health():
+    def health():
         return {
             "status": "ok",
             "storage": app.state.store.backend,
@@ -235,7 +247,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         }
 
     @app.get("/api/example", response_model=Project | Project2D)
-    async def example(example: Literal["legacy_1d", "circular_hole_2d"] = "legacy_1d"):
+    def example(example: Literal["legacy_1d", "circular_hole_2d"] = "legacy_1d"):
         if example == "circular_hole_2d":
             return Project2D.model_validate_json(
                 (Path(__file__).parent / "examples" / "circular-hole-2d.json").read_text(encoding="utf-8"), strict=True
@@ -243,7 +255,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return Project().model_dump()
 
     @app.get("/api/capabilities", response_model=Capabilities)
-    async def capabilities():
+    def capabilities():
         return {
             "api_version": "0.4.0",
             "project_schema_version": "1.2",
@@ -353,7 +365,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         "Supply explicit constant n/k or tabulated values. A name-only constant material uses n=1, k=0 "
         "and receives a request-specific material_name_only warning; normalized historical data is unchanged."
     ))
-    async def validate(project: Annotated[InputProject, Body()]):
+    def validate(project: Annotated[InputProject, Body()]):
         diagnostics = admissibility(project) + material_default_diagnostics(project)
         valid = not any(d.severity == "error" for d in diagnostics)
         return {
@@ -364,7 +376,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         }
 
     @app.post("/api/change-preview", response_model=ChangeProposal)
-    async def change_preview(request: ChangePreviewRequest):
+    def change_preview(request: ChangePreviewRequest):
         """Preview caller-specified geometry without solving, persisting or applying."""
         try:
             return bounded_proposal(preview_changes(request))
@@ -390,7 +402,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return error_response(413, "proposal_too_large", str(error))
 
     @app.post("/api/stack-change-preview", response_model=StackChangeProposal)
-    async def stack_change_preview(request: StackChangePreviewRequest):
+    def stack_change_preview(request: StackChangePreviewRequest):
         """Preview one atomic stack replacement without solving, storing or applying."""
         try:
             return preview_stack_changes(request)
@@ -399,7 +411,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             raise RequestValidationError(errors) from error
 
     @app.post("/api/2d-change-preview", response_model=DimensionChangeProposal)
-    async def dimension_change_preview(request: DimensionChangePreviewRequest):
+    def dimension_change_preview(request: DimensionChangePreviewRequest):
         """Preview dimensions on an exact 1.2 base without engine lookup or side effects."""
         try:
             return preview_2d_changes(request)
@@ -408,7 +420,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             raise RequestValidationError(errors) from error
 
     @app.post("/api/jobs", status_code=202, response_model=JobResponse)
-    async def submit(request: JobRequest):
+    def submit(request: JobRequest):
         diagnostics = admissibility(request.project)
         errors = [d for d in diagnostics if d.severity == "error"]
         if errors:
@@ -426,7 +438,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             raise HTTPException(429, str(error)) from error
 
     @app.get("/api/jobs/{job_id}", response_model=JobResponse | JobSummary)
-    async def get_job(job_id: str, view: Literal["full", "summary"] = "full"):
+    def get_job(job_id: str, view: Literal["full", "summary"] = "full"):
         job = app.state.jobs.get(job_id)
         if job is None:
             raise HTTPException(
@@ -438,14 +450,14 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return job
 
     @app.delete("/api/jobs/{job_id}", response_model=JobResponse)
-    async def cancel_job(job_id: str):
+    def cancel_job(job_id: str):
         job = app.state.jobs.cancel(job_id)
         if job is None:
             raise HTTPException(404, {"code": "job_missing", "message": "Job missing or expired"})
         return job
 
     @app.post("/api/snapshots", status_code=201, response_model=ServerSnapshot | SnapshotReceipt)
-    async def save_snapshot(request: SnapshotRequest, view: Literal["full", "receipt"] = "full"):
+    def save_snapshot(request: SnapshotRequest, view: Literal["full", "receipt"] = "full"):
         captured = app.state.jobs.capture(request.job_id)
         if captured is None:
             raise HTTPException(404, {"code": "job_missing", "message": "Job missing or expired; cannot save it"})
@@ -489,11 +501,11 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         return saved
 
     @app.post("/api/projects", status_code=201, response_model=SavedProject)
-    async def save_project(request: SaveRequest):
+    def save_project(request: SaveRequest):
         return app.state.store.save(request.project.model_dump(), request.result)
 
     @app.get("/api/projects", response_model=list[SavedSummary] | SnapshotIndex)
-    async def list_projects(view: Literal["full", "index"] = "full"):
+    def list_projects(view: Literal["full", "index"] = "full"):
         try:
             records = app.state.store.list()
             if view == "index":
@@ -507,7 +519,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "Saved index metadata failed validation; no complete index is available."}) from error
 
     @app.get("/api/projects/{project_id}", response_model=SavedProject | SnapshotSummary | SnapshotInputs)
-    async def get_project(project_id: str, view: Literal["full", "summary", "inputs"] = "full"):
+    def get_project(project_id: str, view: Literal["full", "summary", "inputs"] = "full"):
         try:
             # Decode errors are integrity failures too, including corrupt result
             # JSON. An inputs projection must never salvage a rejected full pair.

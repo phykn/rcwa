@@ -77,8 +77,13 @@ def calculate(kind: str, project: dict, fit: dict | None, output: str) -> None:
             "error": public,
             "error_code": error.code if isinstance(error, EngineUnavailableError) else "numerical_failure",
         }
+    try:
+        text = json.dumps(payload, allow_nan=False)
+    except (TypeError, ValueError):
+        # Non-finite or non-JSON output is a numerical failure, not a crashed worker.
+        text = json.dumps({"result": None, "error": "Numerical calculation failed.", "error_code": "numerical_failure"})
     # The observer reads only after exit; an interrupted/partial write is invalid.
-    Path(output).write_text(json.dumps(payload, allow_nan=False), encoding="utf-8")
+    Path(output).write_text(text, encoding="utf-8")
 
 
 @dataclass

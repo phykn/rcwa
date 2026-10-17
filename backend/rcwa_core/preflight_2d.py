@@ -62,6 +62,21 @@ def active_materials_2d(project):
             yield layer.background
 
 
+def has_patterned_slab_2d(project):
+    """A stack whose every active slab is uniform cannot diffract."""
+    for layer in project.layers:
+        if not layer.thickness_nm or layer.geometry == "homogeneous":
+            continue
+        if layer.geometry == "circular_hole_2d":
+            if layer.diameter_nm > 0:
+                return True
+            continue
+        wx, wy = widths(project, layer)
+        if wx > 0 and wy > 0 and (wx < project.period_nm or wy < project.period_y_nm):
+            return True
+    return False
+
+
 def stack_has_loss_2d(project, wavelength):
     return any(refractive_index(material, wavelength).imag != 0 for material in active_materials_2d(project))
 
@@ -79,6 +94,7 @@ def preflight_2d(project, *, basis=None):
     if diagnostics:
         return diagnostics
     hx, hy = basis or (project.solver.harmonics_x, project.solver.harmonics_y)
+    patterned = has_patterned_slab_2d(project)
     for wi, wavelength in enumerate(project.illumination.wavelengths_nm):
         n0 = refractive_index(project.ambient, wavelength)
         ns = refractive_index(project.substrate, wavelength)
@@ -94,7 +110,7 @@ def preflight_2d(project, *, basis=None):
             for m in range(ceil((-radius - bx) / sx), floor((radius - bx) / sx) + 1)
             if (bx + m * sx) ** 2 + (by + n * sy) ** 2 <= radius**2 and (abs(m) > hx or abs(n) > hy)
         ]
-        if missing:
+        if missing and patterned:
             diagnostics.append(
                 Diagnostic(
                     code="insufficient_harmonics",
@@ -104,7 +120,8 @@ def preflight_2d(project, *, basis=None):
                     f"first (m,n)={missing[0]}. Increase harmonics or reduce periods.",
                 )
             )
-        xx, yy = np.meshgrid(kx, ky)
+        # Uniform films couple only the specular order; other orders carry no power.
+        xx, yy = np.meshgrid(kx, ky) if patterned else (kx[hx : hx + 1], ky[hy : hy + 1])
         rho2 = xx**2 + yy**2
         distance = np.min(np.abs(np.r_[n0.real**2 - rho2.ravel(), ns**2 - rho2.ravel()]))
         if distance < EXACT_CUTOFF_TOLERANCE:
