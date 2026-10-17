@@ -7,7 +7,7 @@ import { SpectrumChart, type ChartLayer } from "./SpectrumChart";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
-function Swatch({ label, color }: { label: string; color: { css: string; hex: string } | null }) {
+function Swatch({ label, color }: { label: string; color: { css: string; hex: string; approximate: boolean } | null }) {
   return (
     <div className="swatch">
       <span
@@ -16,7 +16,7 @@ function Swatch({ label, color }: { label: string; color: { css: string; hex: st
         aria-hidden
       />
       <span className="swatch-label">{label}</span>
-      <span className="swatch-value">{color ? color.hex : "Needs 400–700 nm"}</span>
+      <span className="swatch-value">{color ? `${color.hex}${color.approximate ? " · approximate, needs 400–700 nm" : ""}` : "Needs at least 450–650 nm"}</span>
     </div>
   );
 }
@@ -34,6 +34,7 @@ export function SpectrumView() {
   const [showGhost, setShowGhost] = useState(true);
   const [showAbsorption, setShowAbsorption] = useState(true);
   const [table, setTable] = useState(false);
+  const [zoom, setZoom] = useState(false);
   const pol = settings.polarization;
   const current = !!full && full.key === key;
   const livePreview = !current && preview?.key === key ? preview : null;
@@ -83,6 +84,10 @@ export function SpectrumView() {
               />
               Specular only (dashed)
             </label>
+            <label className="toggle">
+              <input type="checkbox" checked={zoom} onChange={(e) => setZoom(e.target.checked)} />
+              Zoom to data
+            </label>
             {ghost && (
               <label className="toggle">
                 <input type="checkbox" checked={showGhost} onChange={(e) => setShowGhost(e.target.checked)} />
@@ -95,6 +100,7 @@ export function SpectrumView() {
           layers={layers}
           showSpecular={settings.showSpecular}
           showAbsorption={showAbsorption}
+          zoom={zoom}
           cursor={main.wavelengths[i]}
           onCursor={setCursor}
         />

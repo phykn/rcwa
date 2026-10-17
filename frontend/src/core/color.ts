@@ -20,6 +20,8 @@ function daylight(nm: number) {
 
 /** Spectrum must cover the eye's most sensitive band to be meaningful. */
 export const COLOR_BAND: [number, number] = [400, 700];
+/** With 450–650 nm only, edge values stand in for the rest: an approximate color. */
+export const APPROX_BAND: [number, number] = [450, 650];
 
 function sample(ws: number[], values: number[], nm: number) {
   if (nm <= ws[0]) return values[0];
@@ -30,8 +32,9 @@ function sample(ws: number[], values: number[], nm: number) {
   return values[i - 1] + t * (values[i] - values[i - 1]);
 }
 
-export function spectrumColor(ws: number[], values: number[]): { css: string; hex: string } | null {
-  if (!ws.length || ws[0] > COLOR_BAND[0] || ws[ws.length - 1] < COLOR_BAND[1]) return null;
+export function spectrumColor(ws: number[], values: number[]): { css: string; hex: string; approximate: boolean } | null {
+  if (!ws.length || ws[0] > APPROX_BAND[0] || ws[ws.length - 1] < APPROX_BAND[1]) return null;
+  const approximate = ws[0] > COLOR_BAND[0] || ws[ws.length - 1] < COLOR_BAND[1];
   let X = 0;
   let Y = 0;
   let Z = 0;
@@ -56,5 +59,5 @@ export function spectrumColor(ws: number[], values: number[]): { css: string; he
     return Math.round(255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055));
   });
   const hex = `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
-  return { css: `rgb(${rgb.join(" ")})`, hex };
+  return { css: `rgb(${rgb.join(" ")})`, hex, approximate };
 }

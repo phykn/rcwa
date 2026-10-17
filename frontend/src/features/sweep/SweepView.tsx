@@ -106,7 +106,14 @@ export default function SweepView() {
         : [],
     [sweep, design, params, param],
   );
-  const rows = sweep?.rows.map((r) => (r ? r[quantity] : null)) ?? [];
+  const rows = useMemo(() => sweep?.rows.map((r) => (r ? r[quantity] : null)) ?? [], [sweep, quantity]);
+  const range = useMemo<[number, number]>(() => {
+    const values = rows.flatMap((r) => r ?? []);
+    if (!values.length) return [0, 1];
+    const lo = Math.floor(Math.min(...values) * 100) / 100;
+    const hi = Math.ceil(Math.max(...values) * 100) / 100;
+    return hi > lo ? [lo, hi] : [lo, lo + 0.01];
+  }, [rows]);
 
   return (
     <div className="analysis">
@@ -179,6 +186,7 @@ export default function SweepView() {
             xLabel="Wavelength (nm)"
             yLabel={`${sweep.label} (${sweep.unit})`}
             valueLabel={quantity === "R" ? "Reflectance" : quantity === "T" ? "Transmittance" : "Absorptance"}
+            range={range}
             overlays={overlays}
             marker={sweep.parameterId === param.id ? { x: sweep.wavelengths[0], y: current } : null}
             describe={(x, y, v) => `${x} nm, ${y} ${sweep.unit}: ${(v * 100).toFixed(1)}%`}

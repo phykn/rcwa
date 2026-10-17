@@ -18,7 +18,11 @@ The application adapter is independently checked against a planar 2×2 character
 
 These references agree for the tested finite bases. That agreement is distinct from convergence to the continuous problem. Ordinary forward results deliberately retain `convergence_checked=false`. Materials in examples and tests are synthetic.
 
-An exact tangent retained mode inside a homogeneous finite layer can make the pinned meent modal inverse singular even when external-port preflight passes. This produces an explicit numerical failure. Nearby samples have independent-reference tests; no hidden loss, angular perturbation or clipping is added.
+A stack with no patterned layer couples only the specular order, so it is solved
+with that order alone; this is exact and avoids the singular modal inverse that an
+order exactly tangent inside a film would otherwise cause. In patterned stacks an
+exactly tangent retained order inside a homogeneous film is reported by preflight
+as a cutoff. No hidden loss, angular perturbation or clipping is added.
 
 ## Reproducible checks
 
@@ -26,40 +30,39 @@ An exact tangent retained mode inside a homogeneous finite layer can make the pi
 OPENBLAS_NUM_THREADS=1 .venv/bin/ruff check backend
 OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests -q
 cd frontend
-npm test
-npm run lint
-npm run build
+npm run typecheck && npm run lint && npm test
+npm run test:engine
+RCWA_E2E_PYTHON=../.venv/bin/python npm run e2e
 ```
 
 Local PostgreSQL integration tests are explicitly skipped without `TEST_POSTGRES_URL`; the backend CI job supplies a PostgreSQL 17 service. Current pinned Python dependencies use meent 0.13.2, NumPy 2.5.3 and SciPy 1.17.1. An upstream Starlette/AnyIO deprecation warning is not a test failure.
 
-The new circular example has separate [spatial/harmonic and off-grid evidence](true-2d/circular-geometry.md). Historical rectangular evidence retains its original source binding; it is not transferred to circles. The `circular-reference` CI job reruns the complete default circle grid against independently constructed exact S4 circles.
+The new circular example has separate [spatial/harmonic and off-grid evidence](true-2d/circular-geometry.md). Historical rectangular evidence retains its original source binding; it is not transferred to circles. Circular evidence is bound to an archived copy of the core that generated it (`backend/tests/fixtures/true-2d/circular-core`), and current production must reproduce the frozen circular result within 1e-10. The `circular-reference` CI job reruns the complete default circle grid against independently constructed exact S4 circles.
 
 The independent-reference CI job builds official S4 at the exact source commit described in [the reference guide](independent-reference.md), runs the application's normal forward adapter and retains the comparison JSON/build log. S4 is a test-only reference; it is not bundled in the application runtime.
 
-## Browser and visual acceptance
+## Browser engine and end-to-end checks
 
-The browser CI job runs real local API jobs and the separately built static preview through all ten scripts:
+- `npm run test:engine` loads the browser engine's exact Python stack in Node
+  Pyodide 0.28.3 (NumPy 2.2.5, SciPy 1.14.1) and requires the frozen circular-hole
+  H5 result to be reproduced within 1e-10 for every total and order power. It also
+  checks that sharded partial solves assemble into exactly the whole-spectrum
+  result, that every template passes preflight, and that field maps and fits run.
+- Field maps are checked against the analytic thin-film field (rtol 1e-6) and
+  refuse cases where meent's native powers disagree with production.
+- 2D fitting recovers synthetic one- and two-parameter targets.
+- `npm run e2e` builds the static site and drives it in Chromium: first load with
+  the stored example, in-browser recalculation after edits, a slider drag as one
+  undo step with live preview, a sweep heat map and point pick, field map and
+  convergence check, fitting, share-link round trip, examples, the command
+  palette, a 390 px phone layout without sideways scrolling, and the first-visit
+  guide. With `RCWA_E2E_PYTHON` it also starts the local API and checks that full
+  calculations switch to it.
 
-- `first-use-browser-qa.mjs`: discoverable layer selection, exact dimension edits, other-layer isolation, static-result honesty and viewport/full-page screenshots
-- `first-use-touch-qa.mjs`: 360/390px mobile touch replay, layer-strip overflow/limits, isolated drag edits and page scrolling (not a real-phone keyboard test)
-- `prototype-2d-browser-qa.mjs`: retained isolated prototype geometry and interaction checks
-- `true-2d-browser-qa.mjs`: retained rectangular 2D reference, real jobs, exact identities and full legacy 2D lifecycle via `?example=rectangle`
-- `circular-browser-qa.mjs`: ordinary circular default, actual cutouts, Diameter/Hole/Host controls, mobile first-screen action, history, material/shape changes, fallback editing and real run/cancel behavior
-- `browser-qa.mjs`: existing editor, illumination, real forward/fitting and mobile interaction checks
-- `snapshot-browser-qa.mjs`: server-owned snapshots, stale results and imported provenance
-- `contract-browser-qa.mjs`: geometry, exact controls, interrupted gestures, fallback behavior and delayed material-import ownership
-- `workflow-browser-qa.mjs`: history, comparison-review cancellation, exact accessible samples, proposal semantics and asynchronous ownership
-- `multilayer-browser-qa.mjs`: ordered stack rendering/editing, lower-layer selection, structural history, new proposals, dense-table byte limits and legacy compatibility
-
-Accessibility checks verify native sample indices, exact wavelength text, named live-region associations and independently reconstructed browser accessible descriptions. Chromium CDP serializes native range `valuetext` from the numeric control value; these checks do not treat it as the ARIA text override or claim spoken screen-reader testing.
-
-Successful physics responses are not mocked. Required screenshots must be captured and inspected; passing DOM assertions alone does not establish visual acceptance. The multilayer script uses fresh browser processes for its desktop/360/390 px evidence before stress cases.
-
-The isolated development container cannot launch Chromium because its socket operation is restricted. Browser execution and screenshots therefore run on the GitHub-hosted test-branch runner. This limitation does not count as a local browser pass. CI reports and screenshots are retained as workflow artifacts.
+Screenshots of failing tests and traces are kept in the `e2e-report` CI artifact.
 
 ## Publication policy and remaining limits
 
 Publish changes to a test branch first. All six CI jobs, independent reference checks, exact input/result/provenance regressions and inspection of the candidate commit's actual screenshots must pass before that exact commit reaches main. A running or failed test branch is not a release. Main's successful checks then gate the static Pages workflow.
 
-Pages contains a genuinely precomputed example and local editing/review functionality, not a live numerical service. Production authentication, multiuser isolation, instrument response, measured-sample validation, uncertainty estimates, phase and general inverse design remain outside this stage.
+Pages calculates in the visitor's browser with the same `rcwa_core`; it runs no server. Production authentication, multiuser isolation, instrument response, measured-sample validation, uncertainty estimates, phase and general inverse design remain outside this stage.

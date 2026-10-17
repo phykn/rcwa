@@ -14,6 +14,8 @@ describe("spectrumColor", () => {
     expect(r).toBeGreaterThan(b);
   });
   it("refuses spectra that miss the visible band", () => {
-    expect(spectrumColor([450, 850], [0.5, 0.5])).toBeNull();
+    expect(spectrumColor([500, 850], [0.5, 0.5])).toBeNull();
+    expect(spectrumColor([450, 850], [0.5, 0.5])!.approximate).toBe(true);
+    expect(spectrumColor(ws, ws.map(() => 0.5))!.approximate).toBe(false);
   });
 });

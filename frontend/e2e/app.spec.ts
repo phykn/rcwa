@@ -138,3 +138,21 @@ test("first visit shows the guide", async ({ page }) => {
   await page.reload();
   await expect(page.getByRole("dialog", { name: "Build the stack" })).toHaveCount(0);
 });
+
+test("reviews an imported dimension proposal before applying it", async ({ app: page }) => {
+  const { readFileSync } = await import("node:fs");
+  const cases = JSON.parse(readFileSync(new URL("../../backend/tests/fixtures/dimension-proposals-2d.json", import.meta.url), "utf8"));
+  const proposal = cases.find((c: { name: string }) => c.name === "circle").proposal;
+  await page.goto("/");
+  await page.locator('header input[type="file"]').setInputFiles({
+    name: "proposal.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(proposal)),
+  });
+  const dialog = page.getByRole("dialog", { name: "Review proposed changes" });
+  await expect(dialog.getByRole("row")).toHaveCount(4);
+  await dialog.getByRole("button", { name: "Apply changes" }).click();
+  await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toHaveValue("70");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toHaveValue("65");
+});

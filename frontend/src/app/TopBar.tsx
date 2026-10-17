@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { apiProjects, ordersCsv, spectrumCsv } from "../core/exporters";
 import { download, fileSlug, parseProjectFile, serializeDesign } from "../core/projectFile";
 import { encodeShare } from "../core/share";
+import { isProposal, reviewProposal, type ProposalReview } from "../core/proposal";
+import { ProposalDialog } from "../features/ProposalDialog";
 import type { EngineState } from "../engine";
 import { useServices } from "../state/context";
 import { useStore } from "../state/store";
@@ -50,6 +52,7 @@ export function TopBar({
   const canRedo = useStore((s) => s.future.length > 0);
   const { undo, redo, edit, replace, notify } = useStore.getState();
   const [menu, setMenu] = useState<"export" | null>(null);
+  const [proposal, setProposal] = useState<ProposalReview | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const slug = fileSlug(design.name);
   const current = full?.key === key ? full.result : null;
@@ -67,7 +70,18 @@ export function TopBar({
 
   async function open(selected: File) {
     try {
-      const { design: next, notes } = parseProjectFile(await selected.text());
+      const text = await selected.text();
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        // parseProjectFile reports malformed JSON with its own message.
+      }
+      if (isProposal(parsed)) {
+        setProposal(reviewProposal(text, useStore.getState().design));
+        return;
+      }
+      const { design: next, notes } = parseProjectFile(text);
       replace(next);
       notify(notes.length ? `Opened ${selected.name}. ${notes.join(" ")}` : `Opened ${selected.name}`);
     } catch (error) {
@@ -176,6 +190,7 @@ export function TopBar({
           Settings
         </button>
       </nav>
+      {proposal && <ProposalDialog review={proposal} onClose={() => setProposal(null)} />}
     </header>
   );
 }

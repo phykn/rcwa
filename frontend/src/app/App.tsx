@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { CommandPalette } from "../features/CommandPalette";
 import { Inspector } from "../features/Inspector";
 import { LibraryDialog } from "../features/LibraryDialog";
@@ -7,9 +7,10 @@ import { SettingsDialog } from "../features/SettingsDialog";
 import { StackPanel } from "../features/StackPanel";
 import { TemplatesDialog } from "../features/TemplatesDialog";
 import { Tour } from "../features/Tour";
-import { Viewport3D } from "../features/Viewport3D";
 import { useStore } from "../state/store";
 import { TopBar } from "./TopBar";
+
+const Viewport3D = lazy(() => import("../features/Viewport3D").then((m) => ({ default: m.Viewport3D })));
 
 type Modal = "templates" | "library" | "settings" | "palette" | "tour" | null;
 type Pane = "structure" | "edit" | "results";
@@ -88,7 +89,9 @@ export function App({ firstVisit }: { firstVisit: boolean }) {
         </div>
         <div className="col-center">
           <div className="pane-structure viewport-wrap">
-            <Viewport3D />
+            <Suspense fallback={<div className="viewport" aria-busy="true" />}>
+              <Viewport3D />
+            </Suspense>
           </div>
           <div className="pane-results" id="results" data-tour="results">
             <ResultsPanel />

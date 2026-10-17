@@ -18,7 +18,7 @@ material value is synthetic; none is measured HBM or process data.
 
 The exact normalized input hash is
 `e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931`.
-The [packaging manifest](../../frontend/src/fixtures/reference-circular-manifest.json)
+The [packaging manifest](../../frontend/src/core/fixtures/reference-circular-manifest.json)
 binds that input to the complete stored result and public bundle.
 
 ## Editing

@@ -14,6 +14,8 @@ interface Props {
   layers: ChartLayer[];
   showSpecular: boolean;
   showAbsorption: boolean;
+  /** Fit the vertical axis to the drawn curves instead of 0–1. */
+  zoom?: boolean;
   cursor: number;
   onCursor: (nm: number) => void;
   height?: number;
@@ -22,7 +24,7 @@ interface Props {
 const css = (el: Element, name: string) => getComputedStyle(el).getPropertyValue(name).trim() || "#888";
 
 /** R/T/A against wavelength; the vertical rule marks the inspected sample. */
-export function SpectrumChart({ layers, showSpecular, showAbsorption, cursor, onCursor, height = 300 }: Props) {
+export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = false, cursor, onCursor, height = 300 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const cursorRef = useRef(cursor);
@@ -74,10 +76,20 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, cursor, on
       height,
       series,
       legend: { show: false },
-      scales: { x: { time: false }, y: { range: [0, 1] } },
+      scales: {
+        x: { time: false },
+        y: {
+          range: zoom
+            ? (_u, lo, hi) => {
+                const pad = Math.max(0.002, (hi - lo) * 0.08);
+                return [Math.max(0, lo - pad), Math.min(1, hi + pad)];
+              }
+            : [0, 1],
+        },
+      },
       axes: [
         { ...axis, label: "Wavelength (nm)", labelSize: 22 },
-        { ...axis, label: "Fraction of incident power", labelSize: 22, values: (_, ticks) => ticks.map((t) => t.toFixed(1)) },
+        { ...axis, label: "Fraction of incident power", labelSize: 22, values: (_, ticks) => ticks.map((t) => (zoom ? t.toFixed(3) : t.toFixed(1))) },
       ],
       cursor: { y: false, points: { show: false } },
       hooks: {
@@ -119,7 +131,7 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, cursor, on
       chart.destroy();
       plot.current = null;
     };
-  }, [layers, showSpecular, showAbsorption, height]);
+  }, [layers, showSpecular, showAbsorption, zoom, height]);
 
   useEffect(() => {
     cursorRef.current = cursor;
