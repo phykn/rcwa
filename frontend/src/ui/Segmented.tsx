@@ -5,8 +5,10 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
+  hideLabel,
 }: {
   label: string;
+  hideLabel?: boolean;
   value: T;
   options: { value: T; label: string; title?: string }[];
   onChange: (value: T) => void;
@@ -14,7 +16,7 @@ export function Segmented<T extends string>({
   const id = useId();
   return (
     <div className="field">
-      <span className="field-label" id={id}>
+      <span className={hideLabel ? "visually-hidden" : "field-label"} id={id}>
         {label}
       </span>
       <div className="segmented" role="radiogroup" aria-labelledby={id}>

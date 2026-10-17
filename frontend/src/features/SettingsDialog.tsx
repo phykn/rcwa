@@ -44,8 +44,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           Calculate automatically after each edit
         </label>
         <label className="toggle">
-          <input type="checkbox" checked={settings.expert} onChange={(e) => update({ expert: e.target.checked })} />
-          Show run details (input hashes, solver notes)
+          <input type="checkbox" checked={settings.advanced} onChange={(e) => update({ advanced: e.target.checked })} />
+          Advanced mode: Fourier orders, polarization, azimuth, diffraction orders, convergence and run details
         </label>
       </div>
     </Dialog>

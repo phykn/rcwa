@@ -35,7 +35,7 @@ export function describeMaterial(material: Material, wavelength: number) {
   const value = indexAt(material, wavelength);
   if (!value) return "outside its data";
   const n = value.n.toFixed(value.n < 10 ? 3 : 2);
-  return value.k > 0 ? `n ${n} · k ${value.k.toFixed(3)}` : `n ${n}`;
+  return value.k > 0 ? `n ${n}, k ${value.k.toFixed(3)}` : `n ${n}`;
 }
 
 /** Parse "wavelength n k" rows; wavelengths in nm, or µm when all are below 30. */

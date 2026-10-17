@@ -1,4 +1,4 @@
-import { expect, readout, test, waitForEngine, waitUpToDate } from "./fixtures";
+import { expect, readout, test, useAdvanced, waitForEngine, waitUpToDate } from "./fixtures";
 
 test("opens with a calculated example and recalculates edits in the browser", async ({ app: page }) => {
   await page.goto("/");
@@ -12,7 +12,7 @@ test("opens with a calculated example and recalculates edits in the browser", as
   await diameter.press("Enter");
   await expect(page.getByText(/Previewing your edit|Calculating \d+ of \d+|Waiting for edits/)).toBeVisible();
   await waitUpToDate(page);
-  await expect(page.getByRole("status").filter({ hasText: /this browser/ })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /^Calculated in [\d.]+ s$/ })).toBeVisible();
   expect(await readout(page)).not.toBe(before);
 
   await page.getByRole("button", { name: "Undo" }).click();
@@ -42,6 +42,7 @@ test("dragging a slider previews live, then settles into one full calculation", 
 });
 
 test("sweeps a dimension into a heat map and applies a picked point", async ({ app: page }) => {
+  await useAdvanced(page);
   await page.goto("/");
   await waitForEngine(page);
   await page.getByRole("tab", { name: "Sweep" }).click();
@@ -58,6 +59,7 @@ test("sweeps a dimension into a heat map and applies a picked point", async ({ a
 });
 
 test("maps the field and checks convergence", async ({ app: page }) => {
+  await useAdvanced(page);
   await page.goto("/");
   await waitForEngine(page);
   await page.getByRole("tab", { name: "Field" }).click();
@@ -89,7 +91,7 @@ test("share links reproduce the design", async ({ app: page, context }) => {
   const diameter = page.getByRole("textbox", { name: "Hole diameter", exact: true });
   await diameter.fill("72");
   await diameter.press("Enter");
-  await page.getByRole("button", { name: "Share link" }).click();
+  await page.getByRole("button", { name: "Share", exact: true }).click();
   await expect(page).toHaveURL(/#d=/);
   const other = await context.newPage();
   await other.goto(page.url());
@@ -103,10 +105,11 @@ test("examples load and calculate", async ({ app: page }) => {
   await page.getByRole("button", { name: /Anti-reflection coating/ }).click();
   await expect(page.getByRole("textbox", { name: "Design name" })).toHaveValue(/anti-reflection/i);
   await waitUpToDate(page);
-  await expect(page.getByLabel("Values at the inspected wavelength")).toContainText("Reflected color");
+  await expect(page.getByLabel("Values at the inspected wavelength")).toContainText("Reflects as");
 });
 
 test("command palette runs commands from the keyboard", async ({ app: page }) => {
+  await useAdvanced(page);
   await page.goto("/");
   await expect(page.getByRole("textbox", { name: "Design name" })).toBeVisible();
   await page.keyboard.press("ControlOrMeta+k");
@@ -170,4 +173,19 @@ test("exports the spectrum chart as SVG and PNG", async ({ app: page }) => {
     const { statSync } = await import("node:fs");
     expect(statSync((await file.path())!).size).toBeGreaterThan(1000);
   }
+});
+
+test("simple mode shows only the essentials; advanced mode adds the rest", async ({ app: page }) => {
+  await page.goto("/");
+  const tabs = page.getByRole("tablist", { name: "Result views" });
+  await expect(tabs.getByRole("tab")).toHaveText(["Spectrum", "Sweep", "Field", "Fit"]);
+  await expect(page.getByRole("textbox", { name: "Pitch", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Orders X" })).toHaveCount(0);
+  await expect(page.getByRole("radiogroup", { name: "Polarization", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("checkbox", { name: "Advanced mode" }).check();
+  await page.keyboard.press("Escape");
+  await expect(tabs.getByRole("tab")).toHaveText(["Spectrum", "Orders", "Sweep", "Field", "Convergence", "Fit"]);
+  await expect(page.getByRole("textbox", { name: "Orders X" })).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Polarization", exact: true })).toBeVisible();
 });

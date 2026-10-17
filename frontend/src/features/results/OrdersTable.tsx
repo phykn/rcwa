@@ -28,7 +28,7 @@ export function OrdersTable({ result, pol, cursor }: { result: SpectrumResult; p
     <div className="orders">
       <div className="orders-head">
         <p>
-          {result.wavelengths_nm[wi]} nm · {open} open {open === 1 ? "channel" : "channels"} of {rows.length} kept orders
+          At {result.wavelengths_nm[wi]} nm, {open} open {open === 1 ? "channel" : "channels"} of {rows.length} kept orders
         </p>
         <label className="toggle">
           <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />

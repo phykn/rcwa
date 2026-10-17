@@ -62,7 +62,7 @@ describe("editing through the panels", () => {
     render(<StackPanel />);
     const names = () => useStore.getState().design.layers.map((l) => l.thickness_nm);
     const start = names();
-    await userEvent.click(screen.getByRole("button", { name: /Holes ⌀80/ }));
+    await userEvent.click(screen.getByRole("button", { name: /⌀80 nm holes/ }));
     expect(useStore.getState().selection).toEqual({ kind: "layer", index: 1 });
     const actions = screen.getByRole("toolbar", { name: "Layer 2 actions" });
     await userEvent.click(within(actions).getByRole("button", { name: "Move up" }));
@@ -87,7 +87,7 @@ describe("editing through the panels", () => {
 });
 
 describe("run details", () => {
-  it("shows hashes and solver notes only in expert mode", async () => {
+  it("shows hashes and solver notes only in advanced mode", async () => {
     const { SpectrumView } = await import("./results/SpectrumView");
     const result = {
       wavelengths_nm: [500, 600],
@@ -100,13 +100,13 @@ describe("run details", () => {
       maxLosslessFluxError: 1e-12,
     };
     useStore.getState().setFull(useStore.getState().design, result);
-    useStore.getState().updateSettings({ expert: false });
+    useStore.getState().updateSettings({ advanced: false });
     const { rerender } = render(<SpectrumView />);
     expect(screen.queryByText("abc123")).toBeNull();
-    useStore.getState().updateSettings({ expert: true });
+    useStore.getState().updateSettings({ advanced: true });
     rerender(<SpectrumView />);
     expect(screen.getByText("abc123")).toBeTruthy();
     expect(screen.getByText("Convergence not assessed")).toBeTruthy();
-    useStore.getState().updateSettings({ expert: false });
+    useStore.getState().updateSettings({ advanced: false });
   });
 });

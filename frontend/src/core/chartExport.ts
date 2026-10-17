@@ -13,7 +13,7 @@ export function spectrumChartSvg(design: Design, result: SpectrumResult, pol: Po
       ["T transmitted", s.T, COLORS.T],
       ["A absorbed", s.A, COLORS.A],
     ],
-    `${design.name} · ${polLabel(result, pol)} light`,
+    `${design.name}, ${polLabel(result, pol)} light`,
   );
 }
 

@@ -1,81 +1,86 @@
+/*
+ * Ink on white. Colour is reserved for the physics: reflected light warm,
+ * transmitted light cool, absorption neutral, and the design's own computed
+ * reflection colour. Interface chrome stays black, white and grey.
+ */
 :root {
-  --ground: #edf0f3;
+  --ground: #ffffff;
   --surface: #ffffff;
-  --sunken: #e5e9ee;
-  --line: #d2d8df;
-  --line-strong: #b9c1cb;
-  --ink: #18212c;
-  --ink-2: #4c5968;
-  --ink-3: #7c8896;
-  --accent: #2747c9;
-  --accent-soft: #e3e8fb;
+  --sunken: #f2f3f4;
+  --line: #e4e5e7;
+  --line-strong: #c9cbcf;
+  --ink: #111214;
+  --ink-2: #4f535a;
+  --ink-3: #8c9097;
+  --accent: #111214;
+  --accent-soft: #f2f3f4;
   --on-accent: #ffffff;
-  --curve-r: #2d4fd6;
-  --curve-t: #0b8574;
-  --curve-a: #b7791f;
-  --ghost: #9aa4b1;
-  --danger: #b42318;
-  --danger-soft: #fdecea;
-  --warn: #9a5b07;
-  --warn-soft: #fdf3e2;
-  --ok: #18794e;
-  --scene: #f2f5fa;
-  --shadow: 0 8px 28px rgb(24 33 44 / 14%);
-  --radius: 6px;
-  --font: "IBM Plex Sans", system-ui, sans-serif;
+  --curve-r: #c8461b;
+  --curve-t: #1b5fa6;
+  --curve-a: #6b6f76;
+  --ghost: #b4b7bc;
+  --danger: #b3261e;
+  --danger-soft: #fbeceb;
+  --warn: #8a5300;
+  --warn-soft: #fbf3e6;
+  --ok: #2c7a4b;
+  --scene: #f2f3f4;
+  --shadow: 0 6px 24px rgb(17 18 20 / 12%);
+  --radius: 3px;
+  --font: "Instrument Sans Variable", system-ui, sans-serif;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #0f1318;
-    --surface: #161b22;
-    --sunken: #1d242d;
-    --line: #2a333e;
-    --line-strong: #3a4552;
-    --ink: #e6ebf1;
-    --ink-2: #a5b0bd;
-    --ink-3: #6f7b88;
-    --accent: #7c95ff;
-    --accent-soft: #1f2a4d;
-    --on-accent: #0f1318;
-    --curve-r: #7c95ff;
-    --curve-t: #3cc7b0;
-    --curve-a: #e8b24a;
-    --ghost: #5d6876;
-    --danger: #f97066;
-    --danger-soft: #3a1714;
-    --warn: #f0b350;
-    --warn-soft: #33250f;
-    --ok: #4fd18b;
-    --scene: #1a2029;
-    --shadow: 0 8px 28px rgb(0 0 0 / 45%);
+    --ground: #121314;
+    --surface: #121314;
+    --sunken: #1c1d1f;
+    --line: #2a2c2f;
+    --line-strong: #3b3e42;
+    --ink: #eceef0;
+    --ink-2: #a4a8ae;
+    --ink-3: #6f747b;
+    --accent: #eceef0;
+    --accent-soft: #1c1d1f;
+    --on-accent: #121314;
+    --curve-r: #f0845c;
+    --curve-t: #6aa7e8;
+    --curve-a: #a4a8ae;
+    --ghost: #4a4d52;
+    --danger: #f2877f;
+    --danger-soft: #331816;
+    --warn: #e7b25c;
+    --warn-soft: #2e2412;
+    --ok: #6fc796;
+    --scene: #1c1d1f;
+    --shadow: 0 6px 24px rgb(0 0 0 / 50%);
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --ground: #0f1318;
-  --surface: #161b22;
-  --sunken: #1d242d;
-  --line: #2a333e;
-  --line-strong: #3a4552;
-  --ink: #e6ebf1;
-  --ink-2: #a5b0bd;
-  --ink-3: #6f7b88;
-  --accent: #7c95ff;
-  --accent-soft: #1f2a4d;
-  --on-accent: #0f1318;
-  --curve-r: #7c95ff;
-  --curve-t: #3cc7b0;
-  --curve-a: #e8b24a;
-  --ghost: #5d6876;
-  --danger: #f97066;
-  --danger-soft: #3a1714;
-  --warn: #f0b350;
-  --warn-soft: #33250f;
-  --ok: #4fd18b;
-  --scene: #1a2029;
-  --shadow: 0 8px 28px rgb(0 0 0 / 45%);
+  --ground: #121314;
+  --surface: #121314;
+  --sunken: #1c1d1f;
+  --line: #2a2c2f;
+  --line-strong: #3b3e42;
+  --ink: #eceef0;
+  --ink-2: #a4a8ae;
+  --ink-3: #6f747b;
+  --accent: #eceef0;
+  --accent-soft: #1c1d1f;
+  --on-accent: #121314;
+  --curve-r: #f0845c;
+  --curve-t: #6aa7e8;
+  --curve-a: #a4a8ae;
+  --ghost: #4a4d52;
+  --danger: #f2877f;
+  --danger-soft: #331816;
+  --warn: #e7b25c;
+  --warn-soft: #2e2412;
+  --ok: #6fc796;
+  --scene: #1c1d1f;
+  --shadow: 0 6px 24px rgb(0 0 0 / 50%);
   color-scheme: dark;
 }

@@ -24,7 +24,8 @@ interface Props {
 const css = (el: Element, name: string) => getComputedStyle(el).getPropertyValue(name).trim() || "#888";
 
 /** R/T/A against wavelength; the vertical rule marks the inspected sample. */
-export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = false, cursor, onCursor, height = 300 }: Props) {
+/** Without `height`, the chart fills its container's height (at least 220 px). */
+export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = false, cursor, onCursor, height }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const cursorRef = useRef(cursor);
@@ -59,10 +60,10 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = fal
         const specular = name.endsWith("₀");
         const muted = layer.kind === "ghost" || layer.kind === "overlay";
         series.push({
-          label: `${name} · ${layer.label}`,
+          label: `${name}, ${layer.label}`,
           stroke: muted ? color.ghost : stroke,
           width: layer.kind === "main" ? (specular ? 1.25 : 2) : layer.kind === "preview" ? 1.5 : 1.25,
-          dash: specular || layer.kind === "preview" ? [6, 4] : layer.kind === "overlay" ? [2, 3] : undefined,
+          dash: specular || layer.kind === "preview" ? [6, 4] : layer.kind === "overlay" ? [2, 3] : name === "A" ? [4, 3] : undefined,
           alpha: layer.kind === "stale" ? 0.35 : 1,
           spanGaps: true,
           points: { show: layer.kind === "preview" },
@@ -70,10 +71,12 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = fal
       }
     }
     const data = tables.length === 1 ? tables[0] : uPlot.join(tables);
-    const axis = { stroke: color.ink, grid: { stroke: color.grid, width: 1 }, ticks: { stroke: color.grid } };
+    const font = `12px ${getComputedStyle(element).fontFamily}`;
+    const axis = { stroke: color.ink, font, labelFont: font, grid: { stroke: color.grid, width: 1 }, ticks: { stroke: color.grid } };
+    const fit = () => height ?? Math.max(220, element.clientHeight || 300);
     const options: uPlot.Options = {
       width: element.clientWidth || 600,
-      height,
+      height: fit(),
       series,
       legend: { show: false },
       scales: {
@@ -118,12 +121,12 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = fal
     });
     plot.current = chart;
     // Width follows the container; the chart never feeds its own size back.
-    let last = element.clientWidth;
+    let last = [element.clientWidth, fit()];
     const observer = new ResizeObserver(() => {
-      const width = element.clientWidth;
-      if (Math.abs(width - last) < 1) return;
-      last = width;
-      chart.setSize({ width, height });
+      const size = [element.clientWidth, fit()];
+      if (Math.abs(size[0] - last[0]) < 1 && Math.abs(size[1] - last[1]) < 1) return;
+      last = size;
+      chart.setSize({ width: size[0], height: size[1] });
     });
     observer.observe(element);
     return () => {
@@ -138,5 +141,5 @@ export function SpectrumChart({ layers, showSpecular, showAbsorption, zoom = fal
     plot.current?.redraw(false);
   }, [cursor]);
 
-  return <div ref={host} className="spectrum-chart" aria-hidden />;
+  return <div ref={host} className={height ? "spectrum-chart" : "spectrum-chart spectrum-chart-fill"} aria-hidden />;
 }

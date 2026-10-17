@@ -24,7 +24,7 @@ export interface Settings {
   engine: EnginePreference;
   polarization: "s" | "p" | "avg";
   showSpecular: boolean;
-  expert: boolean;
+  advanced: boolean;
   theme: "system" | "light" | "dark";
 }
 
@@ -80,7 +80,7 @@ function loadSettings(): Settings {
     engine: "auto",
     polarization: "avg",
     showSpecular: false,
-    expert: false,
+    advanced: false,
     theme: "system",
   };
   try {

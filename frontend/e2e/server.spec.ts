@@ -36,7 +36,7 @@ test("uses a running local server for full calculations", async ({ app: page }) 
   await diameter.fill("100");
   await diameter.press("Enter");
   await waitUpToDate(page);
-  await expect(page.getByRole("status").filter({ hasText: /on local server/ })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: /on the local server/ })).toBeVisible();
 });
 
 test("fits on the local server when it is in use", async ({ app: page }) => {

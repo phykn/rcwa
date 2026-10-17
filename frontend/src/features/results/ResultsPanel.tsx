@@ -10,13 +10,13 @@ const FieldView = lazy(() => import("../field/FieldView"));
 const ConvergenceView = lazy(() => import("../convergence/ConvergenceView"));
 const FitView = lazy(() => import("../fit/FitView"));
 
-const TABS = [
-  { id: "spectrum", label: "Spectrum" },
-  { id: "orders", label: "Orders" },
-  { id: "sweep", label: "Sweep" },
-  { id: "field", label: "Field" },
-  { id: "convergence", label: "Convergence" },
-  { id: "fit", label: "Fit" },
+const ALL_TABS = [
+  { id: "spectrum", label: "Spectrum", advanced: false },
+  { id: "orders", label: "Orders", advanced: true },
+  { id: "sweep", label: "Sweep", advanced: false },
+  { id: "field", label: "Field", advanced: false },
+  { id: "convergence", label: "Convergence", advanced: true },
+  { id: "fit", label: "Fit", advanced: false },
 ] as const;
 
 function Status() {
@@ -72,14 +72,17 @@ function Status() {
   return (
     <div className="status status-ok" role="status">
       <span>
-        Up to date · {full!.result.elapsedSeconds.toFixed(1)} s on {full!.result.engine === "server" ? "local server" : "this browser"}
+        Calculated in {full!.result.elapsedSeconds.toFixed(1)} s{full!.result.engine === "server" ? " on the local server" : ""}
       </span>
     </div>
   );
 }
 
 export function ResultsPanel() {
-  const tab = useStore((s) => s.tab);
+  const advanced = useStore((s) => s.settings.advanced);
+  const TABS = ALL_TABS.filter((t) => advanced || !t.advanced);
+  const chosen = useStore((s) => s.tab);
+  const tab = TABS.some((t) => t.id === chosen) ? chosen : "spectrum";
   const setTab = useStore((s) => s.setTab);
   const full = useStore((s) => s.full);
   const pol = useStore((s) => s.settings.polarization);

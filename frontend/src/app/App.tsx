@@ -85,17 +85,15 @@ export function App({ firstVisit }: { firstVisit: boolean }) {
       </nav>
       <main className="workspace">
         <div className="col-stack pane-structure" data-tour="stack">
-          <StackPanel />
-        </div>
-        <div className="col-center">
-          <div className="pane-structure viewport-wrap">
+          <div className="viewport-wrap">
             <Suspense fallback={<div className="viewport" aria-busy="true" />}>
               <Viewport3D />
             </Suspense>
           </div>
-          <div className="pane-results" id="results" data-tour="results">
-            <ResultsPanel />
-          </div>
+          <StackPanel />
+        </div>
+        <div className="col-center pane-results" id="results" data-tour="results">
+          <ResultsPanel />
         </div>
         <aside className="col-inspector pane-edit" aria-label="Inspector" data-tour="inspector">
           <Inspector />
