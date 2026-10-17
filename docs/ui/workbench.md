@@ -11,8 +11,8 @@ spectrum, so there is something to look at before the engine has started.
   about 25 MB; later visits use the browser cache. The status at the top shows
   progress, then *In browser · N workers*.
 - **On a local server.** When the local API answers (`scripts/start_local.py`),
-  full calculations go to it automatically: native BLAS, several times faster at
-  high orders. Previews, sweeps, field maps and fits still run in the browser.
+  full calculations and fits go to it automatically: native BLAS, several times
+  faster at high orders. Previews, sweeps and field maps still run in the browser.
   Settings → Calculation engine overrides the choice.
 
 Both paths run the same `rcwa_core` code. `npm run test:engine` checks the browser
@@ -77,6 +77,7 @@ the new result arrives.
 - **Fit**: paste or load a measured R or T spectrum (wavelength, value per line;
   fractions or percent; up to 31 points, thinned if longer), choose up to three
   dimensions with bounds, and fit with bounded least squares from several starts.
+  The fit runs on the local server when one is in use, otherwise in this browser.
   The ±1σ values are linearized estimates from the residual; they do not cover
   model error or non-unique solutions. *Apply fitted values* edits the design.
 
@@ -85,8 +86,9 @@ the new result arrives.
 - **Share link** encodes the whole design (deflate, base64url) in the URL
   fragment. Nothing is uploaded.
 - **Export**: design file, schema-1.2 projects for the HTTP API/MCP (split into
-  ≤ 31-wavelength projects when needed), spectrum and order CSV, and a
-  standalone HTML report.
+  ≤ 31-wavelength projects when needed), spectrum and order CSV, the spectrum
+  chart as SVG or PNG (2×), and a standalone HTML report. Sweep and field maps
+  have their own *Save image (.png)* button.
 - **Open** reads design files, `{ "project": … }` envelopes and bare 1.0–1.2
   projects. Older 1D projects are converted (period Y = period X, one order in y).
 - **Saved** keeps designs, with their spectra when up to date, in this browser.

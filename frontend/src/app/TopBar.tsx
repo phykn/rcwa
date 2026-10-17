@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { apiProjects, ordersCsv, spectrumCsv } from "../core/exporters";
 import { download, fileSlug, parseProjectFile, serializeDesign } from "../core/projectFile";
+import { downloadBlob, spectrumChartSvg, svgToPng } from "../core/chartExport";
 import { encodeShare } from "../core/share";
 import { isProposal, reviewProposal, type ProposalReview } from "../core/proposal";
 import { ProposalDialog } from "../features/ProposalDialog";
@@ -56,6 +57,7 @@ export function TopBar({
   const file = useRef<HTMLInputElement>(null);
   const slug = fileSlug(design.name);
   const current = full?.key === key ? full.result : null;
+  const pol = useStore((s) => s.settings.polarization);
 
   async function share() {
     const url = `${location.origin}${location.pathname}#${await encodeShare(design)}`;
@@ -160,6 +162,29 @@ export function TopBar({
                 onClick={() => current && download(`${slug}-orders.csv`, ordersCsv(current), "text/csv")}
               >
                 Diffraction orders (.csv)
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                disabled={!current}
+                onClick={() => current && download(`${slug}-spectrum.svg`, spectrumChartSvg(design, current, pol), "image/svg+xml")}
+              >
+                Spectrum chart (.svg)
+              </button>
+              <button
+                type="button"
+                className="menu-item"
+                disabled={!current}
+                onClick={async () => {
+                  if (!current) return;
+                  try {
+                    downloadBlob(`${slug}-spectrum.png`, await svgToPng(spectrumChartSvg(design, current, pol)));
+                  } catch (error) {
+                    notify(error instanceof Error ? error.message : String(error), "error");
+                  }
+                }}
+              >
+                Spectrum chart (.png)
               </button>
               <button
                 type="button"

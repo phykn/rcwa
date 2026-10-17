@@ -314,7 +314,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 version: {
                     "operations": ["validate", "forward", "poll", "cancel", "save_snapshot", "import_project",
                                    "list_snapshots", "snapshot_inputs"]
-                    + (["preview_2d_changes"] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
+                    + (["preview_2d_changes", "dimension_fit"] if version == "1.2" else ["synthetic_fit", "preview_changes", "preview_stack_changes"]),
                     "geometry": ["rectangle_1d", "homogeneous", "rectangle_2d", "circular_hole_2d"] if version == "1.2" else (
                         ["rectangle_1d"] if version == "1.0" else ["rectangle_1d", "homogeneous"]
                     ),
@@ -331,7 +331,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "Local loopback, one API worker, unauthenticated; Origin/Host checks are not authentication",
                 "Static Pages is precomputed only, with no live API",
                 "No phase, Jones, ellipsometry, arbitrary or offset/rotated geometry, anisotropy, or measured-data inversion",
-                "1.2 supports forward calculations; 2D fitting and change proposals are not supported",
+                "1.2 supports forward calculations and measured-spectrum dimension fits (POST /api/jobs kind=fit with fit_2d); legacy change proposals are not supported",
                 "At most one 1.2 process within two total jobs; legacy limits above do not describe 1.2, use project_profiles",
                 "The no-argument example remains legacy; /api/example?example=circular_hole_2d returns the explicit 1.2 circular input",
                 "Material names are labels, not database lookups; supply constant n/k or a tabulated n/k table explicitly",
@@ -432,7 +432,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             )
         try:
             return app.state.jobs.submit(
-                request.kind, request.project.model_dump(), request.fit.model_dump() if request.fit else None
+                request.kind, request.project.model_dump(), request.fit_options()
             )
         except RuntimeError as error:
             raise HTTPException(429, str(error)) from error

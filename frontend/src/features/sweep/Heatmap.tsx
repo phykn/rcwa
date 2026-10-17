@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { colorAt, rampCss, type Ramp } from "../../core/colormap";
 
 export interface HeatmapProps {
+  /** File name for the "Save image" button; omit to hide it. */
+  fileName?: string;
   /** rows[y][x]; null rows are not computed yet and borrow the nearest computed row. */
   rows: (number[] | null)[];
   xs: number[];
@@ -29,7 +31,7 @@ function nearestFilled(rows: (number[] | null)[], i: number) {
 }
 
 /** Canvas heat map with axes, hover readout and click-to-pick. */
-export function Heatmap({ rows, xs, ys, xLabel, yLabel, valueLabel, range = [0, 1], ramp = "viridis", overlays = [], marker, onPick, describe }: HeatmapProps) {
+export function Heatmap({ fileName, rows, xs, ys, xLabel, yLabel, valueLabel, range = [0, 1], ramp = "viridis", overlays = [], marker, onPick, describe }: HeatmapProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [hover, setHover] = useState<{ xi: number; yi: number } | null>(null);
   const width = 760;
@@ -132,6 +134,22 @@ export function Heatmap({ rows, xs, ys, xLabel, yLabel, valueLabel, range = [0, 
         <span className="heatmap-scale" style={{ background: rampCss(ramp) }} aria-hidden />
         <span>{range[1]}</span>
         <span>{valueLabel}</span>
+        {fileName && (
+          <button
+            type="button"
+            className="btn btn-quiet"
+            onClick={() =>
+              canvas.current?.toBlob((blob) => {
+                if (!blob) return;
+                const url = URL.createObjectURL(blob);
+                Object.assign(document.createElement("a"), { href: url, download: fileName }).click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }, "image/png")
+            }
+          >
+            Save image (.png)
+          </button>
+        )}
         <span className="heatmap-hover" aria-live="polite">
           {hover && hovered && describe ? describe(xs[hover.xi], ys[hover.yi], hovered[hover.xi]) : onPick ? "Click a point to apply it to the design." : ""}
         </span>

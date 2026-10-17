@@ -180,6 +180,7 @@ export default function SweepView() {
         <>
           <Segmented label="Show" value={quantity} options={[{ value: "R", label: "Reflected" }, { value: "T", label: "Transmitted" }, { value: "A", label: "Absorbed" }]} onChange={setQuantity} />
           <Heatmap
+            fileName={`sweep-${sweep.parameterId}-${quantity}.png`}
             rows={rows}
             xs={sweep.wavelengths}
             ys={sweep.values}

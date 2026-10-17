@@ -1,10 +1,11 @@
 import { chunkDesign, mergeResults } from "./chunks";
+import type { FitResult, FitSpec } from "./browser";
 import { EngineError, type Design, type Diagnostic, type Engine, type PublicForwardResult2D, type SolveOptions } from "./types";
 
-interface Job {
+interface Job<R = PublicForwardResult2D> {
   id: string;
   status: "running" | "succeeded" | "failed" | "cancelled";
-  result: PublicForwardResult2D | null;
+  result: R | null;
   error: string | null;
   error_code: string | null;
 }
@@ -71,26 +72,33 @@ export class ServerEngine implements Engine {
     const results: PublicForwardResult2D[] = [];
     // The server admits two jobs; sequential chunks avoid 429 under parallel sweeps.
     for (const chunk of chunks) {
-      let job = await this.request<Job>("/api/jobs", {
-        method: "POST",
-        body: JSON.stringify({ kind: "forward", project: chunk }),
-        signal: options.signal,
-      });
-      try {
-        while (job.status === "running") {
-          await sleep(150, options.signal);
-          job = await this.request<Job>(`/api/jobs/${job.id}`, { signal: options.signal });
-        }
-      } catch (error) {
-        if (options.signal?.aborted) void this.request(`/api/jobs/${job.id}`, { method: "DELETE" }).catch(() => {});
-        throw error;
-      }
-      if (job.status !== "succeeded" || !job.result)
-        throw new EngineError(job.error_code ?? "numerical_failure", job.error ?? "Calculation failed");
-      results.push(job.result);
+      results.push(await this.job<PublicForwardResult2D>({ kind: "forward", project: chunk }, options));
       done += chunk.illumination.wavelengths_nm.length;
       options.onProgress?.(done, total);
     }
     return mergeResults(results, "server", (performance.now() - started) / 1000);
+  }
+
+  /** Measured-spectrum dimension fit as a server job (native BLAS). */
+  fit(design: Design, spec: FitSpec, options: SolveOptions = {}) {
+    const project = { ...design, illumination: { ...design.illumination, wavelengths_nm: spec.wavelengths_nm } };
+    return this.job<FitResult>({ kind: "fit", project, fit_2d: spec }, options);
+  }
+
+  /** Submit, poll until terminal, and cancel the server job if the caller aborts. */
+  private async job<R>(body: object, options: SolveOptions): Promise<R> {
+    let job = await this.request<Job<R>>("/api/jobs", { method: "POST", body: JSON.stringify(body), signal: options.signal });
+    try {
+      while (job.status === "running") {
+        await sleep(150, options.signal);
+        job = await this.request<Job<R>>(`/api/jobs/${job.id}`, { signal: options.signal });
+      }
+    } catch (error) {
+      if (options.signal?.aborted) void this.request(`/api/jobs/${job.id}`, { method: "DELETE" }).catch(() => {});
+      throw error;
+    }
+    if (job.status !== "succeeded" || !job.result)
+      throw new EngineError(job.error_code ?? "numerical_failure", job.error ?? "Calculation failed");
+    return job.result;
   }
 }

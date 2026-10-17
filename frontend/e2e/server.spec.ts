@@ -38,3 +38,16 @@ test("uses a running local server for full calculations", async ({ app: page }) 
   await waitUpToDate(page);
   await expect(page.getByRole("status").filter({ hasText: /on local server/ })).toBeVisible();
 });
+
+test("fits on the local server when it is in use", async ({ app: page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("status").filter({ hasText: "Local server" })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: "Fit" }).click();
+  const rows = Array.from({ length: 5 }, (_, i) => `${450 + 100 * i}, ${(0.04 + 0.002 * i).toFixed(3)}`).join("\n");
+  await page.getByRole("textbox", { name: /Measured spectrum/ }).fill(rows);
+  await page.getByRole("checkbox", { name: /Layer 1 thickness/ }).check();
+  const submitted = page.waitForRequest((r) => r.url().endsWith("/api/jobs") && r.method() === "POST" && r.postDataJSON()?.kind === "fit");
+  await page.getByRole("button", { name: "Fit", exact: true }).click();
+  await submitted;
+  await expect(page.getByText(/RMS residual/)).toBeVisible({ timeout: 120_000 });
+});

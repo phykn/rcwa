@@ -72,8 +72,12 @@ def forward_project(project):
 def validate_result_for_project(kind, result, project, fit=None):
     model = parse_project(project)
     if isinstance(model, Project2D):
+        if kind == "fit":
+            from .fit_2d import validate_fit_result
+
+            return validate_fit_result(result, fit)
         if kind != "forward" or fit is not None:
-            raise ValueError("Schema 1.2 supports forward calculations only")
+            raise ValueError("Schema 1.2 supports forward calculations and dimension fits only")
         from .contracts_2d import PublicForwardResult2D, validate_result_2d
 
         validated = validate_result_2d(result, model)

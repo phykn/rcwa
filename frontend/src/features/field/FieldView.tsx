@@ -93,6 +93,7 @@ export default function FieldView() {
             )}
           </div>
           <Heatmap
+            fileName={`field-${map.wavelength_nm}nm-${map.polarization}-${plane}.png`}
             rows={view.rows}
             xs={view.xs}
             ys={view.ys}

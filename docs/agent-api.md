@@ -443,8 +443,20 @@ Unicode serialization remain unchanged.
 
 The frontend opens the exact synthetic 1.2 example and supports direct 2D editing.
 The HTTP `/api/example` route deliberately retains its legacy fixture for existing
-clients; `?example=circular_hole_2d` explicitly returns the current circular input. Fitting and the two legacy change-proposal routes remain unavailable for 1.2;
-a 1.2 request to those operations fails before worker allocation. Use the separate
+clients; `?example=circular_hole_2d` explicitly returns the current circular input. The synthetic CD fit
+and the two legacy change-proposal routes remain unavailable for 1.2; a 1.2 request to those operations fails
+before worker allocation.
+
+1.2 projects instead support a measured-spectrum dimension fit as an ordinary job:
+`POST /api/jobs` with `{"kind": "fit", "project": <1.2 project>, "fit_2d": {...}}`, where `fit_2d` holds
+`parameters` (1–3 of `{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120, "linked": []}`;
+`linked` lists paths that take the same value, such as `["period_y_nm"]` for a square lattice),
+`wavelengths_nm` and `values` (3–31 measured fractions), `quantity` (`R`, `T`, `R_specular` or
+`T_specular`) and `polarization` (`s`, `p` or `avg`). The succeeded job's result has
+`result_type: "dimension_fit"` with fitted `values`, linearized `sigma`, `at_bound`, `rms`, the
+`fitted` curve and the evaluation `history`. The result is checked against its request (parameter count,
+wavelengths and bounds) before the job succeeds. Capabilities list it as `dimension_fit` under
+`project_profiles["1.2"].operations`. Use the separate
 `/api/2d-change-preview` route for bounded dimension proposals. See the
 [workbench guide](ui/workbench.md) for the browser workflow.
 

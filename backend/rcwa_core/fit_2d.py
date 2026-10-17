@@ -52,6 +52,40 @@ class FitSpec(StrictModel):
         return self
 
 
+class DimensionFitResult(StrictModel):
+    result_type: str = Field(pattern="^dimension_fit$")
+    schema_version: str = Field(pattern="^1\\.2$")
+    values: list[float] = Field(min_length=1, max_length=3)
+    sigma: list[float | None] = Field(min_length=1, max_length=3)
+    at_bound: list[bool] = Field(min_length=1, max_length=3)
+    rms: float = Field(ge=0)
+    wavelengths_nm: list[float] = Field(min_length=3, max_length=31)
+    fitted: list[float] = Field(min_length=3, max_length=31)
+    evaluations: int = Field(ge=1, le=MAX_EVALUATIONS)
+    history: list[dict] = Field(max_length=60)
+    elapsed_seconds: float = Field(ge=0)
+    note: str
+
+    @model_validator(mode="after")
+    def consistent(self):
+        n = len(self.values)
+        if len(self.sigma) != n or len(self.at_bound) != n or len(self.fitted) != len(self.wavelengths_nm):
+            raise ValueError("Dimension fit result arrays disagree")
+        return self
+
+
+def validate_fit_result(result: dict, spec: dict) -> DimensionFitResult:
+    """Bind a returned fit to the request that produced it."""
+    spec = FitSpec.model_validate(spec)
+    fit = DimensionFitResult.model_validate(result)
+    if len(fit.values) != len(spec.parameters) or fit.wavelengths_nm != list(spec.wavelengths_nm):
+        raise ValueError("Dimension fit result does not match its request")
+    for value, parameter in zip(fit.values, spec.parameters):
+        if not parameter.lower <= value <= parameter.upper:
+            raise ValueError("Fitted value outside its bounds")
+    return fit
+
+
 def _get(data, path):
     for key in path[:-1]:
         data = data[key]
@@ -133,6 +167,8 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         sigma = [None] * len(spec.parameters)
     fitted = model(best.x)
     return {
+        "result_type": "dimension_fit",
+        "schema_version": "1.2",
         "values": [float(v) for v in best.x],
         "sigma": sigma,
         "at_bound": [bool(np.isclose(v, lo) or np.isclose(v, hi)) for v, lo, hi in zip(best.x, lower, upper)],

@@ -157,3 +157,17 @@ test("reviews an imported dimension proposal before applying it", async ({ app: 
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toHaveValue("65");
 });
+
+test("exports the spectrum chart as SVG and PNG", async ({ app: page }) => {
+  await page.goto("/");
+  await waitUpToDate(page, 30_000);
+  for (const [label, extension] of [["Spectrum chart (.svg)", "svg"], ["Spectrum chart (.png)", "png"]] as const) {
+    await page.getByRole("button", { name: "Export" }).click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: label }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(new RegExp(`spectrum\\.${extension}$`));
+    const { statSync } = await import("node:fs");
+    expect(statSync((await file.path())!).size).toBeGreaterThan(1000);
+  }
+});

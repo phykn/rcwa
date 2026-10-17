@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { FitResult } from "../../engine/browser";
+import type { ServerEngine } from "../../engine/server";
 import { getValue, parameters, setValue, type Parameter } from "../../core/parameters";
 import { useServices } from "../../state/context";
 import { useStore } from "../../state/store";
@@ -83,7 +84,9 @@ export default function FitView() {
       const solver = fast
         ? { harmonics_x: Math.min(2, design.solver.harmonics_x), harmonics_y: Math.min(2, design.solver.harmonics_y) }
         : design.solver;
-      const out = await hub.browserEngine.fit(
+      // The local server fits with native BLAS when it is in use; otherwise this browser does.
+      const engine = hub.engine.kind === "server" ? (hub.engine as ServerEngine) : hub.browserEngine;
+      const out = await engine.fit(
         { ...design, solver },
         {
           parameters: chosen.map(({ c, p }) => ({ path: p.path, linked: p.linked, lower: c.lower, upper: c.upper })),
@@ -113,7 +116,8 @@ export default function FitView() {
   return (
     <div className="analysis">
       <p className="analysis-note">
-        Paste a measured spectrum, choose up to three dimensions to adjust, and fit the model to it. The fit runs in this browser.
+        Paste a measured spectrum, choose up to three dimensions to adjust, and fit the model to it. The fit runs on the local
+        server when one is in use, otherwise in this browser.
       </p>
       <div className="fit-grid">
         <label className="field">

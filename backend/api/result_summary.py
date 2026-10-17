@@ -9,7 +9,7 @@ from copy import deepcopy
 import json
 
 from .contracts import (
-    ForwardResultSummary, JobSummary, SnapshotReceipt, SnapshotSummary, SyntheticFitResultSummary,
+    DimensionFitSummary, ForwardResultSummary, JobSummary, SnapshotReceipt, SnapshotSummary, SyntheticFitResultSummary,
     MAX_SUMMARY_BYTES as MAX_SUMMARY_BYTES, MAX_SUMMARY_WARNING_BYTES as MAX_SUMMARY_WARNING_BYTES,
     MAX_SUMMARY_WARNINGS as MAX_SUMMARY_WARNINGS,
 )
@@ -62,6 +62,11 @@ def result_summary(result):
             "prediction": forward_summary(result["prediction"]),
             "target": forward_summary(result["target"]),
             **_warnings(result["warnings"]),
+        }, strict=True).model_dump(mode="json")
+    if result.get("result_type") == "dimension_fit":
+        return DimensionFitSummary.model_validate({
+            "summary_schema_version": "rcwa-dimension-fit-summary/1.0",
+            **{key: result[key] for key in ("result_type", "values", "sigma", "at_bound", "rms", "evaluations")},
         }, strict=True).model_dump(mode="json")
     return forward_summary(result)
 
