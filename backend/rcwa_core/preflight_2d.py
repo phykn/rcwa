@@ -123,7 +123,11 @@ def preflight_2d(project, *, basis=None):
         # Uniform films couple only the specular order; other orders carry no power.
         xx, yy = np.meshgrid(kx, ky) if patterned else (kx[hx : hx + 1], ky[hy : hy + 1])
         rho2 = xx**2 + yy**2
-        distance = np.min(np.abs(np.r_[n0.real**2 - rho2.ravel(), ns**2 - rho2.ravel()]))
+        # A uniform film has no mode mixing, so an order grazing inside it is singular too.
+        films = [refractive_index(layer.material, wavelength) ** 2 for layer in project.layers
+                 if layer.geometry == "homogeneous" and layer.thickness_nm > 0]
+        distance = np.min(np.abs(np.r_[n0.real**2 - rho2.ravel(), ns**2 - rho2.ravel(),
+                                        *[eps - rho2.ravel() for eps in films]]))
         if distance < EXACT_CUTOFF_TOLERANCE:
             diagnostics.append(
                 Diagnostic(

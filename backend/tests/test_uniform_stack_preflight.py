@@ -106,3 +106,29 @@ def test_2d_patterned_layer_still_rejects_cutoff():
     }
     codes = {d.code for d in preflight_project_any(film_2d(400, [600.0], 30, 1, layer))}
     assert "rayleigh_cutoff" in codes
+
+
+def test_2d_film_with_order_grazing_inside_it_matches_airy():
+    # Orders (±1, 0) have |k|/k0 = 2 = n_film at normal incidence: degenerate in a full basis.
+    layer = {"geometry": "homogeneous", "thickness_nm": 120.0, "material": material(2.0)}
+    project = film_2d(300, [600.0], 0, 2, layer)
+    result = forward_project(project)
+    for pol in ("s", "p"):
+        expected = analytic_film(600.0, 0, 1.0, 2.0, 1.5, 120.0, pol)
+        np.testing.assert_allclose(result["spectra"][pol]["R"][0], expected[0], atol=2e-10)
+        assert sum(o["R"] + o["T"] for o in result["spectra"][pol]["orders"][0] if (o["m"], o["n"]) != (0, 0)) == 0
+
+
+def test_2d_patterned_stack_flags_an_order_grazing_inside_a_film():
+    holes = {
+        "geometry": "circular_hole_2d",
+        "thickness_nm": 100.0,
+        "diameter_nm": 100.0,
+        "material": material(1.0),
+        "background": material(1.7),
+    }
+    cap = {"geometry": "homogeneous", "thickness_nm": 50.0, "material": material(2.0)}
+    project = film_2d(300, [600.0], 0, 1, holes)
+    project = parse_project({**project.model_dump(), "layers": [cap, holes]})
+    codes = {d.code for d in preflight_project_any(project)}
+    assert "rayleigh_cutoff" in codes

@@ -12,7 +12,7 @@ from time import perf_counter
 import numpy as np
 
 from .preflight import SolverError, ensure_engine_available, refractive_index
-from .preflight_2d import ensure_preflight_2d, stack_has_loss_2d, wavevectors, widths
+from .preflight_2d import ensure_preflight_2d, has_patterned_slab_2d, stack_has_loss_2d, wavevectors, widths
 from .schemas_2d import Project2D
 
 ADAPTER_VERSION_2D = "1.3.0"
@@ -212,18 +212,31 @@ def _solve_wavelength(project, wavelength, basis, circle_strips, laurent_diagnos
     xx, yy = np.meshgrid(kx, ky)
     q_top, q_bottom = n0**2 - xx**2 - yy**2, ns**2 - xx**2 - yy**2
     cells, thicknesses = stack_cells_2d(project, wavelength, circle_strips=circle_strips)
+    # Uniform stacks couple only the specular order. Solving it alone is exact and
+    # avoids degenerate eigenproblems when another order grazes inside a film.
+    patterned = has_patterned_slab_2d(project)
+    sx, sy = (hx, hy) if patterned else (0, 0)
     try:
         with np.errstate(divide="raise", invalid="raise", over="raise"):
             if cells:
-                ex, ey, ezi = to_conv_mat_vector(cells, hx, hy, type_complex=np.complex128, use_pinv=False)
+                ex, ey, ezi = to_conv_mat_vector(cells, sx, sy, type_complex=np.complex128, use_pinv=False)
                 if laurent_diagnostic:
                     ex = np.linalg.inv(ezi)
                     ey = ex.copy()
             else:
                 ex, ey, ezi = [], [], []
-            raw = _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, ex, ey, ezi)
+            skx, sky = (kx, ky) if patterned else (kx[hx : hx + 1], ky[hy : hy + 1])
+            raw = _solve_2d_with_ports(skx, sky, n0, ns, angle, phi, wavelength, thicknesses, ex, ey, ezi)
     except (np.linalg.LinAlgError, FloatingPointError) as exc:
         raise SolverError(f"2D RCWA failed at {wavelength:g} nm: {exc}") from exc
+    if not patterned:
+        for key in ("res_te_inc", "res_tm_inc"):
+            embedded = {}
+            for channel in RAW_CHANNELS:
+                full = np.zeros((2 * hy + 1, 2 * hx + 1))
+                full[hy, hx] = np.asarray(raw[key][channel], dtype=float).reshape(-1)[0]
+                embedded[channel] = full
+            raw[key] = embedded
     partial = {"wavelength_nm": wavelength, "has_loss": bool(has_loss), "absorbing_port": bool(ns.imag != 0),
                "lossless_error": 0.0, "series": {}}
     for pol in pols:

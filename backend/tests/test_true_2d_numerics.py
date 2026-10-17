@@ -219,11 +219,16 @@ def test_external_cutoffs_near_cutoffs_and_missing_full_light_cone():
     assert "insufficient_harmonics" in [d.code for d in preflight_2d(p)]
 
 
-def test_exact_internal_cutoff_fails_without_perturbation():
+def test_exact_internal_cutoff_in_uniform_stack_is_solved_exactly():
+    # wavelength / Px = 1.5: orders (±1, 0) graze inside the film. A uniform stack
+    # couples only the specular order, so it is solved alone, without perturbation.
     p = project([film(100, 1.5)], theta=0, phi=0, ns=1.7, wavelengths=(690,))
-    assert preflight_2d(p) == []  # wavelength / Px = 1.5, only internal mode tangent.
-    with pytest.raises(SolverError, match="2D RCWA failed"):
-        forward_2d(p)
+    assert preflight_2d(p) == []
+    r = forward_2d(p)
+    for pol in ("s", "p"):
+        np.testing.assert_allclose(
+            [r["spectra"][pol][k][0] for k in ("R", "T")], planar_tmm(690, 0, 1, [(100, 1.5)], 1.7, pol), atol=2e-10, rtol=0
+        )
 
 
 @pytest.mark.parametrize("offset", [-1e-6, 1e-6])

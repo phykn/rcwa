@@ -10,7 +10,7 @@ from rcwa_core.solver import forward
 
 
 def test_public_reference_fixture_matches_solver():
-    fixture_path = Path(__file__).parents[2] / "frontend/public/reference-example.json"
+    fixture_path = Path(__file__).parent / "fixtures/reference-example.json"
     fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
     project = Project.model_validate(fixture["project"])
     actual = forward(project)

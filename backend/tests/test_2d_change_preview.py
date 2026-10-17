@@ -416,7 +416,7 @@ def test_duplicate_member_rejection_does_not_change_legacy_http_decoding(client,
 
 def test_frontend_dimension_proposal_fixtures_are_exact_backend_outputs():
     fixtures = json.loads((Path(__file__).resolve().parents[2] /
-                           "frontend/src/fixtures/dimension-proposals-2d.json").read_text(encoding="utf-8"))
+                           "backend/tests/fixtures/dimension-proposals-2d.json").read_text(encoding="utf-8"))
     names = {fixture["name"] for fixture in fixtures}
     assert {"circle", "noop", "signed-zero", "numerical-failure", "mixed-atomic"} <= names
     for fixture in fixtures:
