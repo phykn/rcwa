@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TEMPLATES } from "../core/templates";
 import { useStore } from "../state/store";
 import { NumberField } from "../ui/NumberField";
 import { Inspector } from "./Inspector";
 import { StackPanel } from "./StackPanel";
+
+// jsdom has no canvas; the chart itself is covered by the browser end-to-end tests.
+vi.mock("./results/SpectrumChart", () => ({ SpectrumChart: () => null }));
 
 beforeEach(() => {
   useStore.setState({ past: [], future: [], full: null, gesture: false, gestureRecorded: false });
@@ -80,5 +83,30 @@ describe("editing through the panels", () => {
     expect(layers).toHaveLength(4);
     expect(layers[1].geometry).toBe("rectangle_2d");
     expect(useStore.getState().selection).toEqual({ kind: "layer", index: 1 });
+  });
+});
+
+describe("run details", () => {
+  it("shows hashes and solver notes only in expert mode", async () => {
+    const { SpectrumView } = await import("./results/SpectrumView");
+    const result = {
+      wavelengths_nm: [500, 600],
+      spectra: { s: { R: [0.1, 0.2], T: [0.9, 0.8], R_specular: [0.1, 0.2], T_specular: [0.9, 0.8], A_balance: [0, 0], orders: [[], []] } },
+      warnings: ["Convergence not assessed"],
+      harmonics: [2, 2] as [number, number],
+      inputHashes: ["abc123"],
+      elapsedSeconds: 1,
+      engine: "browser" as const,
+      maxLosslessFluxError: 1e-12,
+    };
+    useStore.getState().setFull(useStore.getState().design, result);
+    useStore.getState().updateSettings({ expert: false });
+    const { rerender } = render(<SpectrumView />);
+    expect(screen.queryByText("abc123")).toBeNull();
+    useStore.getState().updateSettings({ expert: true });
+    rerender(<SpectrumView />);
+    expect(screen.getByText("abc123")).toBeTruthy();
+    expect(screen.getByText("Convergence not assessed")).toBeTruthy();
+    useStore.getState().updateSettings({ expert: false });
   });
 });

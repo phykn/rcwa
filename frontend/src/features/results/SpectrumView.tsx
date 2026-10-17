@@ -146,6 +146,28 @@ export function SpectrumView() {
           <Swatch label="Reflected color" color={reflected} />
           <Swatch label="Transmitted color" color={transmitted} />
         </div>
+        {settings.expert && (
+          <details className="details" open>
+            <summary>Run details</summary>
+            <p>
+              Engine: meent 0.13.2 {source.result.engine === "server" ? "on the local server" : "in this browser"} ·{" "}
+              {source.result.harmonics.join("×")} orders · {source.result.elapsedSeconds.toFixed(2)} s
+            </p>
+            <p>
+              Lossless flux error:{" "}
+              {source.result.maxLosslessFluxError === null ? "not applicable (lossy)" : source.result.maxLosslessFluxError.toExponential(1)}
+            </p>
+            <p>Input hashes:</p>
+            {source.result.inputHashes.map((h) => (
+              <code key={h}>{h}</code>
+            ))}
+            <ul>
+              {source.result.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </details>
+        )}
         <button type="button" className="btn btn-quiet" onClick={() => setTable(!table)} aria-expanded={table}>
           {table ? "Hide data table" : "Show data table"}
         </button>

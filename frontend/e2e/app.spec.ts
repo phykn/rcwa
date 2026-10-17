@@ -108,6 +108,7 @@ test("examples load and calculate", async ({ app: page }) => {
 
 test("command palette runs commands from the keyboard", async ({ app: page }) => {
   await page.goto("/");
+  await expect(page.getByRole("textbox", { name: "Design name" })).toBeVisible();
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("textbox", { name: "Search commands" }).fill("diffraction");
   await page.keyboard.press("Enter");
