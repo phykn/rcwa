@@ -454,7 +454,11 @@ before worker allocation.
 `wavelengths_nm` and `values` (3–31 measured fractions), `quantity` (`R`, `T`, `R_specular` or
 `T_specular`) and `polarization` (`s`, `p` or `avg`). The succeeded job's result has
 `result_type: "dimension_fit"` with fitted `values`, linearized `sigma`, `at_bound`, `rms`, the
-`fitted` curve and the evaluation `history`. The result is checked against its request (parameter count,
+`fitted` curve and the evaluation `history`. The fit solves the polarizations the measurement names (`avg` always
+solves both s and p), whatever the design shows. Every design inside the bounds must pass validation and preflight
+(for example a hole no wider than either pitch); otherwise the fit fails before solving and names the offending corner.
+The whole fit stays within 80 forward evaluations; a best start stopped by that cap says so in `note`.
+The result is checked against its request (parameter count,
 wavelengths and bounds) before the job succeeds. Capabilities list it as `dimension_fit` under
 `project_profiles["1.2"].operations`. Use the separate
 `/api/2d-change-preview` route for bounded dimension proposals. See the

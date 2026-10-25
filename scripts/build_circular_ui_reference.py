@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from rcwa_core.project_io import normalized_project_and_hash, validate_result_for_project  # noqa: E402
 
 INPUT_SHA = "98e7bd338022579f086c8c82732e53356f42994ec66b37ece42f40cc5ab7eaf8"
-RESULT_SHA = "1d68537aa2fb13ba346f696fec0fffa30e554ffbbb0c88a10d28d84a2e06fe0a"
+RESULT_SHA = "7949eb5ce82e70b29b26fc4475bc68a8fdc569b619128e264777fbc6868c620b"
 INPUT_HASH = "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931"
 
 

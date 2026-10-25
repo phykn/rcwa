@@ -115,21 +115,41 @@ def active_materials(project: Project):
     including zero-thickness layers and unused degenerate-rectangle regions.
     """
     for layer in project.layers:
-        if layer.thickness_nm == 0:
-            continue
-        if layer.geometry == "homogeneous":
+        yield from layer_active_materials(project, layer)
+
+
+def layer_active_materials(project: Project, layer):
+    if layer.thickness_nm == 0:
+        return
+    if layer.geometry == "homogeneous":
+        yield layer.material
+    else:
+        if layer.cd_nm > 0:
             yield layer.material
-        else:
-            if layer.cd_nm > 0:
-                yield layer.material
-            if layer.cd_nm < project.period_nm:
-                yield layer.background
+        if layer.cd_nm < project.period_nm:
+            yield layer.background
+
+
+def uniform_slab_permittivities(project: Project, wavelength_nm: float) -> list[complex]:
+    """Active slabs with no lateral contrast at this wavelength, including degenerate rectangles."""
+    permittivities = []
+    for layer in project.layers:
+        indices = {refractive_index(material, wavelength_nm) for material in layer_active_materials(project, layer)}
+        if len(indices) == 1:
+            permittivities.append(indices.pop() ** 2)
+    return permittivities
+
+
+def has_contrast(layer, wavelengths) -> bool:
+    """Whether a split layer's two materials differ at any sampled wavelength."""
+    return any(refractive_index(layer.material, w) != refractive_index(layer.background, w) for w in wavelengths)
 
 
 def has_patterned_slab(project: Project) -> bool:
-    """A stack without an active ridge/background split cannot diffract."""
+    """A stack without an active ridge/background split of distinct materials cannot diffract."""
     return any(
         layer.geometry == "rectangle_1d" and layer.thickness_nm > 0 and 0 < layer.cd_nm < project.period_nm
+        and has_contrast(layer, project.illumination.wavelengths_nm)
         for layer in project.layers
     )
 
@@ -200,14 +220,16 @@ def preflight_project(project: Project) -> list[Diagnostic]:
             )
         q_top = n0.real**2 - kx**2
         q_bottom = ns**2 - kx**2
-        distance = np.min(np.abs(np.r_[q_top, q_bottom]))
+        # A uniform slab has no mode mixing, so an order grazing inside it is singular too.
+        q_films = [eps - kx**2 for eps in uniform_slab_permittivities(project, wavelength)]
+        distance = np.min(np.abs(np.r_[q_top, q_bottom, *q_films]))
         if distance < EXACT_CUTOFF_TOLERANCE:
             diagnostics.append(
                 Diagnostic(
                     code="rayleigh_cutoff",
                     severity="error",
                     location=["illumination", "wavelengths_nm", wi],
-                    message=f"A diffraction order is exactly at a Rayleigh cutoff near {wavelength:g} nm; move the sampled wavelength slightly",
+                    message=f"A diffraction order is exactly at a Rayleigh cutoff, or grazes inside a uniform layer, near {wavelength:g} nm; move the sampled wavelength slightly",
                 )
             )
         elif distance < NEAR_CUTOFF_TOLERANCE:

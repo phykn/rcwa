@@ -18,6 +18,7 @@ from .preflight import (
     SolverError,
     ensure_engine_available,
     ensure_preflight,
+    has_patterned_slab,
     refractive_index,
     stack_has_loss,
 )
@@ -122,6 +123,10 @@ def forward(project: Project) -> dict:
     any_loss = False
     absorbing_substrate = False
     max_lossless_balance = 0.0
+    # Uniform stacks couple only the specular order. Solving it alone is exact and
+    # avoids degenerate eigenproblems when another order grazes inside a film.
+    patterned = has_patterned_slab(project)
+    solved = slice(None) if patterned else slice(harmonics, harmonics + 1)
 
     for wavelength in project.illumination.wavelengths_nm:
         n0 = refractive_index(project.ambient, wavelength)
@@ -139,7 +144,7 @@ def forward(project: Project) -> dict:
             try:
                 with np.errstate(divide="raise", invalid="raise", over="raise"):
                     epx, epy, epz_inverse = to_conv_mat_vector(
-                        cells, harmonics, 0, type_complex=np.complex128, use_pinv=False
+                        cells, harmonics if patterned else 0, 0, type_complex=np.complex128, use_pinv=False
                     )
             except (np.linalg.LinAlgError, FloatingPointError) as exc:
                 raise SolverError(f"Fourier compilation failed at {wavelength:g} nm: {exc}") from exc
@@ -148,13 +153,19 @@ def forward(project: Project) -> dict:
         for pol in polarizations:
             try:
                 with np.errstate(divide="raise", invalid="raise", over="raise"):
-                    raw = _solve_with_ports(kx, n0, ns, angle, pol, wavelength, thicknesses, epx, epy, epz_inverse)
-                r_orders = np.asarray(raw["res"]["de_ri"], dtype=float).reshape(-1)
-                t_orders = np.asarray(raw["res"]["de_ti"], dtype=float).reshape(-1)
+                    raw = _solve_with_ports(
+                        kx[solved], n0, ns, angle, pol, wavelength, thicknesses, epx, epy, epz_inverse
+                    )
+                raw_r = np.asarray(raw["res"]["de_ri"], dtype=float).reshape(-1)
+                raw_t = np.asarray(raw["res"]["de_ti"], dtype=float).reshape(-1)
             except (np.linalg.LinAlgError, FloatingPointError) as exc:
                 raise SolverError(f"RCWA failed at {wavelength:g} nm ({pol}): {exc}") from exc
+            if len(raw_r) != len(kx[solved]) or len(raw_t) != len(raw_r):
+                raise SolverError(f"RCWA produced invalid output at {wavelength:g} nm ({pol})")
+            r_orders, t_orders = np.zeros(len(orders)), np.zeros(len(orders))
+            r_orders[solved], t_orders[solved] = raw_r, raw_t
             values = np.r_[r_orders, t_orders]
-            if len(r_orders) != len(orders) or not np.all(np.isfinite(values)):
+            if not np.all(np.isfinite(values)):
                 raise SolverError(f"RCWA produced invalid output at {wavelength:g} nm ({pol})")
             reflection, transmission = float(r_orders.sum()), float(t_orders.sum())
             balance = 1.0 - reflection - transmission

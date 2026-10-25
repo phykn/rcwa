@@ -213,17 +213,20 @@ def test_harmonic_refinement_is_separate_from_run_certification():
     assert np.max(abs(results[-1] - results[-2])) < np.max(abs(results[1] - results[0]))
 
 
-def test_exact_internal_homogeneous_modal_cutoff_is_an_explicit_numerical_failure():
+def test_exact_internal_homogeneous_modal_cutoff_in_a_uniform_stack_is_solved_exactly():
     # m=1 is exactly tangent inside n=1.5, while both external ports are away
-    # from Rayleigh cutoffs. Pinned meent's modal inverse is singular here.
+    # from Rayleigh cutoffs. A uniform stack couples only the specular order, so
+    # it is solved alone and the singular modal inverse never arises.
     from rcwa_core.preflight import preflight_project
-    from rcwa_core.solver import SolverError
 
     project = stack([film(100, 1.5), film(80, 1.3)], angle=0, substrate=1.7)
     project.illumination.wavelengths_nm = [600.0]
     assert preflight_project(project) == []
-    with pytest.raises(SolverError, match="RCWA failed"):
-        forward(project)
+    result = forward(project)
+    for pol in ("s", "p"):
+        actual = result["spectra"][pol]
+        expected = planar_tmm(600, 0, 1, [(100, 1.5), (80, 1.3)], 1.7, pol)
+        np.testing.assert_allclose([actual["R"][0], actual["T"][0]], expected, atol=2e-10, rtol=0)
 
 
 @pytest.mark.parametrize("offset", [-1e-6, 1e-6])

@@ -11,6 +11,7 @@ from .preflight import (
     EXACT_CUTOFF_TOLERANCE,
     NEAR_CUTOFF_TOLERANCE,
     PreflightError,
+    has_contrast,
     refractive_index,
 )
 
@@ -51,21 +52,37 @@ def material_coverage_diagnostics_2d(project):
 
 def active_materials_2d(project):
     for layer in project.layers:
-        if not layer.thickness_nm:
-            continue
-        wx, wy = widths(project, layer)
-        if wx > 0 and wy > 0:
-            yield layer.material
-        if layer.geometry == "circular_hole_2d" or (
-            layer.geometry != "homogeneous" and (wx < project.period_nm or wy < project.period_y_nm)
-        ):
-            yield layer.background
+        yield from layer_active_materials_2d(project, layer)
+
+
+def layer_active_materials_2d(project, layer):
+    if not layer.thickness_nm:
+        return
+    wx, wy = widths(project, layer)
+    if wx > 0 and wy > 0:
+        yield layer.material
+    if layer.geometry == "circular_hole_2d" or (
+        layer.geometry != "homogeneous" and (wx < project.period_nm or wy < project.period_y_nm)
+    ):
+        yield layer.background
+
+
+def uniform_slab_permittivities_2d(project, wavelength):
+    """Active slabs with no lateral contrast at this wavelength, including degenerate cells."""
+    permittivities = []
+    for layer in project.layers:
+        indices = {refractive_index(material, wavelength) for material in layer_active_materials_2d(project, layer)}
+        if len(indices) == 1:
+            permittivities.append(indices.pop() ** 2)
+    return permittivities
 
 
 def has_patterned_slab_2d(project):
     """A stack whose every active slab is uniform cannot diffract."""
     for layer in project.layers:
         if not layer.thickness_nm or layer.geometry == "homogeneous":
+            continue
+        if not has_contrast(layer, project.illumination.wavelengths_nm):
             continue
         if layer.geometry == "circular_hole_2d":
             if layer.diameter_nm > 0:
@@ -124,9 +141,8 @@ def preflight_2d(project, *, basis=None):
         # Uniform films couple only the specular order; other orders carry no power.
         xx, yy = np.meshgrid(kx, ky) if patterned else (kx[hx : hx + 1], ky[hy : hy + 1])
         rho2 = xx**2 + yy**2
-        # A uniform film has no mode mixing, so an order grazing inside it is singular too.
-        films = [refractive_index(layer.material, wavelength) ** 2 for layer in project.layers
-                 if layer.geometry == "homogeneous" and layer.thickness_nm > 0]
+        # A uniform slab has no mode mixing, so an order grazing inside it is singular too.
+        films = uniform_slab_permittivities_2d(project, wavelength)
         distance = np.min(np.abs(np.r_[n0.real**2 - rho2.ravel(), ns**2 - rho2.ravel(),
                                         *[eps - rho2.ravel() for eps in films]]))
         if distance < EXACT_CUTOFF_TOLERANCE:
@@ -135,7 +151,7 @@ def preflight_2d(project, *, basis=None):
                     code="rayleigh_cutoff",
                     severity="error",
                     location=["illumination", "wavelengths_nm", wi],
-                    message=f"A retained (m,n) order is exactly at a Rayleigh cutoff near {wavelength:g} nm",
+                    message=f"A retained (m,n) order is exactly at a Rayleigh cutoff, or grazes inside a uniform layer, near {wavelength:g} nm",
                 )
             )
         elif distance < NEAR_CUTOFF_TOLERANCE:

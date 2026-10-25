@@ -71,13 +71,15 @@ def stack_cells_2d(project, wavelength, *, circle_strips=None):
 
 
 def conv_matrices_2d(cells, hx, hy):
-    """meent's continuous Fourier matrices, with epx rebuilt in Li's directional order.
+    """meent's continuous Fourier matrices, with epy rebuilt in epx's directional order.
 
-    Pinned meent forms epy as Laurent-in-x of the inverse-rule-in-y matrices, but
-    epx as inverse-rule-in-x of inverted Laurent-in-y matrices. The two orders
-    differ for genuinely 2D cells and break x/y (C4) symmetry. epx is therefore
-    built exactly like epy on the transposed cell, then permuted back to the
-    m-fastest basis.
+    Pinned meent forms epx with Laurent in y first, then the inverse rule in x,
+    the direction normal to the walls that interrupt E_x. Its epy instead
+    takes the inverse rule in y first and Laurent in x last. The two orders differ
+    for genuinely 2D cells and break x/y (C4) symmetry, and the other symmetric
+    choice converged more slowly for high-index hosts (docs/true-2d/validation.md).
+    epy is therefore built exactly like epx on the transposed cell, then permuted
+    back to the m-fastest basis.
     """
     from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
     from meent.on_numpy.emsolver.fourier_analysis import cfs2d
@@ -86,7 +88,7 @@ def conv_matrices_2d(cells, hx, hy):
     nx, ny = 2 * hx + 1, 2 * hy + 1
     swap = np.array([ix * ny + iy for iy in range(ny) for ix in range(nx)])
     for i, (values, xs, ys) in enumerate(cells):
-        epx[i] = cfs2d(values.T ** 2, ys, xs, 1, 0, hy, hx, np.complex128)[np.ix_(swap, swap)]
+        epy[i] = cfs2d(values.T ** 2, ys, xs, 0, 1, hy, hx, np.complex128)[np.ix_(swap, swap)]
     return epx, epy, epz_inverse
 
 

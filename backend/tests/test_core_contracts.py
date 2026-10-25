@@ -10,8 +10,9 @@ from rcwa_core import preflight
 from rcwa_core.contracts import ForwardResult, Result, SyntheticFitResult, validate_result
 from rcwa_core.fitting import fit_cd
 from rcwa_core.preflight import EngineUnavailableError, PreflightError, ensure_preflight, preflight_project
-from rcwa_core.schemas import Material, Project
+from rcwa_core.schemas import HomogeneousLayer, Layer, Material, Project
 from rcwa_core.solver import SolverError, forward
+from test_stack_physics import planar_tmm
 
 
 @pytest.fixture(scope="module")
@@ -95,6 +96,47 @@ def test_substrate_absorption_does_not_hide_its_open_orders(k):
     assert "insufficient_harmonics" in [item.code for item in preflight_project(project)]
     project.substrate = Material(n=0.2, k=3.5)  # metal: no order propagates beyond the ambient light cone
     assert "insufficient_harmonics" not in [item.code for item in preflight_project(project)]
+
+
+def normal_stack_at_800(layers):
+    # wavelength / period = 2: orders ±1 graze inside an n=2 slab.
+    data = Project().model_dump()
+    data.update(schema_version="1.1", layers=layers)
+    data["illumination"].update(angle_deg=0.0, wavelengths_nm=[800.0])
+    return Project.model_validate(data)
+
+
+def test_exact_internal_cutoff_in_uniform_stack_is_solved_exactly():
+    # A uniform stack couples only the specular order, so it is solved alone, without perturbation.
+    project = normal_stack_at_800([HomogeneousLayer(thickness_nm=150, material=Material(n=2.0)).model_dump()])
+    assert preflight_project(project) == []
+    result = forward(project)
+    for pol in ("s", "p"):
+        series = result["spectra"][pol]
+        expected = planar_tmm(800.0, 0, 1.0, [(150, 2.0)], 1.5, pol)
+        assert abs(series["R"][0] - expected[0]) < 1e-12 and abs(series["T"][0] - expected[1]) < 1e-12
+        assert [order["m"] for order in series["orders"][0]] == list(range(-7, 8))
+        assert all(order["R"] == order["T"] == 0 for order in series["orders"][0] if order["m"])
+
+
+def test_a_rectangle_of_one_material_is_solved_like_the_equivalent_film():
+    same = Layer(thickness_nm=150, cd_nm=180, material=Material(n=2.0), background=Material(n=2.0))
+    film = HomogeneousLayer(thickness_nm=150, material=Material(n=2.0))
+    a, b = (forward(normal_stack_at_800([layer.model_dump()])) for layer in (same, film))
+    for pol in ("s", "p"):
+        assert a["spectra"][pol]["R"] == b["spectra"][pol]["R"] and a["spectra"][pol]["T"] == b["spectra"][pol]["T"]
+
+
+@pytest.mark.parametrize("cd,material", [(None, 2.0), (0.0, 1.0), (400.0, 2.0), (180.0, 2.0)])
+def test_exact_internal_cutoff_in_a_uniform_slab_of_a_patterned_stack_is_rejected(cd, material):
+    if cd is None:
+        uniform = HomogeneousLayer(thickness_nm=150, material=Material(n=material))
+    else:  # degenerate or no-contrast rectangles are uniform slabs too
+        uniform = Layer(thickness_nm=150, cd_nm=cd, material=Material(n=material), background=Material(n=2.0))
+    project = normal_stack_at_800([Project().layers[0].model_dump(), uniform.model_dump()])
+    assert [(item.code, item.severity) for item in preflight_project(project)] == [("rayleigh_cutoff", "error")]
+    with pytest.raises(PreflightError, match="grazes inside a uniform layer"):
+        forward(project)
 
 
 def test_cutoff_errors_and_near_cutoff_warnings_share_thresholds():

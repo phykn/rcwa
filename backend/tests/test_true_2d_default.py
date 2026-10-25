@@ -53,7 +53,7 @@ def test_exact_synthetic_default_actual_h5_all_wavelengths_and_channels():
 
 
 def test_current_and_archived_default_meet_the_accepted_independent_s4_gate():
-    """Adapter 1.4.0 changed the epx factorization; the archived S4 H9 samples still bound both results."""
+    """Adapter 1.4.0 changed the epy factorization; the archived S4 H9 samples still bound both results."""
     project = Project2D.model_validate_json((FIXTURES / "default-project.json").read_text())
     current = load_result("default-result-H5-adapter-1.4.json.gz")
     archived = load_result("default-result-H5.json.gz")

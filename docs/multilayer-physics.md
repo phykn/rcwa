@@ -58,7 +58,7 @@ Tests also verify:
 - Nonfinite, significantly negative, or energy-creating mock outputs raise errors rather than being clipped
 - Fourier singularities are surfaced as numerical failures
 
-An **exact internal homogeneous modal cutoff** can make pinned meent's modal inverse singular even when neither external port is at a Rayleigh cutoff. The test with n=1.5, period 400 nm, wavelength 600 nm, normal incidence, and substrate n=1.7 explicitly raises `SolverError`. Nearby layer indices n=1.5±1e-6 match the independent TMM. This limitation is not hidden with artificial loss or angular perturbation; preflight is not a promise that every admissible point can be solved.
+An **exact internal homogeneous modal cutoff** would make pinned meent's modal inverse singular even when neither external port is at a Rayleigh cutoff. A stack with no patterned layer couples only the specular order, so it is solved with that order alone: the test with n=1.5, period 400 nm, wavelength 600 nm, normal incidence, and substrate n=1.7 matches the independent TMM, as do nearby indices n=1.5±1e-6. In a patterned stack, preflight rejects a retained order exactly tangent inside any uniform slab (a film, a degenerate rectangle, or a rectangle whose two materials match) as a `rayleigh_cutoff`. Nothing is hidden with artificial loss or angular perturbation. A modal cutoff inside a patterned slab is not predicted by preflight and still fails explicitly with `SolverError`, so preflight is not a promise that every admissible point can be solved.
 
 ## Harmonic refinement is separate evidence
 

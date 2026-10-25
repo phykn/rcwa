@@ -92,7 +92,7 @@ def test_exact_real_circular_default_all_wavelengths_and_channels():
 
 
 def test_current_circular_default_meets_the_archived_converged_s4_gate():
-    """Adapter 1.4.0 changed the epx factorization after this evidence was archived."""
+    """Adapter 1.4.0 changed the epy factorization after this evidence was archived."""
     gate = load(ROOT / "docs/true-2d/circular-convergence.json.gz")["harmonic_gate"]
     project = Project2D.model_validate(gate["input"])
     current = load(FIXTURES / "circular-result-H5-adapter-1.4.json.gz")

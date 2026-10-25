@@ -50,7 +50,11 @@ def test_patterned_example_field_is_finite_and_bound_to_its_powers():
     project = parse_project(json.loads(EXAMPLE.read_text()))
     out = field_2d(project, 600.0, "s", resolution=24)
     assert np.isfinite(out["max_intensity"]) and out["max_intensity"] > 0
-    assert len(out["xy"]) == 3 and np.asarray(out["xz"]).shape == (36, 24)
+    assert len(out["xy"]) == 3 and np.asarray(out["xz"]).shape == (39, 24)
+    # Cuts pass exactly through the cell centre line and each layer's mid-plane.
+    assert out["y_nm"][len(out["y_nm"]) // 2] == pytest.approx(out["xz_y_nm"]) == project.period_y_nm / 2
+    tops = out["layer_tops_nm"]
+    assert out["xy_depth_nm"] == pytest.approx([(a + b) / 2 for a, b in zip(tops, tops[1:])])
     assert 0 < out["R"] < 1 and 0 < out["T"] < 1
 
 

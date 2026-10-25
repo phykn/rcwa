@@ -19,7 +19,11 @@ export interface FieldMap {
   layer_tops_nm: number[];
   layer_indices: number[];
   xz: number[][];
+  /** The x–z cut is taken through the cell centre line. */
+  xz_y_nm: number;
   xy: number[][][];
+  /** Depth of each layer's mid-plane x–y cut. */
+  xy_depth_nm: number[];
   R: number;
   T: number;
   max_intensity: number;

@@ -7,13 +7,16 @@ scale and says nothing about model error or uniqueness.
 
 from __future__ import annotations
 
+from copy import deepcopy
+from itertools import product
 from time import perf_counter
 
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import Field, ValidationError, model_validator
 from scipy.optimize import least_squares
 
 from .preflight import SolverError
+from .preflight_2d import preflight_2d
 from .schemas import StrictModel
 from .schemas_2d import Project2D
 from .solver_2d import assemble_forward_2d, solve_wavelengths_2d
@@ -93,7 +96,7 @@ def _get(data, path):
 
 
 def _apply(base: dict, spec: FitSpec, x) -> dict:
-    data = {**base, "layers": [dict(layer) for layer in base["layers"]]}
+    data = deepcopy(base)
     for parameter, value in zip(spec.parameters, x):
         for path in [parameter.path, *parameter.linked]:
             parent, key = _get(data, path)
@@ -104,18 +107,40 @@ def _apply(base: dict, spec: FitSpec, x) -> dict:
 def _observable(result: dict, spec: FitSpec) -> np.ndarray:
     spectra = result["spectra"]
     if spec.polarization == "avg":
-        series = [np.asarray(s[spec.quantity]) for s in spectra.values()]
-        return np.mean(series, axis=0)
-    if spec.polarization not in spectra:
-        raise ValueError(f"The design does not calculate {spec.polarization} polarization")
+        return (np.asarray(spectra["s"][spec.quantity]) + np.asarray(spectra["p"][spec.quantity])) / 2
     return np.asarray(spectra[spec.polarization][spec.quantity])
+
+
+def _check_bounds(base: dict, spec: FitSpec) -> None:
+    """Reject bounds whose corners are invalid or unsolvable, before any solve.
+
+    Geometry limits (widths within periods, a hole within both periods) are convex
+    in the fitted values, so valid corners make the whole box valid. Open-order
+    coverage is not monotone (an oblique, rotated beam can open an order only
+    mid-range), so the corner preflight is an early check, not a guarantee.
+    """
+    for corner in product(*[(p.lower, p.upper) for p in spec.parameters]):
+        where = ", ".join(f"{'.'.join(map(str, p.path))}={v:g}" for p, v in zip(spec.parameters, corner))
+        try:
+            candidate = Project2D.model_validate(_apply(base, spec, corner))
+        except ValidationError as exc:
+            reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+            raise SolverError(f"Fit bounds include an invalid design ({where}): {reason}. Narrow the bounds.") from None
+        errors = [d.message for d in preflight_2d(candidate) if d.severity == "error"]
+        if errors:
+            raise SolverError(f"Fit bounds include a design that cannot be solved ({where}): {errors[0]}")
 
 
 def fit_2d(project: Project2D, spec: dict) -> dict:
     spec = FitSpec.model_validate(spec)
     project = Project2D.model_validate(project.model_dump())
     base = project.model_dump()
-    base["illumination"] = {**base["illumination"], "wavelengths_nm": list(spec.wavelengths_nm)}
+    # Solve exactly the polarizations the measurement needs, whatever the design shows.
+    base["illumination"] = {
+        **base["illumination"],
+        "wavelengths_nm": list(spec.wavelengths_nm),
+        "polarization": "both" if spec.polarization == "avg" else spec.polarization,
+    }
     target = np.asarray(spec.values)
     lower = np.array([p.lower for p in spec.parameters])
     upper = np.array([p.upper for p in spec.parameters])
@@ -123,19 +148,25 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         parent, key = _get(base, parameter.path)
         if not isinstance(parent.get(key) if isinstance(parent, dict) else parent[key], (int, float)):
             raise ValueError(f"{'.'.join(map(str, parameter.path))} is not a numeric input")
+    _check_bounds(base, spec)
     started = perf_counter()
     evaluations = 0
     history: list[dict] = []
+    solved: dict[tuple, np.ndarray] = {}
 
     def model(x) -> np.ndarray:
         nonlocal evaluations
+        key = tuple(float(v) for v in x)
+        if key in solved:
+            return solved[key]
         evaluations += 1
         if evaluations > MAX_EVALUATIONS:
             raise SolverError("The fit did not settle within its evaluation budget")
         candidate = Project2D.model_validate(_apply(base, spec, x))
         n = len(candidate.illumination.wavelengths_nm)
         result = assemble_forward_2d(candidate, solve_wavelengths_2d(candidate, range(n)), elapsed_seconds=0.0)
-        return _observable(result, spec)
+        solved[key] = _observable(result, spec)
+        return solved[key]
 
     def residual(x):
         r = model(x) - target
@@ -147,17 +178,25 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
     starts = [np.clip(current, lower + 0.01 * width, upper - 0.01 * width)]
     if len(spec.parameters) == 1:
         starts += [lower + 0.25 * width, lower + 0.75 * width]
-    best = None
+    best, failure = None, None
+    # Each iteration costs one model call plus one per parameter for the Jacobian,
+    # so this cap keeps every start, and the whole fit, inside the budget.
+    per_call = len(spec.parameters) + 1
     for start in starts:
+        calls = min(25, (MAX_EVALUATIONS - evaluations) // per_call)
+        if calls < 2:
+            break
         try:
             fit = least_squares(residual, start, bounds=(lower, upper), x_scale=width, diff_step=1e-3,
-                                xtol=1e-6, ftol=1e-9, max_nfev=25)
-        except SolverError:
-            if best is None:
-                raise
-            break
+                                xtol=1e-6, ftol=1e-9, max_nfev=calls)
+        except SolverError as exc:
+            # A probe inside the bounds can still be unsolvable; other starts may avoid it.
+            failure = exc
+            continue
         if best is None or fit.cost < best.cost:
             best = fit
+    if best is None:
+        raise failure or SolverError("The fit did not settle within its evaluation budget")
     rms = float(np.sqrt(2 * best.cost / len(target)))
     try:
         dof = max(1, len(target) - len(spec.parameters))
@@ -178,5 +217,6 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         "evaluations": evaluations,
         "history": history[-60:],
         "elapsed_seconds": perf_counter() - started,
-        "note": "Linearized 1σ from the residual scale; model error and non-unique fits are not assessed.",
+        "note": "Linearized 1σ from the residual scale; model error and non-unique fits are not assessed."
+        + (" The best start stopped at its evaluation cap before converging." if best.status == 0 else ""),
     }

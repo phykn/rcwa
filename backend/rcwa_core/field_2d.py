@@ -33,6 +33,9 @@ def field_2d(project: Project2D, wavelength: float, polarization: str, resolutio
         raise ValueError(f"Field resolution must be 8 to {MAX_POINTS} points")
     single = project.model_copy(update={"illumination": project.illumination.model_copy(update={"wavelengths_nm": [wavelength]})})
     single = Project2D.model_validate(single.model_dump())
+    # meent samples both ends of y and of each layer's depth. Odd counts put a sample
+    # exactly on the cell centre line and on each layer's mid-plane, where the cuts are.
+    res_y, res_z = resolution | 1, max(8, resolution // 2) | 1
     basis = (project.solver.harmonics_x, project.solver.harmonics_y)
     ensure_preflight_2d(single, basis=basis)
     ensure_engine_available()
@@ -71,13 +74,11 @@ def field_2d(project: Project2D, wavelength: float, polarization: str, resolutio
                     f"(ΔR {abs(r - production['R']):.1e}, ΔT {abs(t - production['T']):.1e})."
                 )
             selector = (False, True, False) if polarization == "s" else (False, False, True)
-            field = mee.calculate_field(res_x=resolution, res_y=resolution, res_z=max(8, resolution // 2),
-                                        set_field_input=selector)[0]
+            field = mee.calculate_field(res_x=resolution, res_y=res_y, res_z=res_z, set_field_input=selector)[0]
     except (np.linalg.LinAlgError, FloatingPointError) as exc:
         raise SolverError(f"Field calculation failed at {wavelength:g} nm: {exc}") from exc
 
     intensity = np.sum(np.abs(field[..., :3]) ** 2, axis=-1)  # (z, y, x), top layer first
-    res_z = max(8, resolution // 2)
     tops = np.concatenate([[0], np.cumsum(thicknesses)])
     # meent samples each layer from its top through its bottom interface inclusive.
     z = np.concatenate([np.linspace(tops[i], tops[i + 1], res_z) for i in range(len(thicknesses))])
@@ -87,12 +88,14 @@ def field_2d(project: Project2D, wavelength: float, polarization: str, resolutio
         "wavelength_nm": wavelength,
         "polarization": polarization,
         "x_nm": np.linspace(0, project.period_nm, resolution).tolist(),
-        "y_nm": np.linspace(0, project.period_y_nm, resolution)[::-1].tolist(),
+        "y_nm": np.linspace(0, project.period_y_nm, res_y)[::-1].tolist(),
         "depth_nm": z.tolist(),
         "layer_tops_nm": tops.tolist(),
         "layer_indices": active,
         "xz": intensity[:, centre, :].tolist(),
+        "xz_y_nm": project.period_y_nm / 2,
         "xy": [intensity[i * res_z + res_z // 2].tolist() for i in range(len(thicknesses))],
+        "xy_depth_nm": [float(z[i * res_z + res_z // 2]) for i in range(len(thicknesses))],
         "R": production["R"],
         "T": production["T"],
         "max_intensity": float(intensity.max()),

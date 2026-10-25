@@ -239,6 +239,17 @@ def test_exact_internal_cutoff_in_uniform_stack_is_solved_exactly():
         )
 
 
+@pytest.mark.parametrize(
+    "uniform", [film(100, 1.5), rect(100, 0, 180, n=2.0, bg=1.5), rect(100, 460, 420, n=1.5), rect(100, n=1.5, bg=1.5)]
+)
+def test_exact_internal_cutoff_in_a_uniform_slab_of_a_patterned_stack_is_rejected(uniform):
+    # Orders (±1, 0) graze inside the uniform slab, where the eigenproblem is singular.
+    p = project([rect(), uniform], theta=0, phi=0, ns=1.7, wavelengths=(690,))
+    assert [(d.code, d.severity) for d in preflight_2d(p)] == [("rayleigh_cutoff", "error")]
+    with pytest.raises(PreflightError, match="grazes inside a uniform layer"):
+        forward_2d(p)
+
+
 @pytest.mark.parametrize("offset", [-1e-6, 1e-6])
 def test_near_internal_cutoff_planar_reference(offset):
     p = project([film(100, 1.5 + offset)], theta=0, phi=0, ns=1.7, wavelengths=(690,))
