@@ -170,3 +170,23 @@ def test_openapi_exposes_exact_preview_contract(client):
     }
     assert response["properties"]["schema_version"]["const"] == "rcwa-change-proposal/1.0"
     assert "preview_changes" in client.get("/api/capabilities").json()["operations"]
+
+
+def test_signed_zero_change_is_reported_because_it_changes_the_identity(client):
+    base = Project().model_dump()
+    base["layers"][0]["thickness_nm"] = 0.0
+    for route, changes in (("/api/change-preview", {"thickness_nm": -0.0}),
+                           ("/api/stack-change-preview", {"layers": [dict(base["layers"][0], thickness_nm=-0.0)]})):
+        body = client.post(route, json={"base_project": base, "changes": changes}).json()
+        assert body["base_input_hash"] != body["candidate_input_hash"]
+        assert any("thickness_nm" in json.dumps(d) and '"after": -0.0' in json.dumps(d) for d in body["diff"])
+
+
+def test_stack_change_schema_requires_the_layer_tag_the_runtime_requires(client):
+    from api.contracts import StackChangePreviewRequest
+
+    schema = StackChangePreviewRequest.model_json_schema()
+    assert all(branch["required"] == ["geometry"]
+               for branch in schema["$defs"]["StackChanges"]["properties"]["layers"]["items"]["oneOf"])
+    body = {"base_project": Project().model_dump(), "changes": {"layers": [{"thickness_nm": 50, "cd_nm": 100}]}}
+    assert client.post("/api/stack-change-preview", json=body).status_code == 422

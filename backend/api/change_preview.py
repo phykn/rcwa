@@ -2,6 +2,7 @@
 
 from api.contracts import ChangePreviewRequest, ChangeProposal, GeometryChanges, GeometryDiff
 from api.storage import canonical_hash
+from rcwa_core.identity import same_canonical
 from rcwa_core.preflight import preflight_project
 from rcwa_core.schemas import Project
 
@@ -27,7 +28,7 @@ def preview_changes(request: ChangePreviewRequest) -> ChangeProposal:
     for field in GEOMETRY_FIELDS:
         before = getattr(base if field == "period_nm" else base.layers[0], field)
         after = getattr(candidate if field == "period_nm" else candidate.layers[0], field)
-        if before != after:
+        if not same_canonical(before, after):
             diff.append(GeometryDiff(field=field, before=before, after=after))
     diagnostics = preflight_project(candidate)
     return ChangeProposal(

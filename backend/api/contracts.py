@@ -8,12 +8,12 @@ from typing_extensions import TypedDict
 
 from rcwa_core.contracts import ForwardResult, ForwardResult1_0, SyntheticFitResult
 from rcwa_core.contracts_2d import PublicForwardResult2D
-from rcwa_core.fit_2d import DimensionFitResult, FitSpec
+from rcwa_core.fit_2d import DimensionFitResult, FitSpec, check_fit_2d
 from rcwa_core.identity import canonical_hash
 from rcwa_core.preflight import Diagnostic, EngineInfo
 from rcwa_core.project_io import InputProject as InputProject, ProjectDocument, normalized_project_and_hash, parse_project, validate_result_for_project
 from rcwa_core.schemas import FitRequest, LayerSpec, Project, StrictModel
-from rcwa_core.schemas_2d import Project2D
+from rcwa_core.schemas_2d import Project2D, require_layer_geometry
 
 
 MAX_SNAPSHOT_INPUT_BYTES = 3_000_000
@@ -74,6 +74,7 @@ class JobRequest(StrictModel):
             if isinstance(self.project, Project2D):
                 if self.fit is not None or self.fit_2d is None:
                     raise ValueError("Schema 1.2 fits take fit_2d (parameters, wavelengths_nm, values, quantity, polarization)")
+                check_fit_2d(self.project, self.fit_2d.model_dump())
             else:
                 if self.fit_2d is not None or self.fit is None:
                     raise ValueError("Legacy synthetic fits take fit options (target_cd_nm and CD bounds)")
@@ -170,13 +171,15 @@ class SyntheticFitResultSummary(StrictModel):
 
 
 class DimensionFitSummary(StrictModel):
-    summary_schema_version: Literal["rcwa-dimension-fit-summary/1.0"]
+    summary_schema_version: Literal["rcwa-dimension-fit-summary/1.1"]
     result_type: Literal["dimension_fit"]
     values: list[float]
     sigma: list[float | None]
     at_bound: list[bool]
     rms: float = Field(ge=0)
     evaluations: int = Field(ge=1)
+    #: The fit's own caveats, including whether its best start stopped before converging.
+    note: str = Field(max_length=500)
 
 
 class JobSummary(StrictModel):
@@ -272,7 +275,10 @@ class ChangeProposal(StrictModel):
 class StackChanges(TypedDict, total=False):
     """An atomic bounded stack replacement, never arbitrary JSON Patch."""
 
-    __pydantic_config__ = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
+    # Unlike a legacy Project, stack changes get no default layer tag; say so in the schema.
+    __pydantic_config__ = ConfigDict(
+        extra="forbid", strict=True, allow_inf_nan=False, json_schema_extra=require_layer_geometry
+    )
 
     period_nm: Annotated[float, Field(strict=True, ge=20, le=5000)]
     layers: Annotated[list[LayerSpec], Field(min_length=1, max_length=8)]

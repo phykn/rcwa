@@ -90,6 +90,14 @@ def calculate(kind: str, project: dict, fit: dict | None, output: str) -> None:
     Path(output).write_text(text, encoding="utf-8")
 
 
+class AdmissionUnavailable(RuntimeError):
+    """The service cannot admit work for a reason other than busy slots; nothing started."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 @dataclass
 class Running:
     process: mp.Process
@@ -144,10 +152,13 @@ class JobManager:
         resource_class = "2d" if model.schema_version == "1.2" else "legacy"
         with self._lock:
             if self._closed:
-                raise RuntimeError("Calculation manager is closed.")
+                raise AdmissionUnavailable("manager_closed", "Calculation manager is closed.")
             self.poll()
             if self.cleanup_pending:
-                raise RuntimeError("A previous calculation is awaiting resource cleanup. Try again after cleanup completes.")
+                raise AdmissionUnavailable(
+                    "cleanup_pending",
+                    "A previous calculation is awaiting resource cleanup. Try again after cleanup completes.",
+                )
             if len(self.running) >= self.max_workers:
                 raise RuntimeError("Both calculation slots are busy. Try again after a job completes.")
             if resource_class == "2d" and any(a.resource_class == "2d" for a in self.running.values()):

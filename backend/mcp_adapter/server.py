@@ -232,9 +232,10 @@ OPERATIONS = [
               "Read-only: no solve, job, storage, application of edits, or predicted improvement. "
               "Import the returned JSON into the workbench for explicit review and apply; maximum file size 8 MB.",
               StackChangePreviewRequest, StackChangeProposal, "POST", "/api/stack-change-preview"),
-    Operation("rcwa_submit", "Start one bounded forward calculation or synthetic CD-recovery fit. "
-              "Schema 1.2 permits forward only, with one 2D job within two total slots. "
-              "Synthetic fit is legacy-only and requires exactly one rectangle; it is not measured-data inversion or design optimization. "
+    Operation("rcwa_submit", "Start one bounded forward calculation, synthetic CD-recovery fit or measured-spectrum dimension fit. "
+              "Schema 1.2 permits forward, or kind=fit with fit_2d (parameters, wavelengths_nm, values, quantity, polarization) "
+              "to fit up to three real-valued design inputs to a measured R or T spectrum; one 2D job runs within two total slots. "
+              "Legacy synthetic fit takes fit options and requires exactly one rectangle; it is not measured-data inversion or design optimization. "
               "Non-idempotent: never blindly repeat a submission with an uncertain outcome. "
               "Use rcwa_get_job to poll; check kind and status before using result.",
               SubmitArguments, JobResponse, "POST", "/api/jobs", "request", read_only=False, idempotent=False),

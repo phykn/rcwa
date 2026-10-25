@@ -124,7 +124,8 @@ class LocalAPI:
                         raise AdapterError(
                             payload["error"]["code"], payload["error"]["message"],
                             payload=payload, http_status=response.status_code,
-                            outcome_unknown=mutation and response.status_code >= 500,
+                            # 503 is only returned before admission (engine, cleanup or shutdown), so nothing ran.
+                            outcome_unknown=mutation and response.status_code >= 500 and response.status_code != 503,
                         )
                     return payload
         except AdapterError:

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import Column, ForeignKey, MetaData, String, Table, Text, create_engine, select
+from sqlalchemy.exc import IntegrityError
 
 from rcwa_core.identity import canonical_hash as canonical_hash
 
@@ -52,23 +53,38 @@ class ProjectStore:
             project=json.dumps(project, allow_nan=False),
             result=json.dumps(result, allow_nan=False) if result is not None else None,
         )
-        with self.engine.begin() as connection:
-            if provenance is not None:
-                previous = connection.execute(
-                    select(run_provenance.c.project_id).where(run_provenance.c.job_id == provenance["job_id"])
-                ).scalar_one_or_none()
-                if previous:
-                    return self.get(previous)
-            connection.execute(projects.insert().values(**record))
-            if provenance is not None:
-                connection.execute(
-                    run_provenance.insert().values(
-                        project_id=record["id"],
-                        job_id=provenance["job_id"],
-                        data=json.dumps(provenance, allow_nan=False),
+        try:
+            with self.engine.begin() as connection:
+                if provenance is not None:
+                    previous = self._saved_job(connection, provenance["job_id"])
+                    if previous:
+                        return self.get(previous)
+                connection.execute(projects.insert().values(**record))
+                if provenance is not None:
+                    connection.execute(
+                        run_provenance.insert().values(
+                            project_id=record["id"],
+                            job_id=provenance["job_id"],
+                            data=json.dumps(provenance, allow_nan=False),
+                        )
                     )
-                )
+        except IntegrityError:
+            # A concurrent save of the same job won the unique job_id; this one rolled
+            # back whole, so return the winner and keep saving by job idempotent.
+            if provenance is None:
+                raise
+            with self.engine.connect() as connection:
+                previous = self._saved_job(connection, provenance["job_id"])
+            if not previous:
+                raise
+            return self.get(previous)
         return self.get(record["id"])
+
+    @staticmethod
+    def _saved_job(connection, job_id: str) -> str | None:
+        return connection.execute(
+            select(run_provenance.c.project_id).where(run_provenance.c.job_id == job_id)
+        ).scalar_one_or_none()
 
     def get(self, project_id: str) -> dict | None:
         with self.engine.connect() as connection:

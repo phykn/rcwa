@@ -98,8 +98,8 @@ async def test_fixed_routes_and_request_bound(monkeypatch):
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("status,code", [(422, "invalid_input"), (429, "capacity"),
-                                         (503, "engine_unavailable"), (404, "job_missing")])
+@pytest.mark.parametrize("status,code", [(422, "invalid_input"), (429, "capacity"), (500, "invalid_input"),
+                                         (503, "engine_unavailable"), (503, "cleanup_pending"), (404, "job_missing")])
 async def test_http_errors_preserve_payload_and_never_retry(status, code):
     payload = {"detail": "Readable error", "error": {"code": code, "message": "Readable error", "diagnostics": [
         {"code": code, "message": "Exact diagnostic", "severity": "error", "location": ["layers", 0]},
@@ -116,7 +116,8 @@ async def test_http_errors_preserve_payload_and_never_retry(status, code):
         actual = caught.value.payload
         assert actual["error"] == payload["error"] and actual["detail"] == payload["detail"]
         assert actual["http_status"] == status
-        assert actual.get("outcome_unknown", False) == (status >= 500)
+        # A 503 is returned only before admission, so the operation certainly did not run.
+        assert actual.get("outcome_unknown", False) == (status >= 500 and status != 503)
         assert count == 1
     finally:
         await api.aclose()

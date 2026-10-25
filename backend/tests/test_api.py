@@ -53,6 +53,20 @@ def test_forward_process(client):
     assert job["result"]["wavelengths_nm"] == [550.0]
 
 
+def test_admission_that_is_not_capacity_is_a_distinct_503(client, monkeypatch):
+    project = client.get("/api/example").json()
+    jobs = client.app.state.jobs
+    monkeypatch.setattr(jobs, "poll", lambda: None)  # keep the injected stuck cleanup in place
+    monkeypatch.setitem(jobs.cleanup_pending, "stuck", object())
+    response = client.post("/api/jobs", json={"project": project})
+    assert response.status_code == 503 and response.json()["error"]["code"] == "cleanup_pending"
+    jobs.cleanup_pending.clear()
+    monkeypatch.setattr(jobs, "_closed", True)
+    response = client.post("/api/jobs", json={"project": project})
+    assert response.status_code == 503 and response.json()["error"]["code"] == "manager_closed"
+    monkeypatch.setattr(jobs, "_closed", False)
+
+
 def test_cancel_and_capacity(client):
     project = client.get("/api/example").json()
     first = client.post("/api/jobs", json={"project": project}).json()
@@ -134,3 +148,22 @@ def test_synthetic_fit_process(client):
     assert job["status"] == "succeeded", job
     assert job["result"]["status"] == "converged"
     assert abs(job["result"]["fit_cd_nm"] - 207) < 0.01
+
+
+def test_deeply_nested_import_is_rejected_before_it_is_stored(client):
+    project = client.get("/api/example").json()
+    project["illumination"]["wavelengths_nm"] = [550.0]
+    project["solver"]["harmonics"] = 3
+    job = client.post("/api/jobs", json={"project": project}).json()
+    deadline = time.monotonic() + 30
+    while (job := client.get(f"/api/jobs/{job['id']}").json())["status"] == "running" and time.monotonic() < deadline:
+        time.sleep(0.05)
+    result = job["result"]
+    result["schema_version"] = "1.0"
+    nested = level = {}
+    for _ in range(300):
+        level["a"] = level = {}
+    result["metadata"]["x"] = nested
+    response = client.post("/api/projects", json={"project": project, "result": result})
+    assert response.status_code == 422 and "nest deeper" in response.text
+    assert client.get("/api/projects").json() == []

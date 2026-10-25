@@ -26,7 +26,7 @@ from api.diagnostics import (
 from api.dimension_change_preview import DimensionChangePreviewRequest, DimensionChangeProposal, preview_2d_changes
 from api.change_preview import preview_changes
 from api.stack_change_preview import ProposalTooLarge, bounded_proposal, preview_stack_changes
-from api.jobs import MAX_HISTORY_JOBS, JobManager
+from api.jobs import MAX_HISTORY_JOBS, AdmissionUnavailable, JobManager
 from api.storage import ProjectStore, canonical_hash
 from api.contracts import (
     Capabilities,
@@ -56,6 +56,21 @@ from rcwa_core.schemas_2d import Project2D
 from rcwa_core.solver_2d import ADAPTER_VERSION_2D
 
 
+MAX_RESULT_DEPTH = 32  # computed results nest under ten levels
+
+
+def _nesting_depth(value) -> int:
+    """Container nesting depth, iteratively so hostile input cannot exhaust the stack."""
+    deepest, stack = 0, [(value, 1)]
+    while stack:
+        item, depth = stack.pop()
+        if isinstance(item, (dict, list)):
+            deepest = max(deepest, depth)
+            if depth <= MAX_RESULT_DEPTH:
+                stack.extend((child, depth + 1) for child in (item.values() if isinstance(item, dict) else item))
+    return deepest
+
+
 class SaveRequest(StrictModel):
     project: InputProject
     result: dict | None = None
@@ -66,6 +81,9 @@ class SaveRequest(StrictModel):
             return self
         # Saved/imported powers are user data, not a new server-certified solve.
         # Enforce a reloadable shape and reject non-finite nested metadata too.
+        if _nesting_depth(self.result) > MAX_RESULT_DEPTH:
+            # Deeper JSON saves but cannot be serialized back out, leaving an unreadable record.
+            raise ValueError(f"Result JSON must not nest deeper than {MAX_RESULT_DEPTH} levels")
         try:
             json.dumps(self.result, allow_nan=False, ensure_ascii=False).encode("utf-8")
         except (ValueError, TypeError, UnicodeError) as error:
@@ -435,6 +453,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             return app.state.jobs.submit(
                 request.kind, request.project.model_dump(), request.fit_options()
             )
+        except AdmissionUnavailable as error:
+            raise HTTPException(503, {"code": error.code, "message": str(error)}) from error
         except RuntimeError as error:
             raise HTTPException(429, str(error)) from error
 

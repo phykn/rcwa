@@ -142,7 +142,7 @@ Explore the running API at `http://127.0.0.1:8000/docs` or fetch `http://127.0.0
 
 Validation performs deterministic schema and preflight checks without launching a process or solving physics. Diagnostics have stable `code`, `severity`, `location`, and readable `message` fields. Schema-valid but inadmissible inputs return `valid: false`; inspect all diagnostics. Schema errors return HTTP 422 with `error.diagnostics`. Warnings are not a certificate of safety or convergence. A valid input may still fail an eigensolve or flux check during computation.
 
-Errors use `{ "detail": "readable explanation", "error": { "code": "...", "message": "...", "diagnostics": [...] } }`. Relevant failures include invalid/unsupported input, unavailable engine, capacity, numerical failure, timeout, cancellation, and missing/expired jobs. An unavailable or wrong-version engine is reported explicitly; there is no approximate or synthetic fallback. Use the returned error code rather than matching human-readable messages.
+Errors use `{ "detail": "readable explanation", "error": { "code": "...", "message": "...", "diagnostics": [...] } }`. Relevant failures include invalid/unsupported input, unavailable engine, capacity, numerical failure, timeout, cancellation, and missing/expired jobs. An unavailable or wrong-version engine is reported explicitly; there is no approximate or synthetic fallback. Use the returned error code rather than matching human-readable messages. Busy calculation slots return 429 `capacity`. A server still cleaning up an earlier worker returns 503 `cleanup_pending`, and one shutting down returns 503 `manager_closed`. In all three cases no job started.
 
 New HTTP requests require JSON numbers for physical values: booleans and numeric strings are rejected. Each material-table column is limited to 2000 rows. Invalid Unicode scalar values, including unpaired surrogates, are rejected before a job starts or an import is stored. This does not change normalization when reading historical saved inputs and results.
 
@@ -456,7 +456,10 @@ before worker allocation.
 `result_type: "dimension_fit"` with fitted `values`, linearized `sigma`, `at_bound`, `rms`, the
 `fitted` curve and the evaluation `history`. The fit solves the polarizations the measurement names (`avg` always
 solves both s and p), whatever the design shows. Every design inside the bounds must pass validation and preflight
-(for example a hole no wider than either pitch); otherwise the fit fails before solving and names the offending corner.
+(for example a hole no wider than either pitch). Each path must name an existing real-valued design input
+(dimensions, angles, or a constant material's `n`/`k`); solver settings and a tabulated material's display `n`/`k` are
+not fittable, and fields are strictly typed (no string numbers or `true` as an index). These checks, the measured
+wavelengths and the bound corners are validated at submission, so a bad request is a 422 before any worker starts.
 The whole fit stays within 80 forward evaluations; a best start stopped by that cap says so in `note`.
 The result is checked against its request (parameter count,
 wavelengths and bounds) before the job succeeds. Capabilities list it as `dimension_fit` under

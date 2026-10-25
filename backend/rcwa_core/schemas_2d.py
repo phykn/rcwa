@@ -46,7 +46,7 @@ class SolverSettings2D(StrictModel):
     harmonics_y: int = Field(default=3, ge=1, le=5, strict=True)
 
 
-def _explicit_geometry_schema(schema):
+def require_layer_geometry(schema):
     # A runtime discriminator requires its tag even when the underlying legacy
     # model has a constructor default. Constrain only this 1.2 union, not legacy.
     for branch in schema["properties"]["layers"]["items"]["oneOf"]:
@@ -54,7 +54,7 @@ def _explicit_geometry_schema(schema):
 
 
 class Project2D(StrictModel):
-    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, json_schema_extra=_explicit_geometry_schema)
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False, json_schema_extra=require_layer_geometry)
 
     schema_version: Literal["1.2"]  # Explicit opt-in; no implicit version migration.
     name: str = Field(default="Synthetic 2D stack", min_length=1, max_length=100)

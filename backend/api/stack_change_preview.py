@@ -9,6 +9,7 @@ from api.contracts import (
     StackDiff, StackLayerDiff, StackMaterialDiff, StackValueDiff, TableSummary,
 )
 from api.storage import canonical_hash
+from rcwa_core.identity import same_canonical
 from rcwa_core.preflight import preflight_project
 from rcwa_core.schemas import Material, Project
 
@@ -58,7 +59,7 @@ def stack_diff(base: Project, candidate: Project) -> list[StackDiff]:
     differences = []
     for field in ("schema_version", "period_nm"):
         before, after = getattr(base, field), getattr(candidate, field)
-        if before != after:
+        if not same_canonical(before, after):
             differences.append(StackValueDiff(kind="value", path=field, before=before, after=after))
     for index in range(max(len(base.layers), len(candidate.layers))):
         before = base.layers[index] if index < len(base.layers) else None
@@ -74,7 +75,7 @@ def stack_diff(base: Project, candidate: Project) -> list[StackDiff]:
             if before.geometry == "homogeneous" and field in {"cd_nm", "background"}:
                 continue
             old, new = getattr(before, field), getattr(after, field)
-            if old == new:
+            if same_canonical(old, new):
                 continue
             if field in {"material", "background"}:
                 differences.append(StackMaterialDiff(

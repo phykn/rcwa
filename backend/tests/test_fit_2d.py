@@ -139,3 +139,57 @@ def test_an_unsolvable_probe_inside_the_bounds_falls_back_to_another_start(monke
         "wavelengths_nm": ws, "values": values, "quantity": "R", "polarization": "s",
     })
     assert out["values"][0] == pytest.approx(100.0, abs=0.05)
+
+
+@pytest.mark.parametrize("change,reason", [
+    ({"parameters": [{"path": ["layers", 99, "diameter_nm"], "lower": 40, "upper": 120}]}, "does not name an input"),
+    ({"parameters": [{"path": ["layers", 0, "nonexistent"], "lower": 40, "upper": 120}]}, "does not name an input"),
+    ({"parameters": [{"path": ["layers", -1, "diameter_nm"], "lower": 40, "upper": 120}]}, "does not name an input"),
+    ({"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120,
+                      "linked": [["layers", 42, "x"]]}]}, "does not name an input"),
+    ({"parameters": [{"path": ["solver", "harmonics_x"], "lower": 1, "upper": 3}]}, "not a real-valued design input"),
+    ({"wavelengths_nm": [100, 150, 190]}, "measured wavelengths do not form a valid design"),
+    ({"wavelengths_nm": [650, 550, 450]}, "measured wavelengths do not form a valid design"),
+])
+def test_bad_fit_requests_are_rejected_at_admission(change, reason):
+    from api.contracts import JobRequest
+
+    spec = {"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120}],
+            "wavelengths_nm": [450, 550, 650], "values": [0.1, 0.1, 0.1], "quantity": "R", "polarization": "s", **change}
+    with pytest.raises(ValidationError, match=reason):
+        JobRequest.model_validate({"kind": "fit", "project": example(), "fit_2d": spec})
+
+
+def test_fit_values_are_strict_and_tabulated_scalars_are_not_fittable():
+    from api.contracts import JobRequest
+
+    spec = {"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": "40", "upper": 120}],
+            "wavelengths_nm": [450, 550, 650], "values": [0.1, 0.1, 0.1], "quantity": "R", "polarization": "s"}
+    with pytest.raises(ValidationError):
+        JobRequest.model_validate({"kind": "fit", "project": example(), "fit_2d": spec})
+    spec["parameters"] = [{"path": ["layers", True, "diameter_nm"], "lower": 40, "upper": 120}]
+    with pytest.raises(ValidationError):
+        JobRequest.model_validate({"kind": "fit", "project": example(), "fit_2d": spec})
+    data = example()
+    data["substrate"] = {"name": "t", "kind": "tabulated", "n": 1.5, "k": 0.0, "wavelengths_nm": [400, 900],
+                         "n_values": [1.5, 1.5], "k_values": [0, 0]}
+    spec["parameters"] = [{"path": ["substrate", "n"], "lower": 1.2, "upper": 1.8}]
+    with pytest.raises(ValidationError, match="not a real-valued design input"):
+        JobRequest.model_validate({"kind": "fit", "project": data, "fit_2d": spec})
+
+
+def test_fit_summary_keeps_the_convergence_note(monkeypatch):
+    import rcwa_core.fit_2d as module
+    from api.result_summary import result_summary
+
+    monkeypatch.setattr(module, "MAX_EVALUATIONS", 9)
+    data = example()
+    ws, values = synthetic(data, 90.0, 110.0)
+    out = fit_2d(parse_project(data), {
+        "parameters": [
+            {"path": ["layers", 0, "diameter_nm"], "lower": 50, "upper": 130},
+            {"path": ["layers", 0, "thickness_nm"], "lower": 60, "upper": 160},
+        ],
+        "wavelengths_nm": ws, "values": values, "quantity": "R", "polarization": "s",
+    })
+    assert result_summary(out)["note"] == out["note"] and "evaluation cap" in out["note"]

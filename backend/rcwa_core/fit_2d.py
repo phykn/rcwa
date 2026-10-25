@@ -12,7 +12,7 @@ from itertools import product
 from time import perf_counter
 
 import numpy as np
-from pydantic import Field, ValidationError, model_validator
+from pydantic import ConfigDict, Field, ValidationError, model_validator
 from scipy.optimize import least_squares
 
 from .preflight import SolverError
@@ -26,6 +26,9 @@ PathItem = str | int
 
 
 class FitParameter(StrictModel):
+    # Strict like the legacy fit options: "40" or a JSON true in a path is rejected, not coerced.
+    model_config = ConfigDict(strict=True)
+
     path: list[PathItem] = Field(min_length=1, max_length=4)
     lower: float
     upper: float
@@ -40,6 +43,8 @@ class FitParameter(StrictModel):
 
 
 class FitSpec(StrictModel):
+    model_config = ConfigDict(strict=True)
+
     parameters: list[FitParameter] = Field(min_length=1, max_length=3)
     wavelengths_nm: list[float] = Field(min_length=3, max_length=31)
     values: list[float] = Field(min_length=3, max_length=31)
@@ -111,6 +116,47 @@ def _observable(result: dict, spec: FitSpec) -> np.ndarray:
     return np.asarray(spectra[spec.polarization][spec.quantity])
 
 
+def _fit_base(project: Project2D, spec: FitSpec) -> dict:
+    """The design the fit perturbs, checked against the spec before any solve.
+
+    Every path, linked or not, must name an existing real-valued input outside the
+    solver settings, and the measured wavelengths must form a valid design.
+    """
+    base = project.model_dump()
+    # Solve exactly the polarizations the measurement needs, whatever the design shows.
+    base["illumination"] = {
+        **base["illumination"],
+        "wavelengths_nm": list(spec.wavelengths_nm),
+        "polarization": "both" if spec.polarization == "avg" else spec.polarization,
+    }
+    for parameter in spec.parameters:
+        for path in [parameter.path, *parameter.linked]:
+            name = ".".join(map(str, path))
+            try:
+                parent, key = _get(base, path)
+                value = parent[key]
+            except (KeyError, IndexError, TypeError):
+                raise ValueError(f"Fit path {name} does not name an input of this design") from None
+            if any(type(item) is int and item < 0 for item in path):
+                raise ValueError(f"Fit path {name} does not name an input of this design")
+            # A tabulated material's scalar n/k are display values the solver never reads.
+            ignored = isinstance(parent, dict) and parent.get("kind") == "tabulated" and key in ("n", "k")
+            if path[0] == "solver" or type(value) is not float or ignored:
+                raise ValueError(f"Fit path {name} is not a real-valued design input")
+    try:
+        Project2D.model_validate(base)
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"The measured wavelengths do not form a valid design: {reason}") from None
+    _check_bounds(base, spec)
+    return base
+
+
+def check_fit_2d(project: Project2D, spec: dict) -> None:
+    """Admission check: a bad fit request fails here, before a worker is allocated."""
+    _fit_base(Project2D.model_validate(project.model_dump()), FitSpec.model_validate(spec))
+
+
 def _check_bounds(base: dict, spec: FitSpec) -> None:
     """Reject bounds whose corners are invalid or unsolvable, before any solve.
 
@@ -134,21 +180,10 @@ def _check_bounds(base: dict, spec: FitSpec) -> None:
 def fit_2d(project: Project2D, spec: dict) -> dict:
     spec = FitSpec.model_validate(spec)
     project = Project2D.model_validate(project.model_dump())
-    base = project.model_dump()
-    # Solve exactly the polarizations the measurement needs, whatever the design shows.
-    base["illumination"] = {
-        **base["illumination"],
-        "wavelengths_nm": list(spec.wavelengths_nm),
-        "polarization": "both" if spec.polarization == "avg" else spec.polarization,
-    }
+    base = _fit_base(project, spec)
     target = np.asarray(spec.values)
     lower = np.array([p.lower for p in spec.parameters])
     upper = np.array([p.upper for p in spec.parameters])
-    for parameter in spec.parameters:
-        parent, key = _get(base, parameter.path)
-        if not isinstance(parent.get(key) if isinstance(parent, dict) else parent[key], (int, float)):
-            raise ValueError(f"{'.'.join(map(str, parameter.path))} is not a numeric input")
-    _check_bounds(base, spec)
     started = perf_counter()
     evaluations = 0
     history: list[dict] = []
