@@ -58,6 +58,10 @@ def test_dimension_fit_job_recovers_target_and_summarizes(client):
     assert job["result"]["values"][0] == pytest.approx(90.0, abs=0.1)
     summary = client.get(f"/api/jobs/{job['id']}?view=summary").json()
     assert summary["result_summary"]["result_type"] == "dimension_fit"
+    # The fitted design's forward warnings survive the fit and its summary.
+    assert any("Convergence not assessed" in w for w in job["result"]["warnings"])
+    assert summary["result_summary"]["warnings"] == job["result"]["warnings"]
+    assert summary["result_summary"]["warnings_omitted_count"] == 0
     caps = client.get("/api/capabilities").json()
     assert "dimension_fit" in caps["project_profiles"]["1.2"]["operations"]
 

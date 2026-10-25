@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from .schemas import Material, Project
 
 REQUIRED_ENGINE_VERSION = "0.13.2"
-ADAPTER_VERSION = "1.1.0"
+ADAPTER_VERSION = "1.2.0"
 EXACT_CUTOFF_TOLERANCE = 1e-10
 NEAR_CUTOFF_TOLERANCE = 1e-4
 
@@ -34,7 +34,7 @@ class EngineInfo(StrictModel):
     engine: Literal["meent"] = "meent"
     installed_version: str | None
     required_version: Literal["0.13.2"] = REQUIRED_ENGINE_VERSION
-    adapter_version: Literal["1.1.0"] = ADAPTER_VERSION
+    adapter_version: Literal["1.2.0"] = ADAPTER_VERSION
     available: bool
     status: Literal["available", "not_installed", "version_mismatch"]
     message: str

@@ -101,7 +101,10 @@ The optional lock pins the SDK's Windows-only `pywin32` dependency too.
 | `rcwa_get_snapshot` | `{"snapshot_id": "...", "view":"summary"}` | Bounded durable identity/provenance/totals; `view:"inputs"` returns exact inputs without spectra; omit `view` for the full saved project/result |
 
 `tools/list` publishes nested JSON Schemas generated from the same runtime
-Pydantic models used by the API. Unknown fields are forbidden. Tool arguments do
+Pydantic models used by the API. Unknown fields are forbidden. One HTTP check
+does not carry over: the MCP SDK parses tool arguments before the adapter sees
+them, so a duplicated JSON member is collapsed (the last one wins) rather than
+rejected. Send each member once. Tool arguments do
 not accept URLs, headers, paths, code, replacement results, or claimed provenance.
 Job and snapshot IDs accept only 1–100 ASCII letters, digits, underscores or
 hyphens. The backend capability response describes the whole backend, including
@@ -124,6 +127,32 @@ An empty Project uses the API model's defaults. For an actual study, start from
 fit requires exactly one rectangular layer and is a distinct CD-recovery demonstration, not a general design optimizer or
 measured-data inversion. Its result has its own type and cannot be saved with
 `rcwa_save_snapshot`. The forward workflow is the durable-snapshot workflow.
+
+A 1.2 project instead fits measured spectra with `fit_2d`:
+
+```json
+{
+  "request": {
+    "kind": "fit",
+    "project": "<1.2 project>",
+    "fit_2d": {
+      "parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120, "linked": []}],
+      "wavelengths_nm": [500, 550, 600],
+      "values": [0.31, 0.27, 0.22],
+      "quantity": "R",
+      "polarization": "avg"
+    }
+  }
+}
+```
+
+It fits 1–3 real-valued design inputs to 3–31 measured fractions within 80
+forward evaluations, and returns `result_type: "dimension_fit"` with values,
+linearized sigma, `at_bound`, RMS, the fitted curve, a `note` and the fitted
+design's forward `warnings`. Every design inside the bounds must pass validation
+and preflight, which is checked at submission. Like the synthetic fit, its
+result cannot be saved as a snapshot. The [agent API](agent-api.md) has the full
+contract.
 
 ## A bounded workflow for any tool-capable AI
 
@@ -204,7 +233,10 @@ source result version and the result's input hash when present (required for
 1.2). It omits order arrays, the complete input and full result metadata.
 A synthetic-fit job has a separate `rcwa-fit-summary/1.0` projection, with fit
 status, CD/RMSE and target/prediction totals; full optimizer diagnostics remain
-in the full result. A summary is not a full result or an importable project file.
+in the full result. A 2D dimension fit has `rcwa-dimension-fit-summary/1.2`, with
+fitted values, sigma, bounds, RMS, evaluation count, the fit's `note` and the
+fitted design's forward warnings; the fitted curve and history stay in the full
+result. A summary is not a full result or an importable project file.
 
 Each summary/receipt envelope is bounded to 128,000 UTF-8 JSON bytes before MCP's
 version-specific encoding. Warnings preserve complete messages in order, up to
@@ -332,7 +364,12 @@ from MCP's `isError: false`. Preserve `error_code`, diagnostics and warnings.
 There are no automatic HTTP retries. If a write loses its response, times out,
 or returns an untrustworthy response, the tool reports `outcome_unknown: true`.
 The write may already have happened. Do not blindly resubmit a calculation.
-A returned HTTP 5xx on a mutation is conservatively treated as uncertain too.
+A returned HTTP 5xx on a mutation is conservatively treated as uncertain too,
+except a submission's 503 `engine_unavailable`, `cleanup_pending` or
+`manager_closed`: those submissions were refused before any job started, so they
+are ordinary errors with `outcome_unknown: false`. Any other 5xx, including a 503
+with another code or on another route, stays uncertain.
+Busy slots likewise return 429 `capacity` with no job started.
 An MCP request cancellation or broken stdio connection may prevent even this
 error from reaching the client; treat an interrupted submission as uncertain.
 Validation, geometry-preview, stack-preview and 2D-dimension-preview POSTs are read-only. Transport failure for them
@@ -415,8 +452,9 @@ contracts, including the explicit `circular_hole_2d` geometry and its
 `diameter_nm`, hole-fill `material`, and host `background`. They do not implement
 another solver. Read the geometry list in the version-specific capability
 profile before submitting a circle. The no-argument example remains legacy;
-`example="circular_hole_2d"` explicitly selects the current 1.2 input. Fitting
-and the existing geometry/stack preview tools remain legacy-only. The additive
+`example="circular_hole_2d"` explicitly selects the current 1.2 input. The
+synthetic fit and the existing geometry/stack preview tools remain legacy-only;
+1.2 projects fit through `fit_2d` instead (see above). The additive
 `rcwa_preview_2d_changes` tool is advertised only in the 1.2 capability profile;
 inspect that profile before using an operation. Harmonics use
 strict integer JSON tokens, so `3.0` is rejected even though JSON Schema's integer

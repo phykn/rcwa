@@ -96,7 +96,8 @@ class ForwardMetadata1_0(ResultModel):
 class ForwardMetadata(ForwardMetadata1_0):
     """Current stack metadata; historical metadata remains a separate reader."""
 
-    adapter_version: Literal["1.1.0"]
+    #: 1.2.0 checks lossy-substrate orders and solves uniform stacks exactly; 1.1.0 results stay readable.
+    adapter_version: Literal["1.1.0", "1.2.0"]
     layer_count: int = Field(ge=1, le=8)
     active_slab_count: int = Field(ge=0, le=8)
     total_thickness_nm: float = Field(ge=0, le=16000)

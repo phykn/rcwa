@@ -110,5 +110,6 @@ def preview_stack_changes(request: StackChangePreviewRequest) -> StackChangeProp
 
 def validate_stack_proposal_binding(payload: dict, request: StackChangePreviewRequest) -> None:
     # Compare original JSON to require every canonical field, not filled defaults.
-    if payload != preview_stack_changes(request).model_dump():
+    # Canonical JSON, not Python equality: 400 == 400.0 and -0.0 == 0.0, yet both change the hash.
+    if not same_canonical(payload, preview_stack_changes(request).model_dump()):
         raise ValueError("API proposal does not match the requested normalized base and stack changes")

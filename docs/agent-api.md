@@ -176,7 +176,9 @@ arrays and full metadata and records its source result version and input hash
 when present (required for 1.2). This is not an importable result, full export,
 or convergence certification. Synthetic-fit job summaries are separately typed
 `rcwa-fit-summary/1.0`; target/prediction totals are available but full optimizer
-diagnostics and the fitted project stay in the full result.
+diagnostics and the fitted project stay in the full result. Dimension-fit job
+summaries are `rcwa-dimension-fit-summary/1.2`: fitted values, sigma, bounds,
+RMS, evaluation count, the fit's `note`, and the fitted design's forward warnings.
 
 Compact envelopes are capped at 128,000 UTF-8 JSON bytes. Each warning list keeps
 a prefix of at most 64 whole messages and 16,000 encoded bytes, with an explicit
@@ -367,14 +369,16 @@ apply, optimizer, LLM, or paid service are introduced.
 
 ## Versioned results and historical snapshots
 
-New computations emit result schema `1.1`, adapter `1.1.0`, including
+New computations emit result schema `1.1`, adapter `1.2.0`, including
 `layer_count`, `active_slab_count`, `total_thickness_nm`, and
 `stack_order: "top_to_bottom"`. Current worker and job contracts accept only
 current results. Supported schema lists are exposed in capabilities alongside
 current project/result versions and the eight-layer limit.
 
 Snapshot readers explicitly accept known result schema `1.0`/adapter `1.0.0`
-and current `1.1`/`1.1.0`. They preserve the original Project, result and
+and `1.1` with adapter `1.1.0` or the current `1.2.0`. Adapter 1.2.0 rejects
+omitted open orders in a lossy substrate and solves uniform stacks exactly;
+`1.1.0` results are historical results of the earlier adapter. They preserve the original Project, result and
 server-computed provenance without rewriting, upgrading or downranking a
 historical server snapshot. Unknown versions are rejected. No database migration
 is needed. Client imports of either known version remain unverified, and legacy
@@ -454,10 +458,11 @@ before worker allocation.
 `wavelengths_nm` and `values` (3–31 measured fractions), `quantity` (`R`, `T`, `R_specular` or
 `T_specular`) and `polarization` (`s`, `p` or `avg`). The succeeded job's result has
 `result_type: "dimension_fit"` with fitted `values`, linearized `sigma`, `at_bound`, `rms`, the
-`fitted` curve and the evaluation `history`. The fit solves the polarizations the measurement names (`avg` always
+`fitted` curve, the evaluation `history`, and `warnings`: the forward warnings for the fitted design. The fit solves the polarizations the measurement names (`avg` always
 solves both s and p), whatever the design shows. Every design inside the bounds must pass validation and preflight
 (for example a hole no wider than either pitch). Each path must name an existing real-valued design input
-(dimensions, angles, or a constant material's `n`/`k`); solver settings and a tabulated material's display `n`/`k` are
+(dimensions, angles, or a constant material's `n`/`k`), at most once across all parameters and links; list entries
+such as wavelengths or table rows, solver settings and a tabulated material's display `n`/`k` are
 not fittable, and fields are strictly typed (no string numbers or `true` as an index). These checks, the measured
 wavelengths and the bound corners are validated at submission, so a bad request is a 422 before any worker starts.
 The whole fit stays within 80 forward evaluations; a best start stopped by that cap says so in `note`.

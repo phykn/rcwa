@@ -188,7 +188,7 @@ def test_real_forward_result_roundtrips_strict_contract(forward_pair):
     validated = validate_result("forward", result, project)
     assert isinstance(validated, ForwardResult)
     assert validated.model_dump(mode="json") == result
-    assert validated.metadata.adapter_version == "1.1.0"
+    assert validated.metadata.adapter_version == "1.2.0"
 
 
 @pytest.mark.parametrize(
@@ -307,3 +307,13 @@ def test_contract_with_wavelength_dependent_layer_loss():
     )
     result = forward(project)
     assert validate_result("forward", result, project).metadata.max_lossless_flux_error is None
+
+
+def test_adapter_1_1_0_results_stay_readable_but_are_not_current(forward_pair):
+    from rcwa_core.contracts import StoredForwardResult
+
+    project, result = forward_pair
+    historical = {**result, "metadata": {**result["metadata"], "adapter_version": "1.1.0"}}
+    assert TypeAdapter(StoredForwardResult).validate_python(historical, strict=True).metadata.adapter_version == "1.1.0"
+    with pytest.raises(ValueError, match="adapter version"):
+        validate_result("forward", historical, project)

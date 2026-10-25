@@ -49,5 +49,6 @@ def validate_proposal_binding(payload: dict, request: ChangePreviewRequest) -> N
     expected = preview_changes(request)
     # Compare the original JSON, not a model with missing Project defaults filled
     # in: a successful response must actually contain both canonical Projects.
-    if payload != expected.model_dump():
+    # Canonical JSON, not Python equality: 400 == 400.0 and -0.0 == 0.0, yet both change the hash.
+    if not same_canonical(payload, expected.model_dump()):
         raise ValueError("API proposal does not match the requested normalized base and geometry changes")

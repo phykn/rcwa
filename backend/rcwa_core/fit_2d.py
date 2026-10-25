@@ -73,6 +73,8 @@ class DimensionFitResult(StrictModel):
     history: list[dict] = Field(max_length=60)
     elapsed_seconds: float = Field(ge=0)
     note: str
+    #: Forward warnings for the reported design, so a fit cannot hide them.
+    warnings: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def consistent(self):
@@ -129,9 +131,13 @@ def _fit_base(project: Project2D, spec: FitSpec) -> dict:
         "wavelengths_nm": list(spec.wavelengths_nm),
         "polarization": "both" if spec.polarization == "avg" else spec.polarization,
     }
+    seen = set()
     for parameter in spec.parameters:
         for path in [parameter.path, *parameter.linked]:
             name = ".".join(map(str, path))
+            if tuple(path) in seen:
+                raise ValueError(f"Fit path {name} appears more than once; each input takes one value")
+            seen.add(tuple(path))
             try:
                 parent, key = _get(base, path)
                 value = parent[key]
@@ -141,7 +147,8 @@ def _fit_base(project: Project2D, spec: FitSpec) -> dict:
                 raise ValueError(f"Fit path {name} does not name an input of this design")
             # A tabulated material's scalar n/k are display values the solver never reads.
             ignored = isinstance(parent, dict) and parent.get("kind") == "tabulated" and key in ("n", "k")
-            if path[0] == "solver" or type(value) is not float or ignored:
+            # A list entry is a sample (a measured wavelength, a table row), not a design input.
+            if path[0] == "solver" or isinstance(parent, list) or type(value) is not float or ignored:
                 raise ValueError(f"Fit path {name} is not a real-valued design input")
     try:
         Project2D.model_validate(base)
@@ -188,6 +195,7 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
     evaluations = 0
     history: list[dict] = []
     solved: dict[tuple, np.ndarray] = {}
+    warned: dict[tuple, list[str]] = {}
 
     def model(x) -> np.ndarray:
         nonlocal evaluations
@@ -201,6 +209,7 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         n = len(candidate.illumination.wavelengths_nm)
         result = assemble_forward_2d(candidate, solve_wavelengths_2d(candidate, range(n)), elapsed_seconds=0.0)
         solved[key] = _observable(result, spec)
+        warned[key] = list(result["warnings"])
         return solved[key]
 
     def residual(x):
@@ -254,4 +263,5 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         "elapsed_seconds": perf_counter() - started,
         "note": "Linearized 1σ from the residual scale; model error and non-unique fits are not assessed."
         + (" The best start stopped at its evaluation cap before converging." if best.status == 0 else ""),
+        "warnings": warned[tuple(float(v) for v in best.x)],
     }

@@ -65,8 +65,9 @@ def result_summary(result):
         }, strict=True).model_dump(mode="json")
     if result.get("result_type") == "dimension_fit":
         return DimensionFitSummary.model_validate({
-            "summary_schema_version": "rcwa-dimension-fit-summary/1.1",
+            "summary_schema_version": "rcwa-dimension-fit-summary/1.2",
             **{key: result[key] for key in ("result_type", "values", "sigma", "at_bound", "rms", "evaluations", "note")},
+            **_warnings(result.get("warnings", [])),
         }, strict=True).model_dump(mode="json")
     return forward_summary(result)
 

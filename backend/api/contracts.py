@@ -171,7 +171,7 @@ class SyntheticFitResultSummary(StrictModel):
 
 
 class DimensionFitSummary(StrictModel):
-    summary_schema_version: Literal["rcwa-dimension-fit-summary/1.1"]
+    summary_schema_version: Literal["rcwa-dimension-fit-summary/1.2"]
     result_type: Literal["dimension_fit"]
     values: list[float]
     sigma: list[float | None]
@@ -180,6 +180,8 @@ class DimensionFitSummary(StrictModel):
     evaluations: int = Field(ge=1)
     #: The fit's own caveats, including whether its best start stopped before converging.
     note: str = Field(max_length=500)
+    warnings: SummaryWarnings
+    warnings_omitted_count: int = Field(ge=0)
 
 
 class JobSummary(StrictModel):

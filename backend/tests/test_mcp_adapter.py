@@ -1,6 +1,7 @@
 """Adapter boundary tests. Install requirements-mcp-lock.txt to run this module."""
 
 import json
+import time
 from copy import deepcopy
 
 import anyio
@@ -119,6 +120,23 @@ async def test_http_errors_preserve_payload_and_never_retry(status, code):
         # A 503 is returned only before admission, so the operation certainly did not run.
         assert actual.get("outcome_unknown", False) == (status >= 500 and status != 503)
         assert count == 1
+    finally:
+        await api.aclose()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("method,path,code", [
+    ("POST", "/api/jobs", "worker_crashed"),
+    ("POST", "/api/snapshots?view=receipt", "snapshot_receipt_unavailable"),
+    ("DELETE", "/api/jobs/j1", "cleanup_pending"),
+])
+async def test_other_503s_on_mutations_stay_uncertain(method, path, code):
+    payload = {"detail": "x", "error": {"code": code, "message": "x", "diagnostics": []}}
+    api = LocalAPI(transport=httpx.MockTransport(lambda request: httpx.Response(503, json=payload)))
+    try:
+        with pytest.raises(AdapterError) as caught:
+            await api.request(method, path, {} if method == "POST" else None)
+        assert caught.value.payload["outcome_unknown"] is True
     finally:
         await api.aclose()
 
@@ -351,3 +369,75 @@ async def test_submit_response_must_match_requested_kind():
             assert response.is_error and response.structured_content["outcome_unknown"]
     finally:
         await api.aclose()
+
+
+def _tampered_call(name, arguments, payload=None, raw=None):
+    async def run():
+        content = raw if raw is not None else json.dumps(payload).encode()
+        api = LocalAPI(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, content=content, headers={"Content-Type": "application/json"})))
+        try:
+            async with Client(create_server(api)) as client:
+                return await client.call_tool(name, arguments)
+        finally:
+            await api.aclose()
+
+    return anyio.run(run)
+
+
+def test_inconsistent_validate_and_cancel_responses_are_rejected():
+    from rcwa_core.project_io import normalized_project_and_hash
+
+    _, project, digest = normalized_project_and_hash({})
+    error = {"code": "engine_unavailable", "severity": "error", "location": ["engine"], "message": "no engine"}
+    reply = _tampered_call("rcwa_validate", {"project": {}},
+                           {"valid": True, "project": project, "input_hash": digest, "diagnostics": [error]})
+    assert reply.is_error and reply.structured_content["error"]["code"] == "invalid_api_response"
+    reply = _tampered_call("rcwa_cancel_job", {"job_id": "j1"}, {
+        "id": "j1", "kind": "forward", "status": "running", "created_at": "t", "completed_at": None,
+        "input_hash": "x", "result": None, "error": None, "error_code": None})
+    assert reply.is_error and reply.structured_content["error"]["code"] == "invalid_api_response"
+    assert reply.structured_content["outcome_unknown"] is True
+
+
+def test_escaped_lone_surrogate_in_a_response_is_an_untrusted_response_not_a_protocol_error():
+    raw = (b'{"id": "j1", "kind": "forward", "status": "failed", "created_at": "t", "completed_at": "t",'
+           b' "input_hash": "x", "result": null, "error": "\\ud800", "error_code": "numerical_failure"}')
+    reply = _tampered_call("rcwa_cancel_job", {"job_id": "j1"}, raw=raw)
+    assert reply.is_error and reply.structured_content["error"]["code"] == "outcome_unknown"
+
+
+def test_preview_binding_rejects_a_respelled_number_that_changes_the_hash():
+    from api.change_preview import preview_changes, validate_proposal_binding
+    from api.contracts import ChangePreviewRequest
+
+    request = ChangePreviewRequest.model_validate({"base_project": Project().model_dump(), "changes": {"cd_nm": 140.0}})
+    payload = json.loads(preview_changes(request).model_dump_json())
+    validate_proposal_binding(payload, request)
+    payload["candidate_project"]["period_nm"] = int(payload["candidate_project"]["period_nm"])
+    with pytest.raises(ValueError):
+        validate_proposal_binding(payload, request)
+
+
+def test_validate_and_save_must_return_the_exact_canonical_project(tmp_path):
+    from fastapi.testclient import TestClient
+    from api.main import create_app
+    from rcwa_core.project_io import normalized_project_and_hash
+
+    _, project, digest = normalized_project_and_hash({})
+    respelled = {**project, "period_nm": int(project["period_nm"])}
+    reply = _tampered_call("rcwa_validate", {"project": {}},
+                           {"valid": True, "project": respelled, "input_hash": digest, "diagnostics": []})
+    assert reply.is_error and reply.structured_content["error"]["code"] == "invalid_api_response"
+
+    with TestClient(create_app(f"sqlite:///{tmp_path / 'save.db'}"), base_url="http://localhost") as http:
+        job_id = http.post("/api/jobs", json={"kind": "forward", "project": {}}).json()["id"]
+        for _ in range(300):
+            if http.get(f"/api/jobs/{job_id}").json()["status"] != "running":
+                break
+            time.sleep(0.1)
+        saved = http.post("/api/snapshots", json={"job_id": job_id}).json()
+    assert _tampered_call("rcwa_save_snapshot", {"job_id": job_id}, saved).is_error is False
+    saved["project"]["period_nm"] += 1.0
+    reply = _tampered_call("rcwa_save_snapshot", {"job_id": job_id}, saved)
+    assert reply.is_error and reply.structured_content["outcome_unknown"] is True

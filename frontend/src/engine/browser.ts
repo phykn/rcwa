@@ -56,6 +56,8 @@ export interface FitResult {
   history: { x: number[]; rms: number }[];
   elapsed_seconds: number;
   note: string;
+  /** Forward warnings for the fitted design. */
+  warnings: string[];
 }
 
 interface Partial2D {

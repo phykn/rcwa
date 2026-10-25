@@ -36,7 +36,7 @@ from api.dimension_change_preview import (
 )
 from api.change_preview import validate_proposal_binding
 from api.stack_change_preview import validate_stack_proposal_binding
-from rcwa_core.identity import canonical_hash
+from rcwa_core.identity import canonical_hash, same_canonical
 from rcwa_core.schemas import Project, StrictModel
 from rcwa_core.schemas_2d import Project2D
 from rcwa_core.project_io import InputProject, normalized_project_and_hash
@@ -399,13 +399,19 @@ def create_server(api: LocalAPI):
                     validate_stack_proposal_binding(payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:
                     raise ValueError("API returned the wrong job kind")
+                if operation.name == "rcwa_cancel_job" and payload["status"] == "running":
+                    raise ValueError("API reported a cancelled job as still running")
+                if operation.name == "rcwa_validate" and payload["valid"] == any(
+                    item["severity"] == "error" for item in payload["diagnostics"]
+                ):
+                    raise ValueError("API validity disagrees with its error diagnostics")
                 if operation.name in {"rcwa_submit", "rcwa_validate"}:
                     submitted = values["request"]["project"] if operation.name == "rcwa_submit" else values["project"]
                     _, normalized, expected_hash = normalized_project_and_hash(submitted)
                     if payload["input_hash"] != expected_hash:
                         raise ValueError("API returned the wrong input hash")
                     if operation.name == "rcwa_validate":
-                        if payload["project"] != normalized:
+                        if not same_canonical(payload["project"], normalized):
                             raise ValueError("API validation returned a different project")
                         # HTTP receives the existing normalized project; reuse its
                         # request-only diagnostic on this caller's original fields.
@@ -414,6 +420,11 @@ def create_server(api: LocalAPI):
                     StoredServerSnapshot.model_validate(payload, strict=True)
                 if operation.name == "rcwa_save_snapshot" and payload["provenance"]["source"] != "server_computed":
                     raise ValueError("Snapshot save must return server-owned provenance")
+                # A save returns a current record; historical legacy reads may predate this binding.
+                if operation.name == "rcwa_save_snapshot" and view == "full" and (
+                    payload["provenance"]["input_hash"] != canonical_hash(payload["project"])
+                ):
+                    raise ValueError("Snapshot save returned a project that does not match its input hash")
                 if isinstance(parsed, JobArguments):
                     actual = payload["provenance"]["job_id"] if operation.name == "rcwa_save_snapshot" else payload["id"]
                     if actual != values["job_id"]:

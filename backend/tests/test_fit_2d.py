@@ -148,6 +148,12 @@ def test_an_unsolvable_probe_inside_the_bounds_falls_back_to_another_start(monke
     ({"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120,
                       "linked": [["layers", 42, "x"]]}]}, "does not name an input"),
     ({"parameters": [{"path": ["solver", "harmonics_x"], "lower": 1, "upper": 3}]}, "not a real-valued design input"),
+    ({"parameters": [{"path": ["illumination", "wavelengths_nm", 0], "lower": 440, "upper": 460}]},
+     "not a real-valued design input"),
+    ({"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120},
+                     {"path": ["layers", 0, "diameter_nm"], "lower": 50, "upper": 70}]}, "appears more than once"),
+    ({"parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 120,
+                      "linked": [["layers", 0, "diameter_nm"]]}]}, "appears more than once"),
     ({"wavelengths_nm": [100, 150, 190]}, "measured wavelengths do not form a valid design"),
     ({"wavelengths_nm": [650, 550, 450]}, "measured wavelengths do not form a valid design"),
 ])
@@ -173,9 +179,10 @@ def test_fit_values_are_strict_and_tabulated_scalars_are_not_fittable():
     data = example()
     data["substrate"] = {"name": "t", "kind": "tabulated", "n": 1.5, "k": 0.0, "wavelengths_nm": [400, 900],
                          "n_values": [1.5, 1.5], "k_values": [0, 0]}
-    spec["parameters"] = [{"path": ["substrate", "n"], "lower": 1.2, "upper": 1.8}]
-    with pytest.raises(ValidationError, match="not a real-valued design input"):
-        JobRequest.model_validate({"kind": "fit", "project": data, "fit_2d": spec})
+    for path in (["substrate", "n"], ["substrate", "n_values", 0], ["substrate", "wavelengths_nm", 0]):
+        spec["parameters"] = [{"path": path, "lower": 1.2, "upper": 1.8}]
+        with pytest.raises(ValidationError, match="not a real-valued design input"):
+            JobRequest.model_validate({"kind": "fit", "project": data, "fit_2d": spec})
 
 
 def test_fit_summary_keeps_the_convergence_note(monkeypatch):

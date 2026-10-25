@@ -80,7 +80,7 @@ def test_stack_validate_submit_poll_snapshot_import_and_restart(tmp_path):
         assert job["status"] == "succeeded", job
         assert job["input_hash"] == canonical_hash(original)
         assert job["result"]["schema_version"] == "1.1"
-        assert job["result"]["metadata"]["adapter_version"] == "1.1.0"
+        assert job["result"]["metadata"]["adapter_version"] == "1.2.0"
         assert job["result"]["metadata"]["layer_count"] == 2
         saved = client.post("/api/snapshots", json={"job_id": job_id}).json()
         assert saved["project"] == original and saved["result"] == job["result"]

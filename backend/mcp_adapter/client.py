@@ -14,6 +14,8 @@ MAX_REQUEST_BYTES = 2_000_000
 MAX_RESPONSE_BYTES = 8_000_000
 MAX_ACTIVE_CALLS = 4
 ID_PATTERN = r"^[A-Za-z0-9_-]{1,100}$"
+#: Submit refusals the API returns before admitting a job (HTTP 503).
+NOT_STARTED_CODES = frozenset({"engine_unavailable", "cleanup_pending", "manager_closed"})
 
 
 class AdapterError(Exception):
@@ -54,7 +56,9 @@ def strict_json(raw: bytes) -> dict:
         raise ValueError(f"Nonfinite JSON value: {value}")
 
     payload = json.loads(raw.decode("utf-8"), parse_constant=reject)
-    json.dumps(payload, allow_nan=False)
+    # Escaped lone surrogates decode but cannot be re-encoded; reject them here
+    # rather than let the stdio writer fail with a protocol error.
+    json.dumps(payload, allow_nan=False, ensure_ascii=False).encode("utf-8")
     if not isinstance(payload, dict):
         raise ValueError("Expected a JSON object")
     return payload
@@ -124,8 +128,11 @@ class LocalAPI:
                         raise AdapterError(
                             payload["error"]["code"], payload["error"]["message"],
                             payload=payload, http_status=response.status_code,
-                            # 503 is only returned before admission (engine, cleanup or shutdown), so nothing ran.
-                            outcome_unknown=mutation and response.status_code >= 500 and response.status_code != 503,
+                            outcome_unknown=mutation and response.status_code >= 500 and not (
+                                # Only these submit refusals happen before admission, so nothing ran.
+                                response.status_code == 503 and (method, path) == ("POST", "/api/jobs")
+                                and payload["error"]["code"] in NOT_STARTED_CODES
+                            ),
                         )
                     return payload
         except AdapterError:

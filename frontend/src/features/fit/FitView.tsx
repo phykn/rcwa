@@ -213,6 +213,11 @@ export default function FitView() {
           <p className="analysis-note">
             RMS residual {(result.rms * 100).toFixed(2)} points after {result.evaluations} model runs ({result.elapsed_seconds.toFixed(1)} s). {result.note}
           </p>
+          <ul className="analysis-note">
+            {result.warnings.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
           <button
             type="button"
             className="btn btn-primary"
