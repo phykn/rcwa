@@ -16,7 +16,7 @@ constant optical indices, not measured materials or an HBM/metrology model.
 
 ## Numerical geometry
 
-Production adapter 1.3.0 approximates each circle using 64 equal-height horizontal
+Production adapters 1.3.0 and 1.4.0 approximate each circle using 64 equal-height horizontal
 midpoint strips. Each strip has the exact disk chord width at its midpoint:
 
 `width(y) = diameter * sqrt(1 - (2*y/diameter)^2)`.
@@ -86,7 +86,8 @@ historical source snapshot in the test fixtures, rather than claiming that old
 runs used the new circle-capable source. Current-source rectangular replay tests
 continue to compare the frozen real default's powers, and current CI still runs
 the independent rectangular and lossy/mixed-stack S4 gates. New runs use adapter
-1.3.0; historical 1.2.0 results remain readable only for non-circular projects.
+1.4.0; historical 1.3.0 results remain readable, and 1.2.0 results only for
+non-circular projects.
 
 Circular evidence is separate, with its own input hash, source hashes, reference
 provenance and exact generated bundle. Renaming the old rectangular example

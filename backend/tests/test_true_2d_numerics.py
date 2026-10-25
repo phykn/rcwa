@@ -13,7 +13,7 @@ from rcwa_core.contracts_2d import validate_result_2d
 from rcwa_core.preflight import PreflightError, SolverError
 from rcwa_core.preflight_2d import active_materials_2d, preflight_2d
 from rcwa_core.schemas import HomogeneousLayer, Layer, Material, Project
-from rcwa_core.schemas_2d import Project2D, Rectangle2D
+from rcwa_core.schemas_2d import CircularHole2D, Project2D, Rectangle2D
 from rcwa_core.solver import forward
 from rcwa_core.solver_2d import forward_2d, input_hash_2d, stack_cells_2d
 from test_stack_physics import planar_tmm
@@ -219,6 +219,14 @@ def test_external_cutoffs_near_cutoffs_and_missing_full_light_cone():
     assert "insufficient_harmonics" in [d.code for d in preflight_2d(p)]
 
 
+@pytest.mark.parametrize("k", [0.0, 1e-12, 1e-4, 0.1])
+def test_substrate_absorption_does_not_hide_its_open_2d_orders(k):
+    p = project(ns=complex(3.6, k), hx=1, hy=1, wavelengths=(632.8,))
+    assert "insufficient_harmonics" in [d.code for d in preflight_2d(p)]
+    p.substrate = material(0.2 + 3.5j)
+    assert "insufficient_harmonics" not in [d.code for d in preflight_2d(p)]
+
+
 def test_exact_internal_cutoff_in_uniform_stack_is_solved_exactly():
     # wavelength / Px = 1.5: orders (±1, 0) graze inside the film. A uniform stack
     # couples only the specular order, so it is solved alone, without perturbation.
@@ -362,7 +370,7 @@ def test_editing_y_changes_exact_input_hash_and_real_spectrum():
     assert np.max(abs(powers(forward_2d(p)) - powers(forward_2d(q)))) > 1e-5
 
 
-def test_xy_transpose_is_refinement_aware_not_an_exact_symmetry_claim():
+def test_xy_transpose_is_an_exact_symmetry_at_every_basis():
     p = project([rect(110, 220, 180, 2.2, 1), film(80, 1.45), rect(130, 290, 240, 1.9, 1)], wavelengths=(632.8,))
     q = p.model_copy(deep=True)
     q.period_nm, q.period_y_nm = p.period_y_nm, p.period_nm
@@ -370,21 +378,38 @@ def test_xy_transpose_is_refinement_aware_not_an_exact_symmetry_claim():
     for layer in q.layers:
         if layer.geometry == "rectangle_2d":
             layer.cd_x_nm, layer.cd_y_nm = layer.cd_y_nm, layer.cd_x_nm
-    errors = []
     for h in (1, 2, 3):
         p.solver.harmonics_x = p.solver.harmonics_y = h
         q.solver.harmonics_x = q.solver.harmonics_y = h
         a, b = forward_2d(p), forward_2d(q)
-        residuals = []
         for pol in ("s", "p"):
             mapped = {(o["m"], o["n"]): o for o in b["spectra"][pol]["orders"][0]}
             for order in a["spectra"][pol]["orders"][0]:
-                residuals.extend(
-                    abs(order[key] - mapped[(order["n"], order["m"])][key]) for key in ("R_s", "R_p", "T_s", "T_p")
-                )
-        errors.append(max(residuals))
-    assert errors[2] < errors[1] < errors[0]
-    assert 1e-7 < errors[2] < 5e-4  # Fixture-specific directional-factorization error, not a universal bound.
+                # Mirroring x and y swaps the local s/p basis sign only, so powers map exactly.
+                for key in ("R_s", "R_p", "T_s", "T_p"):
+                    assert abs(order[key] - mapped[(order["n"], order["m"])][key]) < 1e-11
+
+
+def square_cell(layer):
+    p = project([layer], theta=0, phi=0, ns=1.45, hx=5, hy=5, wavelengths=(633,))
+    p.period_y_nm = p.period_nm = 400
+    return Project2D.model_validate(p.model_dump())
+
+
+def polarization_gap(result):
+    return max(abs(result["spectra"]["s"][key][0] - result["spectra"]["p"][key][0]) for key in ("R", "T"))
+
+
+def test_square_rectangle_at_normal_incidence_is_polarization_independent():
+    """C4 symmetry: E along x and E along y see the same square cell."""
+    assert polarization_gap(forward_2d(square_cell(rect(220, 200, 200, 3.6, 1)))) < 1e-11
+
+
+def test_square_circle_polarization_gap_is_only_the_strip_approximation():
+    # Horizontal midpoint strips are not C4 symmetric; the gap must vanish as they refine.
+    p = square_cell(CircularHole2D(thickness_nm=220, diameter_nm=240, material=material(1), background=material(3.6)))
+    gaps = [polarization_gap(forward_2d(p, reference_circle_strips=strips)) for strips in (64, 128, 256)]
+    assert gaps[0] > gaps[1] > gaps[2] and gaps[2] < 1e-4
 
 
 def test_both_incident_polarizations_share_one_layer_cascade(monkeypatch):

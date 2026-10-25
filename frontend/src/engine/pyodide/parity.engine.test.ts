@@ -67,9 +67,9 @@ beforeAll(async () => {
 }, 600_000);
 
 describe("browser engine parity with native CPython", () => {
-  it("reproduces the frozen circular-hole H5 result", () => {
+  it("reproduces the adapter-1.4 circular-hole H5 result", () => {
     const project = readFileSync(resolve(fixtures, "circular-project.json"), "utf8");
-    const expected = JSON.parse(gunzipSync(readFileSync(resolve(fixtures, "circular-result-H5.json.gz"))).toString());
+    const expected = JSON.parse(gunzipSync(readFileSync(resolve(fixtures, "circular-result-H5-adapter-1.4.json.gz"))).toString());
     const actual = call<Result>("forward", project);
     expect(actual.metadata.input_hash).toBe(expected.metadata.input_hash);
     expectClose(actual, expected, 1e-10);

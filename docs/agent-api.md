@@ -462,8 +462,8 @@ wavelengths and bounds) before the job succeeds. Capabilities list it as `dimens
 
 Job inputs are copied and normalized. A validated 2D result, its job and saved
 snapshot share one UTF-8 canonical input hash. Snapshot provenance uses the actual
-result adapter version. Current 1.2 computations emit adapter `1.3.0`; known
-rectangular results from adapter `1.2.0` remain readable. Circles require `1.3.0`
+result adapter version. Current 1.2 computations emit adapter `1.4.0`; results from adapters `1.2.0`
+(rectangular only) and `1.3.0` remain readable. Circles require `1.3.0` or later
 and explicit `circular_geometry` metadata for the fixed 64-strip production
 resolution. Offline spatial or Fourier refinements cannot be presented as
 ordinary public jobs. Imported files remain unverified even when their powers

@@ -45,7 +45,7 @@ class Metadata2D(ResultModel):
     stage: Literal["bounded_forward"]
     engine: Literal["meent"]
     version: Literal["0.13.2"]
-    adapter_version: Literal["1.2.0", "1.3.0"]
+    adapter_version: Literal["1.2.0", "1.3.0", "1.4.0"]
     precision: Literal["complex128"]
     backend: Literal["numpy"]
     input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -87,7 +87,7 @@ class CircularGeometryMetadata(ResultModel):
 
 
 class CircularMetadata2D(Metadata2D):
-    adapter_version: Literal["1.3.0"]
+    adapter_version: Literal["1.3.0", "1.4.0"]
     circular_geometry: CircularGeometryMetadata
 
 
@@ -169,7 +169,7 @@ class PublicCircularGeometryMetadata(CircularGeometryMetadata):
 
 
 class PublicCircularMetadata2D(PublicMetadata2D):
-    adapter_version: Literal["1.3.0"]
+    adapter_version: Literal["1.3.0", "1.4.0"]
     circular_geometry: PublicCircularGeometryMetadata
 
 
@@ -203,11 +203,11 @@ def validate_result_2d(
         expected = circle_approximation_metadata(project, strips, reference_circle_strips is not None)
         if circle_metadata is None or circle_metadata.model_dump() != expected:
             raise ValueError("Circular geometry approximation differs from requested spatial resolution or input")
-        if metadata.adapter_version != ADAPTER_VERSION_2D:
+        if metadata.adapter_version == "1.2.0":
             raise ValueError("Historical adapters did not support circular holes")
     elif circle_metadata is not None or reference_circle_strips is not None:
         raise ValueError("Circular spatial metadata requires circular geometry")
-    if metadata.adapter_version not in {"1.2.0", ADAPTER_VERSION_2D} or parsed.wavelengths_nm != project.illumination.wavelengths_nm:
+    if metadata.adapter_version not in {"1.2.0", "1.3.0", ADAPTER_VERSION_2D} or parsed.wavelengths_nm != project.illumination.wavelengths_nm:
         raise ValueError("Result engine or wavelengths differ from request")
     pols = {"s", "p"} if project.illumination.polarization == "both" else {project.illumination.polarization}
     if set(parsed.spectra) != pols:

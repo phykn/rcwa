@@ -673,7 +673,7 @@ describe("circle public result identity and active-material limits", () => {
     expect(await hashProject2D(p)).toBe(circleManifest.input_hash);
     const result = await bindResult2D(p, circleReference.result);
     expect(result).toBeDefined();
-    expect(circleReference.result.metadata.adapter_version).toBe("1.3.0");
+    expect(circleReference.result.metadata.adapter_version).toBe("1.4.0");
     expect(circleReference.result.metadata.convergence_checked).toBe(false);
     expect(circleReference.result.metadata.input_hash).not.toBe(
       fixture.result.metadata.input_hash,
@@ -711,7 +711,7 @@ describe("circle public result identity and active-material limits", () => {
       const y = (i + 0.5) / 64 - 0.5;
       sum += diameter * Math.sqrt(1 - 4 * y * y);
     }
-    pair.result.metadata.adapter_version = "1.3.0";
+    pair.result.metadata.adapter_version = "1.4.0";
     pair.result.metadata.circular_geometry = {
       method: "centered_midpoint_strips",
       strips: 64,
@@ -736,6 +736,9 @@ describe("circle public result identity and active-material limits", () => {
   it("binds disclosed circle metadata, and refuses historical adapter or missing/mismatched circle metadata", async () => {
     const { project, result } = await circularVector();
     await expect(bindResult2D(project, result)).resolves.toBeDefined();
+    const historical = structuredClone(result);
+    historical.metadata.adapter_version = "1.3.0";
+    await expect(bindResult2D(project, historical)).resolves.toBeDefined();
     const old = structuredClone(result);
     old.metadata.adapter_version = "1.2.0";
     await expect(bindResult2D(project, old)).rejects.toThrow(/adapter/);

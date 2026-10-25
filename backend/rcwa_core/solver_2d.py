@@ -15,7 +15,7 @@ from .preflight import SolverError, ensure_engine_available, refractive_index
 from .preflight_2d import ensure_preflight_2d, has_patterned_slab_2d, stack_has_loss_2d, wavevectors, widths
 from .schemas_2d import Project2D
 
-ADAPTER_VERSION_2D = "1.3.0"
+ADAPTER_VERSION_2D = "1.4.0"
 CHANNELS = ("R_s", "R_p", "T_s", "T_p")
 RAW_CHANNELS = ("de_ri_s", "de_ri_p", "de_ti_s", "de_ti_p")
 
@@ -68,6 +68,26 @@ def stack_cells_2d(project, wavelength, *, circle_strips=None):
             cells.append(rectangle_cell_2d(project.period_nm, project.period_y_nm, wx, wy, inclusion, background))
         thicknesses.append(layer.thickness_nm)
     return cells, thicknesses
+
+
+def conv_matrices_2d(cells, hx, hy):
+    """meent's continuous Fourier matrices, with epx rebuilt in Li's directional order.
+
+    Pinned meent forms epy as Laurent-in-x of the inverse-rule-in-y matrices, but
+    epx as inverse-rule-in-x of inverted Laurent-in-y matrices. The two orders
+    differ for genuinely 2D cells and break x/y (C4) symmetry. epx is therefore
+    built exactly like epy on the transposed cell, then permuted back to the
+    m-fastest basis.
+    """
+    from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
+    from meent.on_numpy.emsolver.fourier_analysis import cfs2d
+
+    epx, epy, epz_inverse = to_conv_mat_vector(cells, hx, hy, type_complex=np.complex128, use_pinv=False)
+    nx, ny = 2 * hx + 1, 2 * hy + 1
+    swap = np.array([ix * ny + iy for iy in range(ny) for ix in range(nx)])
+    for i, (values, xs, ys) in enumerate(cells):
+        epx[i] = cfs2d(values.T ** 2, ys, xs, 1, 0, hy, hx, np.complex128)[np.ix_(swap, swap)]
+    return epx, epy, epz_inverse
 
 
 def _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, epx, epy, epz_inverse):
@@ -199,8 +219,6 @@ def assemble_forward_2d(project: Project2D, partials, *, elapsed_seconds: float)
 
 
 def _solve_wavelength(project, wavelength, basis, circle_strips, laurent_diagnostic):
-    from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
-
     hx, hy = basis
     angle, phi = np.deg2rad([project.illumination.angle_deg, project.illumination.azimuth_deg])
     labels = [(m, n) for n in range(-hy, hy + 1) for m in range(-hx, hx + 1)]
@@ -219,7 +237,7 @@ def _solve_wavelength(project, wavelength, basis, circle_strips, laurent_diagnos
     try:
         with np.errstate(divide="raise", invalid="raise", over="raise"):
             if cells:
-                ex, ey, ezi = to_conv_mat_vector(cells, sx, sy, type_complex=np.complex128, use_pinv=False)
+                ex, ey, ezi = conv_matrices_2d(cells, sx, sy)
                 if laurent_diagnostic:
                     ex = np.linalg.inv(ezi)
                     ey = ex.copy()

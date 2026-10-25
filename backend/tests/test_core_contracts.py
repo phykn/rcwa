@@ -84,6 +84,19 @@ def test_omitted_orders_fail_both_preflight_and_worker():
         forward(project)
 
 
+@pytest.mark.parametrize("k", [0.0, 1e-12, 1e-4, 0.1])
+def test_substrate_absorption_does_not_hide_its_open_orders(k):
+    project = Project()
+    project.period_nm = 3000
+    project.solver.harmonics = 3
+    project.illumination.angle_deg = 0.0
+    project.illumination.wavelengths_nm = [901.0]
+    project.substrate = Material(n=3.6, k=k)
+    assert "insufficient_harmonics" in [item.code for item in preflight_project(project)]
+    project.substrate = Material(n=0.2, k=3.5)  # metal: no order propagates beyond the ambient light cone
+    assert "insufficient_harmonics" not in [item.code for item in preflight_project(project)]
+
+
 def test_cutoff_errors_and_near_cutoff_warnings_share_thresholds():
     project = Project()
     project.illumination.angle_deg = 0.0

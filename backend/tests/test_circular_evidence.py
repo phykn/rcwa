@@ -36,7 +36,7 @@ def check_frozen_circular_core(digests):
     """Evidence binds to the archived source that generated it, not to later production edits.
 
     test_exact_real_circular_default_all_wavelengths_and_channels separately requires
-    current production to reproduce the frozen circular result within 1e-10.
+    current production to reproduce its adapter-1.4 circular result within 1e-10.
     """
     directory = FIXTURES / "circular-core"
     manifest = json.loads((directory / "manifest.json").read_text())
@@ -74,7 +74,7 @@ def check_harmonic_gate(gate):
 
 def test_exact_real_circular_default_all_wavelengths_and_channels():
     project = Project2D.model_validate_json((FIXTURES / "circular-project.json").read_text())
-    expected = load(FIXTURES / "circular-result-H5.json.gz")
+    expected = load(FIXTURES / "circular-result-H5-adapter-1.4.json.gz")
     actual = forward_2d(project)
     assert input_hash_2d(project) == INPUT_HASH
     for result in (expected, actual):
@@ -89,6 +89,17 @@ def test_exact_real_circular_default_all_wavelengths_and_channels():
             assert [(o["m"], o["n"]) for o in a] == [(o["m"], o["n"]) for o in b]
             for field in comparison.FIELDS:
                 np.testing.assert_allclose([o[field] for o in a], [o[field] for o in b], rtol=0, atol=1e-10)
+
+
+def test_current_circular_default_meets_the_archived_converged_s4_gate():
+    """Adapter 1.4.0 changed the epx factorization after this evidence was archived."""
+    gate = load(ROOT / "docs/true-2d/circular-convergence.json.gz")["harmonic_gate"]
+    project = Project2D.model_validate(gate["input"])
+    current = load(FIXTURES / "circular-result-H5-adapter-1.4.json.gz")
+    validate_result_2d(current, project)
+    for wi in range(len(project.illumination.wavelengths_nm)):
+        gap = comparison.compare_samples(comparison.sample_from_result(current, wi), s4_sample(gate["reference"][-1][wi]))
+        assert comparison.passes(gap, comparison.INDEPENDENT_TOLERANCE)
 
 
 def test_fresh_circle_harmonic_and_separate_spatial_evidence():

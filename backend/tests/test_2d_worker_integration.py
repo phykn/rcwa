@@ -172,7 +172,7 @@ def test_real_spawned_small_2d_unequal_axes_and_exact_binding(result_2d):
 
 
 def test_real_spawned_default_h5_matches_frozen_actual_powers():
-    expected = json.loads(gzip.decompress((FIXTURES / "default-result-H5.json.gz").read_bytes()))
+    expected = json.loads(gzip.decompress((FIXTURES / "default-result-H5-adapter-1.4.json.gz").read_bytes()))
     manager = JobManager()
     try:
         job = manager.submit("forward", default_project(), None)
@@ -182,7 +182,7 @@ def test_real_spawned_default_h5_matches_frozen_actual_powers():
         actual = complete["result"]
         assert complete["input_hash"] == actual["metadata"]["input_hash"] == expected["metadata"]["input_hash"]
         assert actual["schema_version"] == "1.2" and actual["result_type"] == "forward"
-        assert actual["metadata"]["adapter_version"] == "1.3.0"
+        assert actual["metadata"]["adapter_version"] == "1.4.0"
         assert not actual["metadata"]["offline_reference_override"]
         for pol in ("s", "p"):
             for field in ("R", "T", "R_specular", "T_specular", "A_balance"):

@@ -21,7 +21,7 @@ def client(tmp_path):
 def test_circle_capabilities_openapi_and_json_schema(client):
     profile = client.get("/api/capabilities").json()["project_profiles"]["1.2"]
     assert "circular_hole_2d" in profile["geometry"]
-    assert profile["adapter_version"] == "1.3.0"
+    assert profile["adapter_version"] == "1.4.0"
     schema = Project2D.model_json_schema()
     p = circle_project()
     Draft202012Validator(schema).validate(p)
@@ -64,7 +64,7 @@ def test_circle_real_job_snapshot_load_exact_input_and_diameter_binding(client):
     assert response.status_code == 201, response.text
     snapshot = response.json()
     assert snapshot["project"] == p
-    assert snapshot["provenance"]["adapter_version"] == "1.3.0"
+    assert snapshot["provenance"]["adapter_version"] == "1.4.0"
     assert client.get(f'/api/projects/{snapshot["id"]}').json() == snapshot
     changed = deepcopy(p)
     changed["layers"][0]["diameter_nm"] += 1

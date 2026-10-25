@@ -107,7 +107,7 @@ def solved_circle():
 def test_actual_circle_result_hash_geometry_and_public_binding(solved_circle):
     project, result = solved_circle
     assert result["metadata"]["input_hash"] == input_hash_2d(project)
-    assert result["metadata"]["adapter_version"] == "1.3.0"
+    assert result["metadata"]["adapter_version"] == "1.4.0"
     assert result["metadata"]["circular_geometry"]["strips"] == CIRCLE_STRIPS
     assert not result["metadata"]["convergence_checked"]
     assert validate_result_for_project("forward", result, project).model_dump(mode="json") == result

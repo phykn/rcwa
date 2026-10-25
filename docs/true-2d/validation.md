@@ -27,7 +27,7 @@ All original tracked files at baseline `41b81d56ce1c6f19c37d3c732ea46c36d71f53c6
 
 The actual module passes independent 2x2 planar TMM controls across 288 combinations of non-air ambient, transparent/absorbing/metal-like substrate, normal/oblique incidence, azimuth and zero/eight-layer stacks. Additional tests cover both x-only and y-only legacy 1D reductions, normal phi45, quadrants, unequal periods/orders, exact x/y mirrors and 180-degree rotation, shared polarization cascade, mixed 1D/2D layers, lower-region loss, layer reversal/splitting, zero/full widths, zero-thickness bypass, exact/near external and internal cutoffs, omitted light-cone channels, material coverage, nonfinite/negative powers and input/order/channel tampering.
 
-The x/y-transpose control is intentionally refinement-aware: its directional-factorization discrepancy decreases from about 2.97e-3 at H1 to 4.92e-4 at H2 and 4.32e-4 at H3. This is different from the exact mirror symmetries. No blanket outgoing s/p swap is used.
+The x/y-transpose control is exact since adapter 1.4.0: every order and channel maps to its transposed partner within 1e-11 at H1–H3, and a square cell at normal incidence gives identical s and p powers. Adapters 1.2.0 and 1.3.0 showed a 2.97e-3 to 4.32e-4 transpose discrepancy, because pinned meent factorizes epx in the opposite order to epy; 1.4.0 rebuilds epx in epy's order. For circles the remaining s/p gap comes from the horizontal midpoint strips and shrinks as they refine. No blanket outgoing s/p swap is used.
 
 Frozen 1.0/1.1 normalized JSON and hashes are exact. Local pre-edit versus additive-stage power arrays were bit-identical; portable checks allow 2e-12 absolute BLAS/CPU variation. Historical snapshots, API/MCP and job tests remain unchanged and pass.
 
@@ -62,7 +62,20 @@ Independently converged geometry controls establish visible pattern effects abov
 
 The earlier broad-period high-contrast candidate failed its H5 refinement gate. A later weak-contrast broad-period candidate passed coarse samples but was rejected after the 1 nm scan found narrow resonances; at 806 nm its H5-to-H7 p-input transmitted-p zero-order change was 0.00599218, above 5e-4. Rejected raw evidence remains archived rather than being relabelled as accepted.
 
-`default-convergence-evidence.tar.gz` holds full raw arrays, immutable generation manifests, exact input/result, signed comparisons, rejected-candidate evidence and reference source/build scripts. Its inventory covers 971 files; 438 accepted-basis caches were source/input-audited and all 839 array records losslessly round-tripped. `default-evidence-package.json` records the archive SHA256. The full ordinary H5 batch passed the result contract and matched all individually generated default samples exactly. A fresh actual-module regression checks every wavelength/channel against that frozen result at 1e-10 absolute portability tolerance, far below the scientific thresholds. All ordinary outputs retain `convergence_checked=false`; arbitrary edits do not inherit acceptance.
+`default-convergence-evidence.tar.gz` holds full raw arrays, immutable generation manifests, exact input/result, signed comparisons, rejected-candidate evidence and reference source/build scripts. Its inventory covers 971 files; 438 accepted-basis caches were source/input-audited and all 839 array records losslessly round-tripped. `default-evidence-package.json` records the archive SHA256. The full ordinary H5 batch passed the result contract and matched all individually generated default samples exactly. That frozen result is adapter-1.2.0 evidence and stays archived unchanged. A fresh actual-module regression checks every wavelength/channel against `default-result-H5-adapter-1.4.json.gz` at 1e-10 absolute portability tolerance, far below the scientific thresholds. All ordinary outputs retain `convergence_checked=false`; arbitrary edits do not inherit acceptance.
+
+## Adapter 1.4.0 re-check against archived S4 references
+
+Adapter 1.4.0 changes only the epx factorization order (see `conv_matrices_2d` in `solver_2d.py`). The archived S4 references above were not regenerated; current production was rerun on each archived input and compared with them using `scripts/true_2d/convergence.py`:
+
+| Input | Shipped basis vs converged S4, 1.3.0 | Same, 1.4.0 | 1.4.0 minus 1.3.0 |
+|---|---:|---:|---:|
+| Synthetic default, 21 wavelengths (S4 H9) | 7.175e-5 | 7.258e-5 | 3.56e-6 |
+| Multiple open channels (S4 H9) | 9.822e-6 | 1.002e-5 | 1.97e-7 |
+| Lossy mixed eight-layer (S4 (9,8)) | 6.678e-5 | 6.775e-5 | 1.42e-6 |
+| Circular default, 21 wavelengths (S4 H9) | 4.613e-4 | 5.598e-4 | 3.14e-4 |
+
+All remain inside the 2e-3 independent gate. `test_current_and_archived_default_meet_the_accepted_independent_s4_gate` and `test_current_circular_default_meets_the_archived_converged_s4_gate` recheck the default and circular rows. The archived S4 reference uses Laurent factorization, so closeness to it is a gate, not a ranking of factorizations. Rerun with 1.4.0, the production refinement maxima are 2.85e-6 (H5→H7) and 1.25e-6 (H7→H9) for the synthetic default, and 8.97e-5 and 5.39e-5 for the circular default; H5→H9 is 4.10e-6 and 1.44e-4. All stay inside the 5e-4 refinement gate. These reruns are not archived.
 
 ## Resource observations and deferred release gates
 

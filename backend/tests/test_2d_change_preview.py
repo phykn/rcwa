@@ -281,7 +281,7 @@ def test_cutoff_diagnostics_match_backend_without_engine_checks(client, waveleng
     assert payload["valid"] is (expected == "near_rayleigh_cutoff")
 
 
-def test_oblique_unequal_basis_and_lossless_substrate_diagnostics(client):
+def test_oblique_unequal_basis_diagnostics_for_lossless_and_lossy_substrates(client):
     body = dimension_arguments()
     body["base_project"]["illumination"].update(wavelengths_nm=[632.8], angle_deg=37.0, azimuth_deg=45.0)
     body["base_project"]["solver"].update(harmonics_x=1, harmonics_y=2)
@@ -293,7 +293,9 @@ def test_oblique_unequal_basis_and_lossless_substrate_diagnostics(client):
     lossy = client.post(ROUTE, json=body).json()
     assert lossy["diagnostics"] == [item.model_dump() for item in preflight_2d(
         Project2D.model_validate(lossy["candidate_project"], strict=True))]
-    assert payload["diagnostics"] != lossy["diagnostics"]
+    # Substrate absorption does not remove nearly propagating substrate orders.
+    assert not lossy["valid"]
+    assert any(d["code"] == "insufficient_harmonics" for d in lossy["diagnostics"])
 
 
 def test_coverage_in_unused_material_is_not_bypassed(client):

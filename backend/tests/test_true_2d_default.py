@@ -5,6 +5,7 @@ import hashlib
 from importlib.metadata import version
 import json
 from pathlib import Path
+import importlib.util
 import tarfile
 
 import numpy as np
@@ -16,11 +17,18 @@ from rcwa_core.solver_2d import forward_2d, input_hash_2d
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).parent / "fixtures/true-2d"
 INPUT_HASH = "eeb26da3484602221944f1784b4b93ce2ed76f89b61e95d34bb68730be7bddc7"
+spec = importlib.util.spec_from_file_location("convergence", ROOT / "scripts/true_2d/convergence.py")
+comparison = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(comparison)
+
+
+def load_result(name):
+    return json.loads(gzip.decompress((FIXTURES / name).read_bytes()))
 
 
 def test_exact_synthetic_default_actual_h5_all_wavelengths_and_channels():
     project = Project2D.model_validate_json((FIXTURES / "default-project.json").read_text())
-    expected = json.loads(gzip.decompress((FIXTURES / "default-result-H5.json.gz").read_bytes()))
+    expected = load_result("default-result-H5-adapter-1.4.json.gz")
     assert input_hash_2d(project) == INPUT_HASH
     actual = forward_2d(project)
     validate_result_2d(expected, project)
@@ -42,6 +50,25 @@ def test_exact_synthetic_default_actual_h5_all_wavelengths_and_channels():
                 np.testing.assert_allclose(
                     [o[field] for o in a_orders], [o[field] for o in e_orders], rtol=0, atol=1e-10
                 )
+
+
+def test_current_and_archived_default_meet_the_accepted_independent_s4_gate():
+    """Adapter 1.4.0 changed the epx factorization; the archived S4 H9 samples still bound both results."""
+    project = Project2D.model_validate_json((FIXTURES / "default-project.json").read_text())
+    current = load_result("default-result-H5-adapter-1.4.json.gz")
+    archived = load_result("default-result-H5.json.gz")
+    wanted = {f"accepted/samples/default/S4/H9/{w:.9f}.json": w for w in project.illumination.wavelengths_nm}
+    references = {}
+    with tarfile.open(ROOT / "docs/true-2d/default-convergence-evidence.tar.gz", "r|gz") as tar:
+        for member in tar:
+            if member.name in wanted:
+                references[wanted[member.name]] = json.loads(tar.extractfile(member).read())
+    assert sorted(references) == project.illumination.wavelengths_nm
+    for wi, wavelength in enumerate(project.illumination.wavelengths_nm):
+        assert references[wavelength]["engine"] == "S4" and references[wavelength]["H"] == 9
+        for result in (current, archived):
+            gap = comparison.compare_samples(comparison.sample_from_result(result, wi), references[wavelength])
+            assert comparison.passes(gap, comparison.INDEPENDENT_TOLERANCE)
 
 
 def test_default_evidence_package_integrity_and_frozen_core_binding():

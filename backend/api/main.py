@@ -53,6 +53,7 @@ from rcwa_core.preflight import Diagnostic, engine_info
 from rcwa_core.project_io import preflight_project_any, validate_result_for_project
 from rcwa_core.schemas import Project, StrictModel
 from rcwa_core.schemas_2d import Project2D
+from rcwa_core.solver_2d import ADAPTER_VERSION_2D
 
 
 class SaveRequest(StrictModel):
@@ -322,7 +323,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                     "harmonics": {"x": [1, 5], "y": [1, 5]} if version == "1.2" else {"x": [1, 20]},
                     "basis_size_max": 121 if version == "1.2" else 41,
                     "simultaneous_profile_jobs": 1 if version == "1.2" else app.state.jobs.max_workers,
-                    "adapter_version": "1.3.0" if version == "1.2" else engine_info().adapter_version,
+                    "adapter_version": ADAPTER_VERSION_2D if version == "1.2" else engine_info().adapter_version,
                     "integer_representation": "Harmonics require integer JSON tokens; runtime rejects 3.0 although JSON Schema integer accepts it.",
                 }
                 for version in ("1.0", "1.1", "1.2")

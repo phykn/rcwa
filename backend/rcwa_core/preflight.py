@@ -187,8 +187,9 @@ def preflight_project(project: Project) -> list[Diagnostic]:
         incident_kx = n0.real * np.sin(angle)
         kx = incident_kx + orders * wavelength / project.period_nm
         kx_outside = incident_kx + np.array([-harmonics - 1, harmonics + 1]) * wavelength / project.period_nm
-        largest_lossless_port_index = max(n0.real, ns.real if ns.imag == 0 else n0.real)
-        if patterned and np.any(np.abs(kx_outside) <= largest_lossless_port_index):
+        # A weakly absorbing substrate still carries nearly propagating orders out to n.
+        largest_port_index = max(n0.real, ns.real)
+        if patterned and np.any(np.abs(kx_outside) <= largest_port_index):
             diagnostics.append(
                 Diagnostic(
                     code="insufficient_harmonics",

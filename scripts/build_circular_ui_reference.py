@@ -19,14 +19,14 @@ sys.path.insert(0, str(ROOT / "backend"))
 from rcwa_core.project_io import normalized_project_and_hash, validate_result_for_project  # noqa: E402
 
 INPUT_SHA = "98e7bd338022579f086c8c82732e53356f42994ec66b37ece42f40cc5ab7eaf8"
-RESULT_SHA = "c82053dabe7dfe1f8b9b49b6ef5bb82d361dfca5d6cf9bfd62b512a4a7ae0703"
+RESULT_SHA = "1d68537aa2fb13ba346f696fec0fffa30e554ffbbb0c88a10d28d84a2e06fe0a"
 INPUT_HASH = "e625443a782c0d57f5d8a5597d5410812bf8fb541249303ace49c051c66a6931"
 
 
 def generate(check=False):
     fixtures = ROOT / "backend/tests/fixtures/true-2d"
     project_bytes = (fixtures / "circular-project.json").read_bytes()
-    result_bytes = (fixtures / "circular-result-H5.json.gz").read_bytes()
+    result_bytes = (fixtures / "circular-result-H5-adapter-1.4.json.gz").read_bytes()
     assert hashlib.sha256(project_bytes).hexdigest() == INPUT_SHA
     assert hashlib.sha256(result_bytes).hexdigest() == RESULT_SHA
     project, result = json.loads(project_bytes), json.loads(gzip.decompress(result_bytes))
@@ -34,7 +34,7 @@ def generate(check=False):
     assert normalized == project and digest == INPUT_HASH
     validate_result_for_project("forward", result, project)
     assert result["metadata"]["convergence_checked"] is False
-    assert result["metadata"]["adapter_version"] == "1.3.0"
+    assert result["metadata"]["adapter_version"] == "1.4.0"
     bundle = (json.dumps({"project": project, "result": result}, separators=(",", ":"), ensure_ascii=False) + "\n").encode()
     manifest = {
         "project_fixture_sha256": INPUT_SHA,

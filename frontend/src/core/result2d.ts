@@ -35,7 +35,7 @@ export interface PublicMetadata2D extends Record<string, unknown> {
   stage: "bounded_forward";
   engine: "meent";
   version: "0.13.2";
-  adapter_version: "1.2.0" | "1.3.0";
+  adapter_version: "1.2.0" | "1.3.0" | "1.4.0";
   precision: "complex128";
   backend: "numpy";
   input_hash: string;
@@ -267,8 +267,8 @@ export function validateForwardResult2D(value: unknown): PublicForwardResult2D {
     "metadata",
   );
   if (hasCircular) {
-    if (meta.adapter_version !== "1.3.0")
-      invalid("Circular geometry requires adapter 1.3.0.");
+    if (meta.adapter_version === "1.2.0")
+      invalid("Circular geometry requires adapter 1.3.0 or later.");
     const circle = object(
       meta.circular_geometry,
       [
@@ -320,7 +320,11 @@ export function validateForwardResult2D(value: unknown): PublicForwardResult2D {
   }
   for (const [key, value] of Object.entries(metadataLiterals))
     if (meta[key] !== value) invalid(`metadata.${key} is unsupported.`);
-  if (meta.adapter_version !== "1.2.0" && meta.adapter_version !== "1.3.0")
+  if (
+    meta.adapter_version !== "1.2.0" &&
+    meta.adapter_version !== "1.3.0" &&
+    meta.adapter_version !== "1.4.0"
+  )
     invalid("metadata.adapter_version is unsupported.");
   for (const key of metadataStrings) string(meta[key], `metadata.${key}`);
   const hash = string(meta.input_hash, "metadata.input_hash");
@@ -533,9 +537,9 @@ function matchProject(project: Project2D, result: PublicForwardResult2D): void {
   const meta = result.metadata;
   if (
     project.layers.some((layer) => layer.geometry === "circular_hole_2d") &&
-    meta.adapter_version !== "1.3.0"
+    meta.adapter_version === "1.2.0"
   )
-    invalid("Circular-hole results require adapter 1.3.0.");
+    invalid("Circular-hole results require adapter 1.3.0 or later.");
   if (
     meta.harmonics_x !== project.solver.harmonics_x ||
     meta.harmonics_y !== project.solver.harmonics_y

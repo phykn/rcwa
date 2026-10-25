@@ -83,7 +83,7 @@ def test_2d_capabilities_and_validation_are_version_specific_and_solve_free(clie
     profile = caps["project_profiles"]["1.2"]
     assert profile["wavelength_count"] == 31 and profile["basis_size_max"] == 121
     assert profile["harmonics"] == {"x": [1, 5], "y": [1, 5]}
-    assert profile["adapter_version"] == "1.3.0" and profile["simultaneous_profile_jobs"] == 1
+    assert profile["adapter_version"] == "1.4.0" and profile["simultaneous_profile_jobs"] == 1
     assert "3.0" in profile["integer_representation"]
     for operation in ("synthetic_fit", "preview_changes", "preview_stack_changes"):
         assert operation not in profile["operations"]
@@ -164,7 +164,7 @@ def test_real_small_result_uses_public_metadata_channels_and_schema(solved_2d):
     project, result, digest = solved_2d
     assert result["schema_version"] == "1.2"
     meta = result["metadata"]
-    assert meta["input_hash"] == digest and meta["adapter_version"] == "1.3.0"
+    assert meta["input_hash"] == digest and meta["adapter_version"] == "1.4.0"
     assert meta["stage"] == "bounded_forward" and not meta["offline_reference_override"]
     assert meta["factorization"] == "directional_inverse_rule" and not meta["convergence_checked"]
     assert meta["retained_orders"] == [[m, n] for n in range(-1, 2) for m in range(-1, 2)]
@@ -307,7 +307,7 @@ def test_real_http_solve_snapshot_idempotency_and_database_restart(tmp_path, bac
         assert snapshot["project"] == valid["project"] and snapshot["result"] == job["result"]
         assert snapshot["provenance"]["input_hash"] == job["input_hash"]
         assert snapshot["provenance"]["source"] == "server_computed"
-        assert snapshot["provenance"]["adapter_version"] == "1.3.0"
+        assert snapshot["provenance"]["adapter_version"] == "1.4.0"
         assert snapshot["provenance"]["project_schema_version"] == "1.2"
         assert snapshot["provenance"]["result_schema_version"] == "1.2"
         assert client.post("/api/snapshots", json={"job_id": job["id"]}).json() == snapshot

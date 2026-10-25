@@ -13,7 +13,7 @@ import numpy as np
 from .preflight import SolverError, ensure_engine_available, refractive_index
 from .preflight_2d import ensure_preflight_2d, has_patterned_slab_2d
 from .schemas_2d import Project2D
-from .solver_2d import _solve_wavelength, stack_cells_2d
+from .solver_2d import _solve_wavelength, conv_matrices_2d, stack_cells_2d
 
 AGREEMENT_TOLERANCE = 1e-6
 MAX_POINTS = 64
@@ -24,7 +24,6 @@ class FieldUnavailable(SolverError):
 
 
 def field_2d(project: Project2D, wavelength: float, polarization: str, resolution: int = 40) -> dict:
-    from meent.on_numpy.emsolver.convolution_matrix import to_conv_mat_vector
     from meent.on_numpy.emsolver.rcwa import RCWANumpy
 
     project = Project2D.model_validate(project.model_dump())
@@ -55,7 +54,7 @@ def field_2d(project: Project2D, wavelength: float, polarization: str, resolutio
     angle, phi = np.deg2rad([project.illumination.angle_deg, project.illumination.azimuth_deg])
     try:
         with np.errstate(divide="raise", invalid="raise", over="raise"):
-            ex, ey, ezi = to_conv_mat_vector(cells, hx, hy, type_complex=np.complex128, use_pinv=False)
+            ex, ey, ezi = conv_matrices_2d(cells, hx, hy)
             mee = RCWANumpy(
                 n_top=n0, n_bot=ns.conjugate(), theta=angle, phi=phi, psi=np.pi / 2,
                 period=[project.period_nm, project.period_y_nm], wavelength=wavelength,

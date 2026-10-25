@@ -102,7 +102,8 @@ def preflight_2d(project, *, basis=None):
         # Enumerate every integer point in the light-cone bounding rectangle.
         # Corner/axis tests alone miss shifted off-axis propagating channels.
         bx, by = kx[hx], ky[hy]
-        radius = max(n0.real, ns.real if ns.imag == 0 else n0.real)
+        # A weakly absorbing substrate still carries nearly propagating orders out to n.
+        radius = max(n0.real, ns.real)
         sx, sy = wavelength / project.period_nm, wavelength / project.period_y_nm
         missing = [
             (m, n)
