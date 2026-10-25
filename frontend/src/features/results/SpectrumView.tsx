@@ -175,7 +175,8 @@ export function SpectrumView() {
         className="spectrum-side"
         aria-label="Values at the inspected wavelength"
       >
-        <div className="readout">
+        <div className={`readout${full && !current ? " readout-stale" : ""}`}>
+          {full && !current && <p className="stale-note">These values belong to the previous inputs.</p>}
           <div className="readout-wl">
             {main.wavelengths[i]} <span>nm</span>
           </div>
@@ -199,7 +200,7 @@ export function SpectrumView() {
             </p>
           )}
         </div>
-        <div className="swatches">
+        <div className={`swatches${full && !current ? " readout-stale" : ""}`}>
           <Swatch label="Reflects as" color={reflected} />
           <Swatch label="Transmits as" color={transmitted} />
         </div>
@@ -243,6 +244,7 @@ export function SpectrumView() {
           role="region"
           aria-label="Spectrum data"
         >
+          {full && !current && <p className="stale-note">This table belongs to the previous inputs.</p>}
           <table>
             <thead>
               <tr>

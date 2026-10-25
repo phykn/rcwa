@@ -157,7 +157,12 @@ export function MaterialField({
               <input
                 type="file"
                 accept=".csv,.txt,.tsv"
-                onChange={(e) => e.target.files?.[0] && void importTable(e.target.files[0])}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  // Reset so the same file can be chosen again after fixing an error.
+                  e.target.value = "";
+                  if (file) void importTable(file);
+                }}
               />
             </label>
           )}

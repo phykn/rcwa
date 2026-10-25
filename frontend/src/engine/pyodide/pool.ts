@@ -52,6 +52,8 @@ export class WorkerPool {
   private listeners = new Set<(status: PoolStatus) => void>();
   private nextId = 1;
   private status: PoolStatus = { phase: "idle", detail: "", workers: 0, busy: 0 };
+  /** Replacements for workers that died after starting, since the last one came up. */
+  private restarts = 0;
 
   constructor(
     private createWorker: () => WorkerLike,
@@ -127,6 +129,7 @@ export class WorkerPool {
       if (!this.slots.some((s) => s.ready)) this.publish({ phase: "loading", detail: message.phase });
     } else if (message.type === "ready") {
       slot.ready = true;
+      this.restarts = 0;
       this.publish({ phase: "ready", detail: "" });
       this.pump();
     } else if (message.type === "fatal") {
@@ -148,6 +151,13 @@ export class WorkerPool {
     }
     if (this.slots.some((s) => s.ready)) return this.pump();
     if (this.slots.length) return;
+    // A worker that had started and then died (for example out of memory on one
+    // task) is replaced; only an engine that cannot start at all is a failure.
+    if (slot.ready && this.restarts < 2) {
+      this.restarts++;
+      this.spawn();
+      return this.pump();
+    }
     this.publish({ phase: "failed", detail: `The calculation engine could not start: ${detail}` });
     for (const task of this.waiting()) this.settle(task, () => task.reject(new Error(detail)));
     this.queues = { preview: [], interactive: [], background: [] };

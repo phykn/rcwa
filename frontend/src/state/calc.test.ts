@@ -16,9 +16,8 @@ let pending: Pending[];
 let calc: Calculation;
 
 function fakeHub() {
-  return {
-    setPreference: () => {},
-    engine: {
+  // Browser mode: previews and full solves share one engine, as in the real hub.
+  const engine = {
       kind: "browser",
       validate: async () => [],
       solve: (design: Design, options: SolveOptions = {}) =>
@@ -26,8 +25,8 @@ function fakeHub() {
           options.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
           pending.push({ design, options, resolve, reject });
         }),
-    },
-  } as unknown as EngineHub;
+  };
+  return { setPreference: () => {}, engine, browserEngine: engine } as unknown as EngineHub;
 }
 
 const result = (n: number) => ({ wavelengths_nm: Array(n).fill(0) }) as unknown as SpectrumResult;

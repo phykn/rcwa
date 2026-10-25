@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 /** Anchored panel that closes on Escape or an outside press and restores focus. */
 export function Popover({
@@ -13,17 +13,23 @@ export function Popover({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Callers pass a fresh arrow each render; reading it through a ref keeps the
+  // effect (and its initial focus) from re-running on every parent update.
+  const close = useRef(onClose);
+  useLayoutEffect(() => {
+    close.current = onClose;
+  });
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     const node = ref.current;
     (node?.querySelector<HTMLElement>("input, button, [tabindex='0']") ?? node)?.focus();
     const outside = (e: PointerEvent) => {
-      if (node && !node.contains(e.target as Node)) onClose();
+      if (node && !node.contains(e.target as Node)) close.current();
     };
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        close.current();
       }
     };
     document.addEventListener("pointerdown", outside, true);
@@ -33,7 +39,7 @@ export function Popover({
       document.removeEventListener("keydown", key, true);
       opener?.focus?.();
     };
-  }, [onClose]);
+  }, []);
   return (
     <div ref={ref} role="dialog" aria-label={label} className={`popover ${className}`} tabIndex={-1}>
       {children}

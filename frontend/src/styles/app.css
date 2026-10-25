@@ -104,7 +104,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .tag { font-size: 11px; color: var(--warn); background: var(--warn-soft); padding: 1px 6px; border-radius: 4px; }
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .field-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.field { display: grid; gap: 4px; min-width: 0; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
 .field-label { font-size: 12px; color: var(--ink-2); }
 .field-input { display: flex; align-items: baseline; border: 0; border-bottom: 1px solid var(--line-strong); background: transparent; }
 .field-input:focus-within { border-bottom: 2px solid var(--ink); margin-bottom: -1px; }
@@ -206,6 +206,7 @@ h2 { font-size: 13px; font-weight: 600; }
 .stale-note { margin: 0; font-size: 12px; color: var(--warn); }
 .spectrum-side { display: grid; gap: 22px; align-content: start; }
 .readout { padding: 0; }
+.readout-stale .readout-wl, .readout-stale dd, .swatches.readout-stale { opacity: 0.45; }
 .readout-wl { font-size: 40px; font-weight: 600; line-height: 1; font-variation-settings: "wdth" 75; }
 .readout-wl span { font-size: 14px; font-weight: 400; color: var(--ink-3); font-variation-settings: "wdth" 100; }
 .readout dl { margin: 14px 0 0; display: grid; gap: 6px; }

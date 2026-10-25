@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FitResult } from "../../engine/browser";
 import type { ServerEngine } from "../../engine/server";
 import { getValue, parameters, setValue, type Parameter } from "../../core/parameters";
@@ -35,6 +35,10 @@ export function parseMeasurement(text: string) {
   };
 }
 
+/** Layer order and kinds: fitted values index layers, so they only apply to the same stack. */
+const stackOf = (design: { layers: { geometry: string; name: string }[] }) =>
+  design.layers.map((layer) => `${layer.geometry}:${layer.name}`).join("|");
+
 interface Choice {
   id: string;
   lower: number;
@@ -53,10 +57,13 @@ export default function FitView() {
   const [pol, setPol] = useState<"avg" | "s" | "p">(design.illumination.polarization === "both" ? "avg" : design.illumination.polarization);
   const [choices, setChoices] = useState<Choice[]>([]);
   const [fast, setFast] = useState(true);
-  const [result, setResult] = useState<(FitResult & { params: Parameter[] }) | null>(null);
+  const [result, setResult] = useState<(FitResult & { params: Parameter[]; stack: string; quantity: "R" | "T" }) | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
+  useEffect(() => () => abort.current?.abort(), []);
+  // A choice whose dimension the design no longer has (a layer turned into a film) drops out.
+  const live = choices.filter((c) => params.some((p) => p.id === c.id));
 
   const measurement = useMemo(() => {
     try {
@@ -67,10 +74,10 @@ export default function FitView() {
   }, [text]);
 
   const toggle = (p: Parameter) => {
-    if (choices.some((c) => c.id === p.id)) return setChoices(choices.filter((c) => c.id !== p.id));
-    if (choices.length >= 3) return;
+    if (live.some((c) => c.id === p.id)) return setChoices(live.filter((c) => c.id !== p.id));
+    if (live.length >= 3) return;
     const v = getValue(design, p);
-    setChoices([...choices, { id: p.id, lower: Math.max(p.min, Math.round(v * 0.7)), upper: Math.min(p.max, Math.max(Math.round(v * 1.3), Math.round(v) + 5)) }]);
+    setChoices([...live, { id: p.id, lower: Math.max(p.min, Math.round(v * 0.7)), upper: Math.min(p.max, Math.max(Math.round(v * 1.3), Math.round(v) + 5)) }]);
   };
 
   async function run() {
@@ -79,7 +86,8 @@ export default function FitView() {
     const controller = (abort.current = new AbortController());
     setBusy(true);
     setError("");
-    const chosen = choices.map((c) => ({ c, p: params.find((p) => p.id === c.id)! }));
+    const chosen = live.map((c) => ({ c, p: params.find((p) => p.id === c.id)! }));
+    const stack = stackOf(design);
     try {
       const solver = fast
         ? { harmonics_x: Math.min(2, design.solver.harmonics_x), harmonics_y: Math.min(2, design.solver.harmonics_y) }
@@ -97,7 +105,7 @@ export default function FitView() {
         },
         { signal: controller.signal, priority: "interactive" },
       );
-      if (!controller.signal.aborted) setResult({ ...out, params: chosen.map((x) => x.p) });
+      if (!controller.signal.aborted) setResult({ ...out, params: chosen.map((x) => x.p), stack, quantity });
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -110,7 +118,12 @@ export default function FitView() {
     const zeros = measurement.values.map(() => 0);
     const asSeries = (v: number[]) => ({ wavelengths: measurement.wavelengths, R: quantity === "R" ? v : zeros, T: quantity === "T" ? v : zeros, A: zeros, Rspec: zeros, Tspec: zeros });
     layers.push({ id: "measured", label: "Measured", series: asSeries(measurement.values), kind: "overlay" });
-    if (result) layers.push({ id: "fitted", label: "Fitted", series: asSeries(result.fitted), kind: "main" });
+    if (result) {
+      // The fit's own wavelengths: the pasted data may have changed since it ran.
+      const none = result.fitted.map(() => 0);
+      const fitted = { wavelengths: result.wavelengths_nm, R: result.quantity === "R" ? result.fitted : none, T: result.quantity === "T" ? result.fitted : none, A: none, Rspec: none, Tspec: none };
+      layers.push({ id: "fitted", label: "Fitted", series: fitted, kind: "main" });
+    }
   }
 
   return (
@@ -137,7 +150,12 @@ export default function FitView() {
                 ? "Could not read this data yet."
                 : "Or load a CSV file below."}
           </span>
-          <input type="file" accept=".csv,.txt,.tsv" aria-label="Load measured spectrum file" onChange={async (e) => e.target.files?.[0] && setText(await e.target.files[0].text())} />
+          <input type="file" accept=".csv,.txt,.tsv" aria-label="Load measured spectrum file" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            // Reset so choosing the same file again still loads it.
+            e.target.value = "";
+            if (file) setText(await file.text());
+          }} />
         </label>
         <div className="fit-options">
           <Segmented label="Quantity" value={quantity} options={[{ value: "R", label: "Reflectance" }, { value: "T", label: "Transmittance" }]} onChange={setQuantity} />
@@ -154,11 +172,11 @@ export default function FitView() {
           <fieldset className="fit-params">
             <legend className="field-label">Adjust (up to 3)</legend>
             {params.map((p) => {
-              const choice = choices.find((c) => c.id === p.id);
+              const choice = live.find((c) => c.id === p.id);
               return (
                 <div key={p.id} className="fit-param">
                   <label className="toggle">
-                    <input type="checkbox" checked={!!choice} disabled={!choice && choices.length >= 3} onChange={() => toggle(p)} />
+                    <input type="checkbox" checked={!!choice} disabled={!choice && live.length >= 3} onChange={() => toggle(p)} />
                     {p.label} <span className="field-hint">now {getValue(design, p)} {p.unit}</span>
                   </label>
                   {choice && (
@@ -174,7 +192,7 @@ export default function FitView() {
         </div>
       </div>
       <div className="analysis-actions">
-        <button type="button" className="btn btn-primary" disabled={busy || !measurement || !choices.length || choices.some((c) => !(c.upper > c.lower))} onClick={() => void run()}>
+        <button type="button" className="btn btn-primary" disabled={busy || !measurement || !live.length || live.some((c) => !(c.upper > c.lower))} onClick={() => void run()}>
           {busy ? "Fitting…" : "Fit"}
         </button>
         {busy && (
@@ -218,9 +236,13 @@ export default function FitView() {
               <li key={w}>{w}</li>
             ))}
           </ul>
+          {result.stack !== stackOf(design) && (
+            <p className="stale-note">The layers changed since this fit, so its values no longer map onto them.</p>
+          )}
           <button
             type="button"
             className="btn btn-primary"
+            disabled={result.stack !== stackOf(design)}
             onClick={() => edit((d) => result.params.reduce((acc, p, i) => setValue(acc, p, Math.round(result.values[i] * 100) / 100), d))}
           >
             Apply fitted values

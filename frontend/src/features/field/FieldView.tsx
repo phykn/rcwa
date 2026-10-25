@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FieldMap } from "../../engine/browser";
 import { nearestIndex } from "../../core/spectrum";
 import { useServices } from "../../state/context";
@@ -21,6 +21,8 @@ export default function FieldView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
+  // Leaving the tab removes the Stop button, so stop the work with it.
+  useEffect(() => () => abort.current?.abort(), []);
 
   async function compute() {
     abort.current?.abort();

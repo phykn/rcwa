@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TEMPLATES } from "../core/templates";
 import { useStore } from "../state/store";
 import { NumberField } from "../ui/NumberField";
+import { Popover } from "../ui/Popover";
+import { ladder } from "./convergence/ConvergenceView";
 import { Inspector } from "./Inspector";
 import { StackPanel } from "./StackPanel";
 
@@ -108,5 +110,44 @@ describe("run details", () => {
     expect(screen.getByText("abc123")).toBeTruthy();
     expect(screen.getByText("Convergence not assessed")).toBeTruthy();
     useStore.getState().updateSettings({ advanced: false });
+  });
+});
+
+describe("Popover", () => {
+  it("keeps focus where the user typed when its parent re-renders", async () => {
+    function Host({ tick }: { tick: number }) {
+      return (
+        <Popover label="Pick" onClose={() => {}}>
+          <input aria-label="Search" />
+          <input aria-label={`n ${tick % 1}`} />
+        </Popover>
+      );
+    }
+    const { rerender } = render(<Host tick={0} />);
+    const n = screen.getByRole("textbox", { name: "n 0" });
+    await userEvent.click(n);
+    await userEvent.type(n, "2");
+    rerender(<Host tick={1} />);
+    // Keyboard only: `type` would click the field and hide a lost focus.
+    await userEvent.keyboard(".25");
+    expect((n as HTMLInputElement).value).toBe("2.25");
+    expect((screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement).value).toBe("");
+  });
+});
+
+describe("convergence ladder", () => {
+  const withOrders = (index: number, orders: [number, number]) => {
+    const design = TEMPLATES[index].design;
+    return { ...design, solver: { harmonics_x: orders[0], harmonics_y: orders[1] } };
+  };
+  it("steps the axis a 1D grating varies along, even at the order limit", () => {
+    const lines = TEMPLATES.findIndex((t) => t.design.layers.some((l) => l.geometry === "rectangle_1d"));
+    expect(ladder(withOrders(lines, [5, 1]))).toEqual([[4, 1], [5, 1]]);
+    expect(ladder(withOrders(lines, [3, 1]))).toEqual([[3, 1], [4, 1]]);
+  });
+  it("steps both axes of a 2D pattern down when either is at the limit", () => {
+    const holes = TEMPLATES.findIndex((t) => t.design.layers.some((l) => l.geometry === "circular_hole_2d"));
+    expect(ladder(withOrders(holes, [5, 3]))).toEqual([[4, 2], [5, 3]]);
+    expect(ladder(withOrders(holes, [3, 3]))).toEqual([[3, 3], [4, 4]]);
   });
 });

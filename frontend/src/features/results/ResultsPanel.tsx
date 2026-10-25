@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import type { EngineState } from "../../engine";
 import { useServices } from "../../state/context";
-import { useStore } from "../../state/store";
+import { useIsCurrent, useStore } from "../../state/store";
 import { OrdersTable } from "./OrdersTable";
 import { SpectrumView } from "./SpectrumView";
 
@@ -85,6 +85,7 @@ export function ResultsPanel() {
   const tab = TABS.some((t) => t.id === chosen) ? chosen : "spectrum";
   const setTab = useStore((s) => s.setTab);
   const full = useStore((s) => s.full);
+  const current = useIsCurrent();
   const pol = useStore((s) => s.settings.polarization);
   const cursor = useStore((s) => s.cursor);
   return (
@@ -122,7 +123,10 @@ export function ResultsPanel() {
           {tab === "spectrum" && <SpectrumView />}
           {tab === "orders" &&
             (full ? (
-              <OrdersTable result={full.result} pol={pol} cursor={cursor} />
+              <>
+                {!current && <p className="stale-note">These orders belong to the previous inputs.</p>}
+                <OrdersTable result={full.result} pol={pol} cursor={cursor} />
+              </>
             ) : (
               <p className="empty-note">Orders appear after the first full calculation.</p>
             ))}

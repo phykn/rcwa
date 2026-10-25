@@ -31,7 +31,8 @@ export function connectCalculation(hub: EngineHub) {
     const store = useStore.getState();
     if (store.status.phase !== "solving") store.setStatus({ phase: "preview", error: null });
     try {
-      const result = await hub.engine.solve(previewDesign(design), { signal: abort.signal, priority: "preview" });
+      // Previews stay local: the server admits one 2D job, which the full solve needs.
+      const result = await hub.browserEngine.solve(previewDesign(design), { signal: abort.signal, priority: "preview" });
       if (abort.signal.aborted || useStore.getState().key !== key) return;
       useStore.getState().setPreview(design, result);
       if (useStore.getState().status.phase === "preview") useStore.getState().setStatus({ phase: "idle" });

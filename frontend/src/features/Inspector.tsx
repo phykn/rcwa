@@ -331,7 +331,8 @@ function LightEditor({
           min={210}
           max={2500}
           slider={false}
-          onChange={(v) => setRange(range.start, v, range.points)}
+          // A single-wavelength design has no spacing yet; widening it needs samples.
+          onChange={(v) => setRange(range.start, v, range.points > 1 ? range.points : 21)}
         />
         {advanced && (
           <NumberField

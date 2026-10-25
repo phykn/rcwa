@@ -13,12 +13,27 @@ interface Check {
   runs: { orders: [number, number]; result: SpectrumResult }[];
 }
 
-/** Orders to compare: the design's own and one step finer, or one coarser at the limit. */
-function ladder(design: Design): [number, number][] {
-  const { harmonics_x: hx, harmonics_y: hy } = design.solver;
-  const up: [number, number] = [Math.min(MAX_ORDERS, hx + 1), Math.min(MAX_ORDERS, hy + 1)];
-  if (up[0] !== hx || up[1] !== hy) return [[hx, hy], up];
-  return [[Math.max(1, hx - 1), Math.max(1, hy - 1)], [hx, hy]];
+/** Axes the stack is patterned along; orders on any other axis change nothing. */
+function patternedAxes(design: Design): [boolean, boolean] {
+  const kinds = design.layers.map((layer) => layer.geometry);
+  return [
+    kinds.some((kind) => kind !== "homogeneous"),
+    kinds.some((kind) => kind === "rectangle_2d" || kind === "circular_hole_2d"),
+  ];
+}
+
+/**
+ * Orders to compare: the design's own and one step finer on every patterned axis,
+ * or one step coarser when any of them is already at the limit. Stepping only the
+ * axes that can still rise would leave a maxed-out axis (5×1 lines) untested.
+ */
+export function ladder(design: Design): [number, number][] {
+  const own: [number, number] = [design.solver.harmonics_x, design.solver.harmonics_y];
+  const axes = patternedAxes(design);
+  const step = (delta: number) =>
+    own.map((h, i) => (axes[i] ? Math.min(MAX_ORDERS, Math.max(1, h + delta)) : h)) as [number, number];
+  const canRise = own.every((h, i) => !axes[i] || h < MAX_ORDERS);
+  return canRise ? [own, step(1)] : [step(-1), own];
 }
 
 export default function ConvergenceView() {
@@ -39,15 +54,15 @@ export default function ConvergenceView() {
     setBusy(true);
     setError("");
     try {
-      const runs = await Promise.all(
-        ladder(design).map(async (orders) => ({
-          orders,
-          result: await hub.engine.solve(
-            { ...design, solver: { harmonics_x: orders[0], harmonics_y: orders[1] } },
-            { signal: controller.signal, priority: "interactive" },
-          ),
-        })),
-      );
+      // One after the other: the server admits a single 2D job at a time.
+      const runs = [];
+      for (const orders of ladder(design)) {
+        const result = await hub.engine.solve(
+          { ...design, solver: { harmonics_x: orders[0], harmonics_y: orders[1] } },
+          { signal: controller.signal, priority: "interactive" },
+        );
+        runs.push({ orders, result });
+      }
       if (!controller.signal.aborted) setCheck({ key, runs });
     } catch (e) {
       if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
@@ -78,6 +93,7 @@ export default function ConvergenceView() {
   }, [check, pol]);
 
   const [lo, hi] = ladder(design);
+  const atLimit = hi[0] === design.solver.harmonics_x && hi[1] === design.solver.harmonics_y && (lo[0] !== hi[0] || lo[1] !== hi[1]);
   return (
     <div className="analysis">
       <p className="analysis-note">
@@ -98,7 +114,7 @@ export default function ConvergenceView() {
             The largest change in R or T is {(summary.worst * 100).toFixed(2)} percentage points, at {summary.at} nm.{" "}
             {summary.worst < TOLERANCE
               ? "The spectrum is stable to within 0.5 points."
-              : hi[0] >= MAX_ORDERS && hi[1] >= MAX_ORDERS
+              : atLimit
                 ? "The design already uses the most orders this app allows; treat sharp features with care."
                 : "Raise the orders in Lattice until this check passes."}
           </div>

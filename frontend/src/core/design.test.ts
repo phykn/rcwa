@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { convertLayer, describeRange, designError, designKey, newLayer, normalizeDesign, wavelengthRange } from "./design";
 import { TEMPLATES } from "./templates";
+import { apiProjects } from "./exporters";
 import { parseProjectFile, serializeDesign } from "./projectFile";
 import { decodeShare, encodeShare } from "./share";
 import legacy from "./fixtures/legacy-reference.json";
@@ -56,6 +57,19 @@ describe("files and links", () => {
     expect(design.layers[0].geometry).toBe("rectangle_1d");
     expect(design.solver.harmonics_y).toBe(1);
     expect(notes[0]).toMatch(/Converted from schema 1\.0/);
+  });
+  it("rejects JSON that is not a project instead of opening a default design", () => {
+    expect(() => parseProjectFile('{"hello": 1}')).toThrow(/not an RCWA project/);
+    expect(() => parseProjectFile('{"layers": [], "extra": true}')).toThrow(/not an RCWA project/);
+  });
+  it("reopens its own chunked API export as one design", () => {
+    const long = { ...example, illumination: { ...example.illumination, wavelengths_nm: wavelengthRange(400, 800, 81) } };
+    const text = apiProjects(long);
+    expect(JSON.parse(text).projects.length).toBeGreaterThan(1);
+    expect(parseProjectFile(text).design).toEqual(normalizeDesign(long));
+    const mixed = JSON.parse(text);
+    mixed.projects[1].period_nm += 10;
+    expect(() => parseProjectFile(JSON.stringify(mixed))).toThrow(/different designs/);
   });
   it("round-trips a share link", async () => {
     const hash = await encodeShare(example);

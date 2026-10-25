@@ -43,7 +43,12 @@ export class ServerEngine implements Engine {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const detail = (body as { detail?: { code?: string; message?: string; diagnostics?: Diagnostic[] } | string }).detail;
+      const { detail, error } = body as {
+        detail?: { code?: string; message?: string; diagnostics?: Diagnostic[] } | string;
+        error?: { code?: string; message?: string; diagnostics?: Diagnostic[] };
+      };
+      // Current API errors carry a typed `error`; `detail` stays for older servers.
+      if (error?.code) throw new EngineError(error.code, error.message ?? "Server rejected the request", error.diagnostics);
       if (typeof detail === "object" && detail)
         throw new EngineError(detail.code ?? "server_error", detail.message ?? "Server rejected the request", detail.diagnostics);
       throw new EngineError("server_error", typeof detail === "string" ? detail : `Server error ${response.status}`);
@@ -87,8 +92,11 @@ export class ServerEngine implements Engine {
 
   /** Submit, poll until terminal, and cancel the server job if the caller aborts. */
   private async job<R>(body: object, options: SolveOptions): Promise<R> {
-    let job = await this.request<Job<R>>("/api/jobs", { method: "POST", body: JSON.stringify(body), signal: options.signal });
+    // The POST is not aborted mid-flight: a job the server already admitted would
+    // keep its slot with no id to cancel. Cancel it once the id is known instead.
+    let job = await this.request<Job<R>>("/api/jobs", { method: "POST", body: JSON.stringify(body) });
     try {
+      options.signal?.throwIfAborted();
       while (job.status === "running") {
         await sleep(150, options.signal);
         job = await this.request<Job<R>>(`/api/jobs/${job.id}`, { signal: options.signal });

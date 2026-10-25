@@ -88,6 +88,22 @@ describe("WorkerPool", () => {
     await expect(p.run("solve", [])).rejects.toThrow(/could not start/);
   });
 
+  it("replaces a worker that dies after starting instead of failing for good", async () => {
+    const p = pool();
+    const statuses: string[] = [];
+    p.subscribe((s) => statuses.push(s.phase));
+    const crashed = p.run("solve", ["big"]);
+    FakeWorker.all[0].emit({ type: "ready" });
+    FakeWorker.all[0].onerror?.({ message: "out of memory" } as ErrorEvent);
+    await expect(crashed).rejects.toThrow("out of memory");
+    expect(statuses).not.toContain("failed");
+    const next = p.run("solve", ["small"]);
+    const replacement = FakeWorker.all[1];
+    replacement.emit({ type: "ready" });
+    replacement.finish();
+    await expect(next).resolves.toMatchObject({ ok: true });
+  });
+
   it("sizes the pool from cores and memory", () => {
     expect(defaultPoolSize({ hardwareConcurrency: 16 })).toBe(4);
     expect(defaultPoolSize({ hardwareConcurrency: 2 })).toBe(1);

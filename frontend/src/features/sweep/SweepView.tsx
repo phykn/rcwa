@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { previewDesign } from "../../engine/chunks";
 import {
   getValue,
@@ -55,6 +55,8 @@ export default function SweepView() {
   const [sweep, setSweep] = useState<Sweep | null>(null);
   const [error, setError] = useState("");
   const abort = useRef<AbortController | null>(null);
+  // Leaving the tab removes the Stop button, so stop the work with it.
+  useEffect(() => () => abort.current?.abort(), []);
   const [running, setRunning] = useState(false);
 
   const choose = (id: string) => {
