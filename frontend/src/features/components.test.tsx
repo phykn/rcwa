@@ -5,7 +5,6 @@ import { TEMPLATES } from "../core/templates";
 import { useStore } from "../state/store";
 import { NumberField } from "../ui/NumberField";
 import { Popover } from "../ui/Popover";
-import { ladder } from "./convergence/ConvergenceView";
 import { Inspector } from "./Inspector";
 import { StackPanel } from "./StackPanel";
 
@@ -88,12 +87,24 @@ describe("editing through the panels", () => {
   });
 });
 
-describe("run details", () => {
-  it("shows hashes and solver notes only in advanced mode", async () => {
+describe("light and results", () => {
+  it("edits polarization and azimuth, and keeps Fourier orders out of the panel", async () => {
+    render(<Inspector />);
+    expect(screen.queryByRole("textbox", { name: "Orders X" })).toBeNull();
+    await userEvent.click(screen.getByRole("radio", { name: "p (TM)" }));
+    expect(useStore.getState().design.illumination.polarization).toBe("p");
+    const azimuth = screen.getByRole("textbox", { name: "Azimuth φ" });
+    await userEvent.clear(azimuth);
+    await userEvent.type(azimuth, "45");
+    expect(useStore.getState().design.illumination.azimuth_deg).toBe(45);
+  });
+
+  it("shows the design's polarization and the calculation notes", async () => {
     const { SpectrumView } = await import("./results/SpectrumView");
+    const pol = (R: number[]) => ({ R, T: R.map((r) => 1 - r), R_specular: R, T_specular: R.map((r) => 1 - r), A_balance: [0, 0], orders: [[], []] });
     const result = {
       wavelengths_nm: [500, 600],
-      spectra: { s: { R: [0.1, 0.2], T: [0.9, 0.8], R_specular: [0.1, 0.2], T_specular: [0.9, 0.8], A_balance: [0, 0], orders: [[], []] } },
+      spectra: { s: pol([0.1, 0.2]), p: pol([0.3, 0.4]) },
       warnings: ["Convergence not assessed"],
       harmonics: [2, 2] as [number, number],
       inputHashes: ["abc123"],
@@ -102,14 +113,47 @@ describe("run details", () => {
       maxLosslessFluxError: 1e-12,
     };
     useStore.getState().setFull(useStore.getState().design, result);
-    useStore.getState().updateSettings({ advanced: false });
+    useStore.setState({ cursor: 500 });
     const { rerender } = render(<SpectrumView />);
-    expect(screen.queryByText("abc123")).toBeNull();
-    useStore.getState().updateSettings({ advanced: true });
-    rerender(<SpectrumView />);
-    expect(screen.getByText("abc123")).toBeTruthy();
     expect(screen.getByText("Convergence not assessed")).toBeTruthy();
-    useStore.getState().updateSettings({ advanced: false });
+    // Both polarizations: unpolarized light is their mean.
+    expect(screen.getByText("Reflected", { selector: "dt" }).nextElementSibling!.textContent).toBe("20.0%");
+    const design = useStore.getState().design;
+    const pOnly = { ...design, illumination: { ...design.illumination, polarization: "p" as const } };
+    useStore.getState().replace(pOnly, result);
+    rerender(<SpectrumView />);
+    expect(screen.getByText("Reflected", { selector: "dt" }).nextElementSibling!.textContent).toBe("30.0%");
+  });
+});
+
+describe("one curve set", () => {
+  const run = (R: number) => ({
+    wavelengths_nm: [500, 600],
+    spectra: { s: { R: [R, R], T: [1 - R, 1 - R], R_specular: [R, R], T_specular: [1 - R, 1 - R], A_balance: [0, 0], orders: [[], []] } },
+    warnings: [],
+    harmonics: [2, 2] as [number, number],
+    inputHashes: [],
+    elapsedSeconds: 1,
+    engine: "browser" as const,
+    maxLosslessFluxError: null,
+  });
+  const reflected = () => screen.getByText("Reflected", { selector: "dt" }).nextElementSibling!.textContent;
+
+  it("shows the preview of the current inputs instead of the older full result", async () => {
+    const { SpectrumView } = await import("./results/SpectrumView");
+    const before = useStore.getState().design;
+    useStore.getState().setFull(before, run(0.1));
+    useStore.setState({ cursor: 500 });
+    useStore.getState().edit((d) => ({ ...d, period_nm: d.period_nm + 5 }));
+    const { rerender } = render(<SpectrumView />);
+    // No result for these inputs yet: the newest one stays until the next arrives.
+    expect(reflected()).toBe("10.0%");
+    useStore.getState().setPreview(useStore.getState().design, run(0.3));
+    rerender(<SpectrumView />);
+    expect(reflected()).toBe("30.0%");
+    useStore.getState().setFull(useStore.getState().design, run(0.25));
+    rerender(<SpectrumView />);
+    expect(reflected()).toBe("25.0%");
   });
 });
 
@@ -132,22 +176,5 @@ describe("Popover", () => {
     await userEvent.keyboard(".25");
     expect((n as HTMLInputElement).value).toBe("2.25");
     expect((screen.getByRole("textbox", { name: "Search" }) as HTMLInputElement).value).toBe("");
-  });
-});
-
-describe("convergence ladder", () => {
-  const withOrders = (index: number, orders: [number, number]) => {
-    const design = TEMPLATES[index].design;
-    return { ...design, solver: { harmonics_x: orders[0], harmonics_y: orders[1] } };
-  };
-  it("steps the axis a 1D grating varies along, even at the order limit", () => {
-    const lines = TEMPLATES.findIndex((t) => t.design.layers.some((l) => l.geometry === "rectangle_1d"));
-    expect(ladder(withOrders(lines, [5, 1]))).toEqual([[4, 1], [5, 1]]);
-    expect(ladder(withOrders(lines, [3, 1]))).toEqual([[3, 1], [4, 1]]);
-  });
-  it("steps both axes of a 2D pattern down when either is at the limit", () => {
-    const holes = TEMPLATES.findIndex((t) => t.design.layers.some((l) => l.geometry === "circular_hole_2d"));
-    expect(ladder(withOrders(holes, [5, 3]))).toEqual([[4, 2], [5, 3]]);
-    expect(ladder(withOrders(holes, [3, 3]))).toEqual([[3, 3], [4, 4]]);
   });
 });

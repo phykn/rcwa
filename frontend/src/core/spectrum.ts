@@ -42,3 +42,16 @@ export function nearestIndex(ws: number[], nm: number) {
   for (let i = 1; i < ws.length; i++) if (Math.abs(ws[i] - nm) < Math.abs(ws[best] - nm)) best = i;
   return best;
 }
+
+/** Linear interpolation of the curve (xs, ys) at x, held flat beyond its ends. */
+export function sampleAt(xs: ArrayLike<number>, ys: ArrayLike<number | null | undefined>, x: number) {
+  const n = xs.length;
+  if (!n) return 0;
+  if (x <= xs[0]) return ys[0] ?? 0;
+  if (x >= xs[n - 1]) return ys[n - 1] ?? 0;
+  let hi = 1;
+  while (xs[hi] < x) hi++;
+  const lo = hi - 1;
+  const f = (x - xs[lo]) / (xs[hi] - xs[lo]);
+  return (ys[lo] ?? 0) + f * ((ys[hi] ?? 0) - (ys[lo] ?? 0));
+}

@@ -1,5 +1,4 @@
-import { chunkDesign } from "../engine/chunks";
-import type { Design, SpectrumResult } from "../engine/types";
+import type { SpectrumResult } from "../engine/types";
 
 const row = (values: (string | number)[]) => values.join(",");
 
@@ -12,25 +11,4 @@ export function spectrumCsv(result: SpectrumResult): string {
     row([w, ...pols.flatMap((p) => fields.map((f) => result.spectra[p]![f][i]))]),
   );
   return [row(header), ...lines].join("\n") + "\n";
-}
-
-export function ordersCsv(result: SpectrumResult): string {
-  const header = ["wavelength_nm", "polarization", "m", "n", "R", "T", "R_s", "R_p", "T_s", "T_p", "kx_over_k0", "ky_over_k0"];
-  const lines: string[] = [];
-  for (const pol of ["s", "p"] as const) {
-    const spectrum = result.spectra[pol];
-    if (!spectrum) continue;
-    spectrum.orders.forEach((rows, i) =>
-      rows.forEach((o) =>
-        lines.push(row([result.wavelengths_nm[i], pol, o.m, o.n, o.R, o.T, o.R_s, o.R_p, o.T_s, o.T_p, o.kx_over_k0, o.ky_over_k0])),
-      ),
-    );
-  }
-  return [row(header), ...lines].join("\n") + "\n";
-}
-
-/** Schema-1.2 projects ready for POST /api/jobs or the MCP adapter. */
-export function apiProjects(design: Design): string {
-  const chunks = chunkDesign(design);
-  return JSON.stringify(chunks.length === 1 ? chunks[0] : { projects: chunks }, null, 2);
 }

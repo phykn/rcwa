@@ -57,17 +57,3 @@ def forward(project_json):
         return assemble_forward_2d(project, partials, elapsed_seconds=time.perf_counter() - start)
 
     return _call(run)
-
-
-def field(project_json, wavelength, polarization, resolution):
-    from rcwa_core.field_2d import field_2d
-
-    return _call(lambda: field_2d(
-        parse_project(json.loads(project_json)), float(wavelength), polarization, int(resolution)
-    ))
-
-
-def fit(project_json, spec_json):
-    from rcwa_core.fit_2d import fit_2d
-
-    return _call(lambda: fit_2d(parse_project(json.loads(project_json)), json.loads(spec_json)))

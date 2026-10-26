@@ -1,4 +1,4 @@
-import { expect, readout, test, useAdvanced, waitForEngine, waitUpToDate } from "./fixtures";
+import { expect, readout, test, waitForEngine, waitUpToDate } from "./fixtures";
 
 test("opens with a calculated example and recalculates edits in the browser", async ({ app: page }) => {
   await page.goto("/");
@@ -41,63 +41,6 @@ test("dragging a slider previews live, then settles into one full calculation", 
   await expect(thickness).toHaveValue("90");
 });
 
-test("sweeps a dimension into a heat map and applies a picked point", async ({ app: page }) => {
-  await useAdvanced(page);
-  await page.goto("/");
-  await waitForEngine(page);
-  await page.getByRole("tab", { name: "Sweep" }).click();
-  await page.getByRole("combobox").selectOption({ label: "Layer 1 hole diameter" });
-  await page.getByRole("textbox", { name: "Steps" }).fill("5");
-  await page.getByRole("textbox", { name: "Wavelengths" }).fill("9");
-  await page.getByRole("button", { name: "Run sweep" }).click();
-  await expect(page.getByText("5 of 5 rows")).toBeVisible({ timeout: 180_000 });
-  const map = page.getByRole("img", { name: /Reflectance map/ });
-  await expect(map).toBeVisible();
-  const box = (await map.boundingBox())!;
-  await map.click({ position: { x: box.width * 0.5, y: box.height * 0.1 } });
-  await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).not.toHaveValue("65");
-});
-
-test("maps the field and checks convergence", async ({ app: page }) => {
-  await useAdvanced(page);
-  await page.goto("/");
-  await waitForEngine(page);
-  await page.getByRole("tab", { name: "Field" }).click();
-  await page.getByRole("button", { name: "Calculate field" }).click();
-  await expect(page.getByRole("img", { name: /\|E\|² map/ })).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(/Peak \|E\|²/)).toBeVisible();
-
-  await page.getByRole("tab", { name: "Convergence" }).click();
-  await page.getByRole("button", { name: "Check convergence" }).click();
-  await expect(page.getByText(/^(Converged|Not converged)\./)).toBeVisible({ timeout: 180_000 });
-});
-
-test("fits a dimension to a measured spectrum", async ({ app: page }) => {
-  await page.goto("/");
-  await waitForEngine(page);
-  await page.getByRole("tab", { name: "Fit" }).click();
-  // A synthetic, nearly flat curve: this checks the workflow, not the physics (see backend tests).
-  const rows = Array.from({ length: 9 }, (_, i) => `${450 + 50 * i}, ${(0.04 + 0.002 * i).toFixed(3)}`).join("\n");
-  await page.getByRole("textbox", { name: /Measured spectrum/ }).fill(rows);
-  await expect(page.getByText("9 points")).toBeVisible();
-  await page.getByRole("checkbox", { name: /Layer 1 thickness/ }).check();
-  await page.getByRole("button", { name: "Fit", exact: true }).click();
-  await expect(page.getByText(/RMS residual/)).toBeVisible({ timeout: 180_000 });
-  await page.getByRole("button", { name: "Apply fitted values" }).click();
-});
-
-test("share links reproduce the design", async ({ app: page, context }) => {
-  await page.goto("/");
-  const diameter = page.getByRole("textbox", { name: "Hole diameter", exact: true });
-  await diameter.fill("72");
-  await diameter.press("Enter");
-  await page.getByRole("button", { name: "Share", exact: true }).click();
-  await expect(page).toHaveURL(/#d=/);
-  const other = await context.newPage();
-  await other.goto(page.url());
-  await expect(other.getByRole("textbox", { name: "Hole diameter", exact: true })).toHaveValue("72");
-});
-
 test("examples load and calculate", async ({ app: page }) => {
   await page.goto("/");
   await waitForEngine(page);
@@ -106,16 +49,6 @@ test("examples load and calculate", async ({ app: page }) => {
   await expect(page.getByRole("textbox", { name: "Design name" })).toHaveValue(/anti-reflection/i);
   await waitUpToDate(page);
   await expect(page.getByLabel("Values at the inspected wavelength")).toContainText("Reflects as");
-});
-
-test("command palette runs commands from the keyboard", async ({ app: page }) => {
-  await useAdvanced(page);
-  await page.goto("/");
-  await expect(page.getByRole("textbox", { name: "Design name" })).toBeVisible();
-  await page.keyboard.press("ControlOrMeta+k");
-  await page.getByRole("textbox", { name: "Search commands" }).fill("diffraction");
-  await page.keyboard.press("Enter");
-  await expect(page.getByRole("tab", { name: "Orders" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("works on a phone-sized screen without sideways scrolling", async ({ app: page }) => {
@@ -131,16 +64,6 @@ test("works on a phone-sized screen without sideways scrolling", async ({ app: p
   await expect(page.getByLabel("Values at the inspected wavelength")).toBeVisible();
   await tabs.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toBeVisible();
-});
-
-test("first visit shows the guide", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("dialog", { name: "Build the stack" })).toBeVisible();
-  await page.getByRole("button", { name: "Next" }).click();
-  await expect(page.getByRole("heading", { name: "Change a dimension" })).toBeVisible();
-  await page.getByRole("button", { name: "Skip" }).click();
-  await page.reload();
-  await expect(page.getByRole("dialog", { name: "Build the stack" })).toHaveCount(0);
 });
 
 test("reviews an imported dimension proposal before applying it", async ({ app: page }) => {
@@ -175,17 +98,21 @@ test("exports the spectrum chart as SVG and PNG", async ({ app: page }) => {
   }
 });
 
-test("simple mode shows only the essentials; advanced mode adds the rest", async ({ app: page }) => {
+test("shows one spectrum view and a minimal top bar", async ({ app: page }) => {
   await page.goto("/");
-  const tabs = page.getByRole("tablist", { name: "Result views" });
-  await expect(tabs.getByRole("tab")).toHaveText(["Spectrum", "Sweep", "Field", "Fit"]);
-  await expect(page.getByRole("textbox", { name: "Pitch", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Spectrum" })).toBeVisible();
+  const actions = page.getByRole("navigation", { name: "Design actions" }).getByRole("button");
+  await expect(actions).toHaveText(["", "", "Examples", "Open", "Export"]);
   await expect(page.getByRole("textbox", { name: "Orders X" })).toHaveCount(0);
-  await expect(page.getByRole("radiogroup", { name: "Polarization", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("checkbox", { name: "Advanced mode" }).check();
-  await page.keyboard.press("Escape");
-  await expect(tabs.getByRole("tab")).toHaveText(["Spectrum", "Orders", "Sweep", "Field", "Convergence", "Fit"]);
-  await expect(page.getByRole("textbox", { name: "Orders X" })).toBeVisible();
-  await expect(page.getByRole("radiogroup", { name: "Polarization", exact: true })).toBeVisible();
+});
+
+test("changing the polarization updates the spectrum", async ({ app: page }) => {
+  await page.goto("/");
+  await waitUpToDate(page, 30_000);
+  await waitForEngine(page);
+  const before = await readout(page);
+  await page.getByRole("radio", { name: "s (TE)" }).click();
+  await waitUpToDate(page);
+  expect(await readout(page)).not.toBe(before);
 });

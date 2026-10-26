@@ -47,16 +47,15 @@ The independent reference comparison builds official S4 at the exact source comm
   Pyodide 0.28.3 (NumPy 2.2.5, SciPy 1.14.1) and requires the frozen circular-hole
   H5 result to be reproduced within 1e-10 for every total and order power. It also
   checks that sharded partial solves assemble into exactly the whole-spectrum
-  result, that every template passes preflight, and that field maps and fits run.
+  result, and that every template passes preflight.
 - Field maps are checked against the analytic thin-film field (rtol 1e-6) and
   refuse cases where meent's native powers disagree with production.
 - 2D fitting recovers synthetic one- and two-parameter targets.
 - `npm run e2e` builds the static site and drives it in Chromium: first load with
   the stored example, in-browser recalculation after edits, a slider drag as one
-  undo step with live preview, a sweep heat map and point pick, field map and
-  convergence check, fitting, share-link round trip, examples, the command
-  palette, a 390 px phone layout without sideways scrolling, and the first-visit
-  guide. With `RCWA_E2E_PYTHON` it also starts the local API and checks that full
+  undo step with live preview, a polarization change, examples, a dimension
+  proposal review, chart export, the single spectrum view with its minimal top
+  bar, and a 390 px phone layout without sideways scrolling. With `RCWA_E2E_PYTHON` it also starts the local API and checks that full
   calculations switch to it.
 
 Screenshots of failing tests and traces are written to `frontend/test-results`.

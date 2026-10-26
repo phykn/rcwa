@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { spectrumColor } from "../../core/color";
-import { nearestIndex, polLabel, series } from "../../core/spectrum";
+import { nearestIndex, series } from "../../core/spectrum";
 import { useStore } from "../../state/store";
-import { Segmented } from "../../ui/Segmented";
-import { SpectrumChart, type ChartLayer } from "./SpectrumChart";
+import { SpectrumChart } from "./SpectrumChart";
 
 const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
@@ -36,61 +35,21 @@ function Swatch({
 export function SpectrumView() {
   const full = useStore((s) => s.full);
   const preview = useStore((s) => s.preview);
-  const ghost = useStore((s) => s.ghost);
-  const overlays = useStore((s) => s.overlays);
   const key = useStore((s) => s.key);
   const cursor = useStore((s) => s.cursor);
   const setCursor = useStore((s) => s.setCursor);
-  const settings = useStore((s) => s.settings);
-  const update = useStore((s) => s.updateSettings);
-  const showGhost = true;
-  const showAbsorption = true;
+  const polarization = useStore((s) => s.design.illumination.polarization);
   const [table, setTable] = useState(false);
-  const [zoom, setZoom] = useState(false);
-  // Simple mode always shows unpolarized light (the mean of s and p when both exist).
-  const pol = settings.advanced ? settings.polarization : "avg";
-  const current = !!full && full.key === key;
-  const livePreview = !current && preview?.key === key ? preview : null;
-
-  const layers = useMemo(() => {
-    const out: ChartLayer[] = [];
-    if (full)
-      out.push({
-        id: "full",
-        label: current ? "Current" : "Previous inputs",
-        series: series(full.result, pol),
-        kind: current ? "main" : "stale",
-      });
-    if (livePreview)
-      out.push({
-        id: "preview",
-        label: "Preview",
-        series: series(livePreview.result, pol),
-        kind: "preview",
-      });
-    if (showGhost && ghost && current)
-      out.push({
-        id: "ghost",
-        label: "Before last change",
-        series: series(ghost.result, pol),
-        kind: "ghost",
-      });
-    for (const o of overlays)
-      out.push({
-        id: o.id,
-        label: o.label,
-        series: series(o.result, pol),
-        kind: "overlay",
-      });
-    return out;
-  }, [full, current, livePreview, ghost, showGhost, overlays, pol]);
-
-  const main = full
-    ? series(full.result, pol)
-    : livePreview
-      ? series(livePreview.result, pol)
-      : null;
-  if (!main)
+  // The light the design asks for: unpolarized is the mean of s and p.
+  const pol = polarization === "both" ? "avg" : polarization;
+  // One curve set: the full result for these inputs, else their preview, else
+  // the newest result until the next one arrives (the status line says which).
+  const source = useMemo(() => {
+    const runs = [full, preview].filter((run) => run !== null);
+    return runs.find((run) => run.key === key) ?? runs.sort((a, b) => b.at - a.at)[0] ?? null;
+  }, [full, preview, key]);
+  const main = useMemo(() => (source ? series(source.result, pol) : null), [source, pol]);
+  if (!source || !main)
     return (
       <p className="empty-note">
         Results appear here after the first calculation.
@@ -99,57 +58,19 @@ export function SpectrumView() {
   const i = nearestIndex(main.wavelengths, cursor);
   const reflected = spectrumColor(main.wavelengths, main.R);
   const transmitted = spectrumColor(main.wavelengths, main.T);
-  const source = full ?? livePreview!;
 
   return (
     <div className="spectrum-view">
       <div className="spectrum-main">
         <div className="spectrum-toolbar">
-          {settings.advanced && (
-            <Segmented
-              label="Polarization shown"
-              hideLabel
-              value={pol}
-              options={[
-                { value: "avg", label: "Unpolarized" },
-                { value: "s", label: "s" },
-                { value: "p", label: "p" },
-              ]}
-              onChange={(polarization) => update({ polarization })}
-            />
-          )}
           <div className="legend" aria-label="Curves">
             <span className="key key-r">Reflected</span>
             <span className="key key-t">Transmitted</span>
             <span className="key key-a">Absorbed</span>
-            {ghost && <span className="key key-ghost">Before last change</span>}
-            {settings.advanced && (
-              <>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={settings.showSpecular}
-                    onChange={(e) => update({ showSpecular: e.target.checked })}
-                  />
-                  Specular (dashed)
-                </label>
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={zoom}
-                    onChange={(e) => setZoom(e.target.checked)}
-                  />
-                  Zoom to data
-                </label>
-              </>
-            )}
           </div>
         </div>
         <SpectrumChart
-          layers={layers}
-          showSpecular={settings.advanced && settings.showSpecular}
-          showAbsorption={showAbsorption}
-          zoom={settings.advanced && zoom}
+          series={main}
           cursor={main.wavelengths[i]}
           onCursor={setCursor}
         />
@@ -162,21 +83,12 @@ export function SpectrumView() {
           value={i}
           onChange={(e) => setCursor(main.wavelengths[Number(e.target.value)])}
         />
-        {!current && full && (
-          <p className="stale-note">
-            {livePreview
-              ? "Dashed curves preview your edit with fewer orders. "
-              : ""}
-            Faded curves belong to the previous inputs.
-          </p>
-        )}
       </div>
       <aside
         className="spectrum-side"
         aria-label="Values at the inspected wavelength"
       >
-        <div className={`readout${full && !current ? " readout-stale" : ""}`}>
-          {full && !current && <p className="stale-note">These values belong to the previous inputs.</p>}
+        <div className="readout">
           <div className="readout-wl">
             {main.wavelengths[i]} <span>nm</span>
           </div>
@@ -194,39 +106,17 @@ export function SpectrumView() {
               <dd>{pct(Math.max(0, main.A[i]))}</dd>
             </div>
           </dl>
-          {settings.advanced && (
-            <p className="readout-note">
-              {polLabel(source.result, pol)} light, {source.result.harmonics.join("×")} orders
-            </p>
-          )}
         </div>
-        <div className={`swatches${full && !current ? " readout-stale" : ""}`}>
+        <div className="swatches">
           <Swatch label="Reflects as" color={reflected} />
           <Swatch label="Transmits as" color={transmitted} />
         </div>
-        {settings.advanced && (
-          <details className="details" open>
-            <summary>Run details</summary>
-            <p>
-              Engine: meent 0.13.2 {source.result.engine === "server" ? "on the local server" : "in this browser"},{" "}
-              {source.result.harmonics.join("×")} orders, {source.result.elapsedSeconds.toFixed(2)} s
-            </p>
-            <p>
-              Lossless flux error:{" "}
-              {source.result.maxLosslessFluxError === null
-                ? "not applicable (lossy)"
-                : source.result.maxLosslessFluxError.toExponential(1)}
-            </p>
-            <p>Input hashes:</p>
-            {source.result.inputHashes.map((h) => (
-              <code key={h}>{h}</code>
+        {source.result.warnings.length > 0 && (
+          <ul className="spectrum-warnings" aria-label="Calculation notes">
+            {source.result.warnings.map((w) => (
+              <li key={w}>{w}</li>
             ))}
-            <ul>
-              {source.result.warnings.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-            </ul>
-          </details>
+          </ul>
         )}
         <button
           type="button"
@@ -244,7 +134,6 @@ export function SpectrumView() {
           role="region"
           aria-label="Spectrum data"
         >
-          {full && !current && <p className="stale-note">This table belongs to the previous inputs.</p>}
           <table>
             <thead>
               <tr>

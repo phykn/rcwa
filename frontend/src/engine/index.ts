@@ -4,8 +4,6 @@ import { MEENT_WHEEL } from "./pyodide/runtime";
 import { ServerEngine } from "./server";
 import type { Engine } from "./types";
 
-export type EnginePreference = "auto" | "browser" | "server";
-
 export interface EngineState {
   browser: PoolStatus;
   serverAvailable: boolean;
@@ -17,7 +15,6 @@ export class EngineHub {
   readonly pool: WorkerPool;
   private browser: BrowserEngine;
   private server: ServerEngine | null = null;
-  private preference: EnginePreference = "auto";
   private listeners = new Set<(state: EngineState) => void>();
   private poolStatus: PoolStatus = { phase: "idle", detail: "", workers: 0, busy: 0 };
 
@@ -45,14 +42,8 @@ export class EngineHub {
     this.emit();
   }
 
-  setPreference(preference: EnginePreference) {
-    this.preference = preference;
-    this.emit();
-  }
-
   get engine(): Engine {
-    if (this.preference === "browser" || !this.server) return this.browser;
-    return this.server;
+    return this.server ?? this.browser;
   }
 
   /** The browser engine also serves local work (preview, sweeps) when a server exists. */

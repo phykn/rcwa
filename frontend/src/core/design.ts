@@ -84,6 +84,27 @@ export function layerFeature(layer: Layer2D): number | null {
   return null;
 }
 
+/** Which axes the patterned layers vary along: none, x only (lines), or both. */
+export function patternKind(design: Design): "film" | "1d" | "2d" {
+  if (design.layers.some((l) => l.geometry === "rectangle_2d" || l.geometry === "circular_hole_2d")) return "2d";
+  return design.layers.some((l) => l.geometry === "rectangle_1d") ? "1d" : "film";
+}
+
+const ORDERS = { film: [1, 1], "1d": [5, 1], "2d": [3, 3] } as const;
+
+/**
+ * Fourier orders follow the geometry: when an edit changes which axes are
+ * patterned, the orders switch to that kind's default. Otherwise the design
+ * keeps its own (for example, what an opened file asked for).
+ */
+export function autoOrders(next: Design, previous: Design | null): Design {
+  const kind = patternKind(next);
+  if (previous && patternKind(previous) === kind) return next;
+  const [harmonics_x, harmonics_y] = ORDERS[kind];
+  if (next.solver.harmonics_x === harmonics_x && next.solver.harmonics_y === harmonics_y) return next;
+  return { ...next, solver: { harmonics_x, harmonics_y } };
+}
+
 export function newLayer(kind: Layer2D["geometry"], design: Design, index: number): Layer2D {
   const px = design.period_nm;
   const py = design.period_y_nm;

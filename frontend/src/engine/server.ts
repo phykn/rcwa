@@ -1,5 +1,4 @@
 import { chunkDesign, mergeResults } from "./chunks";
-import type { FitResult, FitSpec } from "./browser";
 import { EngineError, type Design, type Diagnostic, type Engine, type PublicForwardResult2D, type SolveOptions } from "./types";
 
 interface Job<R = PublicForwardResult2D> {
@@ -82,12 +81,6 @@ export class ServerEngine implements Engine {
       options.onProgress?.(done, total);
     }
     return mergeResults(results, "server", (performance.now() - started) / 1000);
-  }
-
-  /** Measured-spectrum dimension fit as a server job (native BLAS). */
-  fit(design: Design, spec: FitSpec, options: SolveOptions = {}) {
-    const project = { ...design, illumination: { ...design.illumination, wavelengths_nm: spec.wavelengths_nm } };
-    return this.job<FitResult>({ kind: "fit", project, fit_2d: spec }, options);
   }
 
   /** Submit, poll until terminal, and cancel the server job if the caller aborts. */

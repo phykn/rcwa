@@ -103,21 +103,4 @@ describe("browser engine parity with native CPython", () => {
         expect(value.diagnostics.filter((d) => d.severity === "error"), template.id).toEqual([]);
       }
   });
-
-  it("maps fields and fits dimensions in the browser runtime", () => {
-    const project = readFileSync(resolve(fixtures, "circular-project.json"), "utf8");
-    const field = call<{ xz: number[][]; max_intensity: number }>("field", project, 600, "s", 16);
-    expect(field.xz.length).toBeGreaterThan(0);
-    expect(field.max_intensity).toBeGreaterThan(0);
-    const data = JSON.parse(project);
-    data.solver = { harmonics_x: 1, harmonics_y: 1 };
-    data.illumination.wavelengths_nm = [450, 550, 650, 750, 850];
-    const target = { ...data, layers: data.layers.map((l: Record<string, unknown>, i: number) => (i ? l : { ...l, diameter_nm: 90 })) };
-    const values = call<{ spectra: { s: { R: number[] } } }>("forward", JSON.stringify(target)).spectra.s.R;
-    const fit = call<{ values: number[] }>("fit", JSON.stringify(data), JSON.stringify({
-      parameters: [{ path: ["layers", 0, "diameter_nm"], lower: 40, upper: 120 }],
-      wavelengths_nm: data.illumination.wavelengths_nm, values, quantity: "R", polarization: "s",
-    }));
-    expect(fit.values[0]).toBeCloseTo(90, 1);
-  });
 });

@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { convertLayer, describeRange, designError, designKey, newLayer, normalizeDesign, wavelengthRange } from "./design";
+import { autoOrders, convertLayer, describeRange, designError, designKey, newLayer, normalizeDesign, wavelengthRange } from "./design";
 import { TEMPLATES } from "./templates";
-import { apiProjects } from "./exporters";
+import { chunkDesign } from "../engine/chunks";
 import { parseProjectFile, serializeDesign } from "./projectFile";
-import { decodeShare, encodeShare } from "./share";
 import legacy from "./fixtures/legacy-reference.json";
 
 const example = TEMPLATES[0].design;
@@ -42,12 +41,24 @@ describe("design helpers", () => {
     expect(normalizeDesign({ ...example, layers: [blocks] }).layers[0].geometry).toBe("rectangle_2d");
   });
 
+  it("switches Fourier orders only when the patterned axes change", () => {
+    const film = { ...example, layers: [newLayer("homogeneous", example, 0)], solver: { harmonics_x: 1, harmonics_y: 1 } };
+    const lines = { ...film, layers: [newLayer("rectangle_1d", film, 0)] };
+    expect(autoOrders(lines, film).solver).toEqual({ harmonics_x: 5, harmonics_y: 1 });
+    // A 1D design that gains a 2D layer patterns y too, so y needs orders.
+    const mixed = { ...lines, solver: { harmonics_x: 5, harmonics_y: 1 }, layers: [...lines.layers, newLayer("circular_hole_2d", lines, 1)] };
+    expect(autoOrders(mixed, { ...lines, solver: { harmonics_x: 5, harmonics_y: 1 } }).solver).toEqual({ harmonics_x: 3, harmonics_y: 3 });
+    // Same kind of pattern: an opened file keeps the orders it asked for.
+    const custom = { ...example, solver: { harmonics_x: 5, harmonics_y: 4 } };
+    expect(autoOrders({ ...custom, period_nm: 160 }, custom).solver).toEqual(custom.solver);
+  });
+
   it("validates every template", () => {
     for (const t of TEMPLATES) expect(designError(t.design), t.id).toBeNull();
   });
 });
 
-describe("files and links", () => {
+describe("design files", () => {
   it("round-trips a design file", () => {
     expect(parseProjectFile(serializeDesign(example)).design).toEqual(normalizeDesign(example));
   });
@@ -62,20 +73,13 @@ describe("files and links", () => {
     expect(() => parseProjectFile('{"hello": 1}')).toThrow(/not an RCWA project/);
     expect(() => parseProjectFile('{"layers": [], "extra": true}')).toThrow(/not an RCWA project/);
   });
-  it("reopens its own chunked API export as one design", () => {
+  it("reopens a chunked API project list as one design", () => {
     const long = { ...example, illumination: { ...example.illumination, wavelengths_nm: wavelengthRange(400, 800, 81) } };
-    const text = apiProjects(long);
+    const text = JSON.stringify({ projects: chunkDesign(long) });
     expect(JSON.parse(text).projects.length).toBeGreaterThan(1);
     expect(parseProjectFile(text).design).toEqual(normalizeDesign(long));
     const mixed = JSON.parse(text);
     mixed.projects[1].period_nm += 10;
     expect(() => parseProjectFile(JSON.stringify(mixed))).toThrow(/different designs/);
-  });
-  it("round-trips a share link", async () => {
-    const hash = await encodeShare(example);
-    expect(hash.startsWith("d=")).toBe(true);
-    expect(hash.slice(2)).not.toMatch(/[+/=]/);
-    expect(await decodeShare(`#${hash}`)).toEqual(normalizeDesign(example));
-    expect(await decodeShare("#other")).toBeNull();
   });
 });

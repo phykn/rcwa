@@ -66,7 +66,7 @@ export function connectCalculation(hub: EngineHub) {
   }
 
   function schedule(immediate = false) {
-    const { design, key, full, gesture, settings } = useStore.getState();
+    const { design, key, full, gesture } = useStore.getState();
     clearTimeout(previewTimer);
     clearTimeout(fullTimer);
     previewAbort?.abort();
@@ -85,21 +85,13 @@ export function connectCalculation(hub: EngineHub) {
     }
     if (fullKey === key) return;
     previewTimer = window.setTimeout(() => void runPreview(design, key), immediate ? 0 : PREVIEW_DELAY);
-    if (immediate || (settings.autoSolve && !gesture))
+    if (immediate || !gesture)
       fullTimer = window.setTimeout(() => void runFull(design, key), immediate ? 0 : FULL_DELAY);
     else useStore.getState().setStatus({ phase: "idle", error: null });
   }
 
-  hub.setPreference(useStore.getState().settings.engine);
   const unsubscribe = useStore.subscribe((state, previous) => {
-    if (state.settings.engine !== previous.settings.engine) hub.setPreference(state.settings.engine);
-    if (
-      state.key !== previous.key ||
-      state.gesture !== previous.gesture ||
-      state.settings.autoSolve !== previous.settings.autoSolve ||
-      state.settings.engine !== previous.settings.engine
-    )
-      schedule();
+    if (state.key !== previous.key || state.gesture !== previous.gesture) schedule();
   });
   schedule();
 

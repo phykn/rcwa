@@ -10,56 +10,6 @@ import {
   type SolveOptions,
 } from "./types";
 
-export interface FieldMap {
-  wavelength_nm: number;
-  polarization: "s" | "p";
-  x_nm: number[];
-  y_nm: number[];
-  depth_nm: number[];
-  layer_tops_nm: number[];
-  layer_indices: number[];
-  xz: number[][];
-  /** The x–z cut is taken through the cell centre line. */
-  xz_y_nm: number;
-  xy: number[][][];
-  /** Depth of each layer's mid-plane x–y cut. */
-  xy_depth_nm: number[];
-  R: number;
-  T: number;
-  max_intensity: number;
-  note: string;
-}
-
-export interface FitParameter {
-  path: (string | number)[];
-  lower: number;
-  upper: number;
-  linked?: (string | number)[][];
-}
-
-export interface FitSpec {
-  parameters: FitParameter[];
-  wavelengths_nm: number[];
-  values: number[];
-  quantity: "R" | "T" | "R_specular" | "T_specular";
-  polarization: "s" | "p" | "avg";
-}
-
-export interface FitResult {
-  values: number[];
-  sigma: (number | null)[];
-  at_bound: boolean[];
-  rms: number;
-  wavelengths_nm: number[];
-  fitted: number[];
-  evaluations: number;
-  history: { x: number[]; rms: number }[];
-  elapsed_seconds: number;
-  note: string;
-  /** Forward warnings for the fitted design. */
-  warnings: string[];
-}
-
 interface Partial2D {
   wavelength_nm: number;
 }
@@ -84,16 +34,6 @@ export class BrowserEngine implements Engine {
       diagnostics.push(...value.diagnostics);
     }
     return diagnostics;
-  }
-
-  /** |E|² maps at one wavelength; the design's own spectrum must not exceed one request. */
-  field(design: Design, wavelength: number, polarization: "s" | "p", resolution: number, options: SolveOptions = {}) {
-    const single = { ...design, illumination: { ...design.illumination, wavelengths_nm: [wavelength] } };
-    return this.call<FieldMap>("field", [JSON.stringify(single), wavelength, polarization, resolution], options);
-  }
-
-  fit(design: Design, spec: FitSpec, options: SolveOptions = {}) {
-    return this.call<FitResult>("fit", [JSON.stringify({ ...design, illumination: { ...design.illumination, wavelengths_nm: spec.wavelengths_nm } }), JSON.stringify(spec)], options);
   }
 
   async solve(design: Design, options: SolveOptions = {}) {

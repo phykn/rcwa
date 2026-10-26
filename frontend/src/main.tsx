@@ -6,24 +6,16 @@ import "./styles/app.css";
 import { App } from "./app/App";
 import { DEFAULT_TEMPLATE } from "./core/templates";
 import { normalizeDesign } from "./core/design";
-import { decodeShare } from "./core/share";
 import { mergeResults } from "./engine/chunks";
 import { EngineHub } from "./engine";
 import type { Design, PublicForwardResult2D } from "./engine/types";
 import { connectCalculation } from "./state/calc";
 import { ServicesContext } from "./state/context";
 import { useStore } from "./state/store";
-import { TOUR_KEY } from "./features/Tour";
 
 const DRAFT_KEY = "rcwa.draft.v2";
 
-async function initialDesign(): Promise<{ design: Design; source: "link" | "draft" | "example" }> {
-  try {
-    const shared = await decodeShare(location.hash);
-    if (shared) return { design: shared, source: "link" };
-  } catch {
-    useStore.getState().notify("The shared link is damaged; opened the example instead.", "error");
-  }
+function initialDesign(): { design: Design; source: "draft" | "example" } {
   try {
     const draft = sessionStorage.getItem(DRAFT_KEY);
     if (draft) return { design: normalizeDesign(JSON.parse(draft)), source: "draft" };
@@ -47,7 +39,7 @@ async function main() {
   const hub = EngineHub.create();
   hub.pool.start();
   void hub.detectServer();
-  const { design, source } = await initialDesign();
+  const { design, source } = initialDesign();
   const result = source === "example" ? await exampleResult() : null;
   useStore.getState().replace(design, result);
   useStore.setState({ past: [], cursor: design.illumination.wavelengths_nm[0] });
@@ -66,16 +58,10 @@ async function main() {
     }, 400);
   });
 
-  let firstVisit: boolean;
-  try {
-    firstVisit = !localStorage.getItem(TOUR_KEY);
-  } catch {
-    firstVisit = false;
-  }
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <ServicesContext.Provider value={{ hub, calc }}>
-        <App firstVisit={firstVisit} />
+        <App />
       </ServicesContext.Provider>
     </StrictMode>,
   );

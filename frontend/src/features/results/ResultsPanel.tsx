@@ -1,29 +1,13 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { EngineState } from "../../engine";
 import { useServices } from "../../state/context";
-import { useIsCurrent, useStore } from "../../state/store";
-import { OrdersTable } from "./OrdersTable";
+import { useStore } from "../../state/store";
 import { SpectrumView } from "./SpectrumView";
-
-const SweepView = lazy(() => import("../sweep/SweepView"));
-const FieldView = lazy(() => import("../field/FieldView"));
-const ConvergenceView = lazy(() => import("../convergence/ConvergenceView"));
-const FitView = lazy(() => import("../fit/FitView"));
-
-const ALL_TABS = [
-  { id: "spectrum", label: "Spectrum", advanced: false },
-  { id: "orders", label: "Orders", advanced: true },
-  { id: "sweep", label: "Sweep", advanced: false },
-  { id: "field", label: "Field", advanced: false },
-  { id: "convergence", label: "Convergence", advanced: true },
-  { id: "fit", label: "Fit", advanced: false },
-] as const;
 
 function Status() {
   const status = useStore((s) => s.status);
   const full = useStore((s) => s.full);
   const key = useStore((s) => s.key);
-  const autoSolve = useStore((s) => s.settings.autoSolve);
   const { calc, hub } = useServices();
   const [engine, setEngine] = useState<EngineState>(hub.state);
   useEffect(() => hub.subscribe(setEngine), [hub]);
@@ -63,7 +47,7 @@ function Status() {
   if (!current)
     return (
       <div className="status" role="status">
-        <span>{status.phase === "preview" ? "Previewing your edit…" : autoSolve ? "Waiting for edits to settle" : "Inputs changed"}</span>
+        <span>{status.phase === "preview" ? "Previewing your edit…" : "Waiting for edits to settle"}</span>
         <button type="button" className="btn btn-primary" onClick={calc.solveNow}>
           Calculate
         </button>
@@ -79,62 +63,14 @@ function Status() {
 }
 
 export function ResultsPanel() {
-  const advanced = useStore((s) => s.settings.advanced);
-  const TABS = ALL_TABS.filter((t) => advanced || !t.advanced);
-  const chosen = useStore((s) => s.tab);
-  const tab = TABS.some((t) => t.id === chosen) ? chosen : "spectrum";
-  const setTab = useStore((s) => s.setTab);
-  const full = useStore((s) => s.full);
-  const current = useIsCurrent();
-  const pol = useStore((s) => s.settings.polarization);
-  const cursor = useStore((s) => s.cursor);
   return (
     <section className="results" aria-label="Results">
       <div className="results-head">
-        <div role="tablist" aria-label="Result views" className="tabs">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              id={`tab-${t.id}`}
-              aria-selected={tab === t.id}
-              aria-controls={`panel-${t.id}`}
-              tabIndex={tab === t.id ? 0 : -1}
-              className={tab === t.id ? "on" : ""}
-              onClick={() => setTab(t.id)}
-              onKeyDown={(e) => {
-                const i = TABS.findIndex((x) => x.id === tab);
-                const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-                if (!d) return;
-                const next = TABS[(i + d + TABS.length) % TABS.length];
-                setTab(next.id);
-                document.getElementById(`tab-${next.id}`)?.focus();
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <h2 className="results-title">Spectrum</h2>
         <Status />
       </div>
-      <div className="results-body" role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
-        <Suspense fallback={<p className="empty-note">Loading…</p>}>
-          {tab === "spectrum" && <SpectrumView />}
-          {tab === "orders" &&
-            (full ? (
-              <>
-                {!current && <p className="stale-note">These orders belong to the previous inputs.</p>}
-                <OrdersTable result={full.result} pol={pol} cursor={cursor} />
-              </>
-            ) : (
-              <p className="empty-note">Orders appear after the first full calculation.</p>
-            ))}
-          {tab === "sweep" && <SweepView />}
-          {tab === "field" && <FieldView />}
-          {tab === "convergence" && <ConvergenceView />}
-          {tab === "fit" && <FitView />}
-        </Suspense>
+      <div className="results-body">
+        <SpectrumView />
       </div>
     </section>
   );

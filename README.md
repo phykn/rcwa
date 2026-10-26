@@ -11,11 +11,9 @@ The solver runs on your machine inside the page (Python and [meent](https://gith
 - Build a stack of up to eight layers: uniform films, line gratings, rectangular blocks and circular holes, on a square or rectangular lattice
 - Pick materials from a sourced library (Si, SiO₂, Si₃N₄, TiO₂, Au, Ag, Al and more), type constants, or import an n, k table
 - Drag any dimension and watch a live preview follow, then a full-accuracy result when you let go
-- Read R, T and A for s, p or unpolarized light, the reflected and transmitted colour, and every diffraction order
-- Sweep a dimension or the incidence angle against wavelength as a heat map, with Wood–Rayleigh anomaly lines
-- Map |E|² inside the structure, check Fourier-order convergence, and fit dimensions to a measured spectrum
-- Start from examples (anti-reflection coating, Bragg mirror, wire-grid polarizer, photonic-crystal slab, gold nanodisks, silicon nanopillars), share a design as a link, save designs in the browser, and export CSV, JSON or an HTML report
-- Drive the same solver from scripts or AI tool clients through the local HTTP/OpenAPI interface or the optional MCP adapter
+- Read R, T and A for s, p or unpolarized light, and the reflected and transmitted colour; Fourier orders are chosen from the geometry
+- Start from examples (anti-reflection coating, Bragg mirror, wire-grid polarizer, photonic-crystal slab, gold nanodisks, silicon nanopillars), open and save design files, and export the spectrum as CSV or a chart image
+- Drive the same solver from scripts or AI tool clients through the local HTTP/OpenAPI interface or the optional MCP adapter, including fitting dimensions to a measured spectrum
 
 Built with React, TypeScript, three.js, Pyodide, FastAPI and meent.
 

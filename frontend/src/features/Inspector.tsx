@@ -196,39 +196,17 @@ function MediumEditor({
   );
 }
 
-function LatticeEditor({
-  design,
-  advanced,
-}: {
-  design: Design;
-  advanced: boolean;
-}) {
+function LatticeEditor({ design }: { design: Design }) {
   const edit = useStore((s) => s.edit);
   const square = design.period_nm === design.period_y_nm;
-  const patterned2d = design.layers.some(
-    (l) => l.geometry === "rectangle_2d" || l.geometry === "circular_hole_2d",
-  );
   return (
     <section className="inspector-section" aria-labelledby="lattice-heading">
       <div className="section-head">
         <h2 id="lattice-heading">Pattern spacing</h2>
-        {advanced && (
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={square}
-              onChange={(e) =>
-                e.target.checked &&
-                edit((d) => ({ ...d, period_y_nm: d.period_nm }))
-              }
-            />
-            Square
-          </label>
-        )}
       </div>
       <div className="field-grid">
         <NumberField
-          label={square && !advanced ? "Pitch" : "Pitch X"}
+          label={square ? "Pitch" : "Pitch X"}
           unit="nm"
           value={design.period_nm}
           min={20}
@@ -242,7 +220,7 @@ function LatticeEditor({
             }))
           }
         />
-        {(advanced || !square) && (
+        {!square && (
           <NumberField
             label="Pitch Y"
             unit="nm"
@@ -253,46 +231,12 @@ function LatticeEditor({
             onChange={(v) => edit((d) => ({ ...d, period_y_nm: v }))}
           />
         )}
-        {advanced && (
-          <>
-            <NumberField
-              label="Orders X"
-              value={design.solver.harmonics_x}
-              min={1}
-              max={5}
-              integer
-              hint="±orders kept"
-              onChange={(v) =>
-                edit((d) => ({ ...d, solver: { ...d.solver, harmonics_x: v } }))
-              }
-            />
-            <NumberField
-              label="Orders Y"
-              value={design.solver.harmonics_y}
-              min={1}
-              max={5}
-              integer
-              hint={
-                patterned2d ? "±orders kept" : "1 is enough without 2D patterns"
-              }
-              onChange={(v) =>
-                edit((d) => ({ ...d, solver: { ...d.solver, harmonics_y: v } }))
-              }
-            />
-          </>
-        )}
       </div>
     </section>
   );
 }
 
-function LightEditor({
-  design,
-  advanced,
-}: {
-  design: Design;
-  advanced: boolean;
-}) {
+function LightEditor({ design }: { design: Design }) {
   const edit = useStore((s) => s.edit);
   const light = design.illumination;
   const range = describeRange(light.wavelengths_nm);
@@ -314,7 +258,7 @@ function LightEditor({
         <h2 id="light-heading">Light</h2>
         {!range.uniform && <span className="tag">Custom samples</span>}
       </div>
-      <div className={advanced ? "field-grid three" : "field-grid"}>
+      <div className="field-grid">
         <NumberField
           label="From"
           unit="nm"
@@ -332,19 +276,10 @@ function LightEditor({
           max={2500}
           slider={false}
           // A single-wavelength design has no spacing yet; widening it needs samples.
-          onChange={(v) => setRange(range.start, v, range.points > 1 ? range.points : 21)}
+          onChange={(v) =>
+            setRange(range.start, v, range.points > 1 ? range.points : 21)
+          }
         />
-        {advanced && (
-          <NumberField
-            label="Samples"
-            value={range.points}
-            min={2}
-            max={301}
-            integer
-            slider={false}
-            onChange={(v) => setRange(range.start, range.end, v)}
-          />
-        )}
       </div>
       <div className="field-grid">
         <NumberField
@@ -361,40 +296,36 @@ function LightEditor({
             }))
           }
         />
-        {advanced && (
-          <NumberField
-            label="Azimuth φ"
-            unit="°"
-            value={light.azimuth_deg}
-            min={0}
-            max={359.9}
-            step={1}
-            onChange={(v) =>
-              edit((d) => ({
-                ...d,
-                illumination: { ...d.illumination, azimuth_deg: v },
-              }))
-            }
-          />
-        )}
-      </div>
-      {advanced && (
-        <Segmented
-          label="Polarization"
-          value={light.polarization}
-          options={[
-            { value: "s", label: "s (TE)" },
-            { value: "p", label: "p (TM)" },
-            { value: "both", label: "Both" },
-          ]}
-          onChange={(polarization) =>
+        <NumberField
+          label="Azimuth φ"
+          unit="°"
+          value={light.azimuth_deg}
+          min={0}
+          max={359.9}
+          step={1}
+          onChange={(v) =>
             edit((d) => ({
               ...d,
-              illumination: { ...d.illumination, polarization },
+              illumination: { ...d.illumination, azimuth_deg: v },
             }))
           }
         />
-      )}
+      </div>
+      <Segmented
+        label="Polarization"
+        value={light.polarization}
+        options={[
+          { value: "s", label: "s (TE)" },
+          { value: "p", label: "p (TM)" },
+          { value: "both", label: "Both" },
+        ]}
+        onChange={(polarization) =>
+          edit((d) => ({
+            ...d,
+            illumination: { ...d.illumination, polarization },
+          }))
+        }
+      />
     </section>
   );
 }
@@ -402,7 +333,6 @@ function LightEditor({
 export function Inspector() {
   const design = useStore((s) => s.design);
   const selection = useStore((s) => s.selection);
-  const advanced = useStore((s) => s.settings.advanced);
   return (
     <div className="inspector">
       {selection.kind === "layer" ? (
@@ -410,8 +340,8 @@ export function Inspector() {
       ) : (
         <MediumEditor design={design} which={selection.kind} />
       )}
-      <LatticeEditor design={design} advanced={advanced} />
-      <LightEditor design={design} advanced={advanced} />
+      <LatticeEditor design={design} />
+      <LightEditor design={design} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { apiProjects, ordersCsv, spectrumCsv } from "../core/exporters";
+import { spectrumCsv } from "../core/exporters";
 import {
   download,
   fileSlug,
@@ -7,7 +7,6 @@ import {
   serializeDesign,
 } from "../core/projectFile";
 import { downloadBlob, spectrumChartSvg, svgToPng } from "../core/chartExport";
-import { encodeShare } from "../core/share";
 import {
   isProposal,
   reviewProposal,
@@ -46,45 +45,21 @@ function EngineBadge() {
   );
 }
 
-export function TopBar({
-  onTemplates,
-  onLibrary,
-  onPalette,
-  onSettings,
-  onTour,
-}: {
-  onTemplates: () => void;
-  onLibrary: () => void;
-  onPalette: () => void;
-  onSettings: () => void;
-  onTour: () => void;
-}) {
+export function TopBar({ onTemplates }: { onTemplates: () => void }) {
   const design = useStore((s) => s.design);
   const full = useStore((s) => s.full);
   const key = useStore((s) => s.key);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
   const { undo, redo, edit, replace, notify } = useStore.getState();
-  const [menu, setMenu] = useState<"export" | "more" | null>(null);
+  const [menu, setMenu] = useState(false);
   const [proposal, setProposal] = useState<ProposalReview | null>(null);
   const file = useRef<HTMLInputElement>(null);
   const slug = fileSlug(design.name);
   const current = full?.key === key ? full.result : null;
-  const advanced = useStore((s) => s.settings.advanced);
-  const pol = useStore((s) =>
-    s.settings.advanced ? s.settings.polarization : "avg",
-  );
-
-  async function share() {
-    const url = `${location.origin}${location.pathname}#${await encodeShare(design)}`;
-    history.replaceState(null, "", url);
-    try {
-      await navigator.clipboard.writeText(url);
-      notify("Link copied. It contains the whole design.");
-    } catch {
-      notify("Link is in the address bar. Copy it to share the design.");
-    }
-  }
+  // The chart shows the light the design asks for, as the results view does.
+  const polarization = design.illumination.polarization;
+  const pol = polarization === "both" ? "avg" : polarization;
 
   async function open(selected: File) {
     try {
@@ -199,23 +174,20 @@ export function TopBar({
             if (selected) void open(selected);
           }}
         />
-        <button type="button" className="btn btn-quiet" onClick={onLibrary}>
-          Saved
-        </button>
         <div className="menu-wrap">
           <button
             type="button"
             className="btn btn-quiet"
             aria-haspopup="dialog"
-            aria-expanded={menu === "export"}
-            onClick={() => setMenu("export")}
+            aria-expanded={menu}
+            onClick={() => setMenu(true)}
           >
             Export
           </button>
-          {menu === "export" && (
+          {menu && (
             <Popover
               label="Export"
-              onClose={() => setMenu(null)}
+              onClose={() => setMenu(false)}
               className="menu menu-right"
             >
               <button
@@ -226,15 +198,6 @@ export function TopBar({
                 }
               >
                 Design file (.json)
-              </button>
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() =>
-                  download(`${slug}-api.json`, apiProjects(design))
-                }
-              >
-                API/MCP project (.json)
               </button>
               <button
                 type="button"
@@ -250,17 +213,6 @@ export function TopBar({
                 }
               >
                 Spectrum (.csv)
-              </button>
-              <button
-                type="button"
-                className="menu-item"
-                disabled={!current}
-                onClick={() =>
-                  current &&
-                  download(`${slug}-orders.csv`, ordersCsv(current), "text/csv")
-                }
-              >
-                Diffraction orders (.csv)
               </button>
               <button
                 type="button"
@@ -298,85 +250,9 @@ export function TopBar({
               >
                 Spectrum chart (.png)
               </button>
-              <button
-                type="button"
-                className="menu-item"
-                disabled={!current}
-                onClick={async () => {
-                  const { reportHtml } = await import("../core/report");
-                  if (current)
-                    download(
-                      `${slug}-report.html`,
-                      reportHtml(design, current),
-                      "text/html",
-                    );
-                }}
-              >
-                Report (.html)
-              </button>
               {!current && (
                 <p className="menu-note">Calculate first to export results.</p>
               )}
-            </Popover>
-          )}
-        </div>
-        <button
-          type="button"
-          className="btn btn-quiet"
-          onClick={() => void share()}
-        >
-          Share
-        </button>
-        <div className="menu-wrap">
-          <button
-            type="button"
-            className="btn btn-quiet"
-            aria-label="More"
-            aria-haspopup="dialog"
-            aria-expanded={menu === "more"}
-            onClick={() => setMenu("more")}
-          >
-            ⋯
-          </button>
-          {menu === "more" && (
-            <Popover
-              label="More"
-              onClose={() => setMenu(null)}
-              className="menu menu-right"
-            >
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => (setMenu(null), onPalette())}
-              >
-                Commands <kbd>⌘K</kbd>
-              </button>
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => (setMenu(null), onTour())}
-              >
-                Guide
-              </button>
-              <label className="menu-item toggle">
-                <input
-                  type="checkbox"
-                  checked={advanced}
-                  onChange={(e) =>
-                    useStore
-                      .getState()
-                      .updateSettings({ advanced: e.target.checked })
-                  }
-                />
-                Advanced mode
-              </label>
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => (setMenu(null), onSettings())}
-              >
-                Settings
-              </button>
             </Popover>
           )}
         </div>

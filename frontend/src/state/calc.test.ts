@@ -26,7 +26,7 @@ function fakeHub() {
           pending.push({ design, options, resolve, reject });
         }),
   };
-  return { setPreference: () => {}, engine, browserEngine: engine } as unknown as EngineHub;
+  return { engine, browserEngine: engine } as unknown as EngineHub;
 }
 
 const result = (n: number) => ({ wavelengths_nm: Array(n).fill(0) }) as unknown as SpectrumResult;
@@ -36,8 +36,7 @@ const setThickness = (t: number) =>
 beforeEach(() => {
   vi.useFakeTimers();
   pending = [];
-  useStore.setState({ full: null, preview: null, ghost: null, gesture: false });
-  useStore.getState().updateSettings({ autoSolve: true });
+  useStore.setState({ full: null, preview: null, gesture: false });
   useStore.getState().replace(TEMPLATES[0].design);
   calc = connectCalculation(fakeHub());
 });

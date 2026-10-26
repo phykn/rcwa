@@ -5,7 +5,7 @@ export const PYODIDE_INDEX_URL = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VE
 export const MEENT_WHEEL = "meent-0.13.2-py3-none-any.whl";
 const PACKAGES = ["numpy", "scipy", "pydantic", "micropip"];
 
-export type BridgeOp = "validate" | "solve" | "assemble" | "forward" | "field" | "fit";
+export type BridgeOp = "validate" | "solve" | "assemble" | "forward";
 
 export interface BridgeFailure {
   ok: false;

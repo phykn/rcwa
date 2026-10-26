@@ -1,7 +1,6 @@
 import { create } from "zustand";
-import { designKey } from "../core/design";
+import { autoOrders, designKey } from "../core/design";
 import type { Design, SpectrumResult } from "../engine/types";
-import type { EnginePreference } from "../engine";
 
 export type Selection = { kind: "layer"; index: number } | { kind: "ambient" } | { kind: "substrate" };
 
@@ -19,23 +18,6 @@ export interface CalcStatus {
   error: { code: string; message: string } | null;
 }
 
-export interface Settings {
-  autoSolve: boolean;
-  engine: EnginePreference;
-  polarization: "s" | "p" | "avg";
-  showSpecular: boolean;
-  advanced: boolean;
-  theme: "system" | "light" | "dark";
-}
-
-export type ResultTab = "spectrum" | "orders" | "sweep" | "field" | "convergence" | "fit";
-
-export interface Overlay {
-  id: string;
-  label: string;
-  result: SpectrumResult;
-}
-
 interface State {
   design: Design;
   /** designKey(design), kept in step so readers never re-serialize. */
@@ -47,12 +29,8 @@ interface State {
   selection: Selection;
   full: Run | null;
   preview: Run | null;
-  ghost: Run | null;
-  overlays: Overlay[];
   cursor: number;
-  tab: ResultTab;
   status: CalcStatus;
-  settings: Settings;
   notice: { text: string; tone: "info" | "error" } | null;
   edit: (change: (design: Design) => Design) => void;
   beginGesture: () => void;
@@ -65,31 +43,10 @@ interface State {
   setPreview: (design: Design, result: SpectrumResult) => void;
   setStatus: (status: Partial<CalcStatus>) => void;
   setCursor: (wavelength: number) => void;
-  setTab: (tab: ResultTab) => void;
-  updateSettings: (change: Partial<Settings>) => void;
-  toggleOverlay: (overlay: Overlay) => void;
   notify: (text: string, tone?: "info" | "error") => void;
 }
 
 const HISTORY = 100;
-const SETTINGS_KEY = "rcwa.settings.v2";
-
-function loadSettings(): Settings {
-  const defaults: Settings = {
-    autoSolve: true,
-    engine: "auto",
-    polarization: "avg",
-    showSpecular: false,
-    advanced: false,
-    theme: "system",
-  };
-  try {
-    return { ...defaults, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<Settings>) };
-  } catch {
-    return defaults;
-  }
-}
-
 function clampSelection(selection: Selection, design: Design): Selection {
   if (selection.kind !== "layer") return selection;
   return { kind: "layer", index: Math.min(selection.index, design.layers.length - 1) };
@@ -105,17 +62,13 @@ export const useStore = create<State>((set, get) => ({
   selection: { kind: "layer", index: 0 },
   full: null,
   preview: null,
-  ghost: null,
-  overlays: [],
   cursor: 0,
-  tab: "spectrum",
   status: { phase: "idle", done: 0, total: 0, error: null },
-  settings: loadSettings(),
   notice: null,
 
   edit: (change) => {
     const { design, past, gesture, gestureRecorded, key } = get();
-    const next = change(design);
+    const next = autoOrders(change(design), design);
     const nextKey = designKey(next);
     if (nextKey === key) return;
     set({
@@ -167,35 +120,10 @@ export const useStore = create<State>((set, get) => ({
     });
   },
   select: (selection) => set({ selection }),
-  setFull: (design, result) => {
-    const key = designKey(design);
-    const { full } = get();
-    set({
-      full: { key, design, result, at: Date.now() },
-      ghost: full && full.key !== key ? full : get().ghost,
-    });
-  },
+  setFull: (design, result) => set({ full: { key: designKey(design), design, result, at: Date.now() } }),
   setPreview: (design, result) => set({ preview: { key: designKey(design), design, result, at: Date.now() } }),
   setStatus: (status) => set({ status: { ...get().status, ...status } }),
   setCursor: (wavelength) => set({ cursor: wavelength }),
-  setTab: (tab) => set({ tab }),
-  updateSettings: (change) => {
-    const settings = { ...get().settings, ...change };
-    try {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    } catch {
-      // Private windows may refuse storage; settings then last for this tab.
-    }
-    set({ settings });
-  },
-  toggleOverlay: (overlay) => {
-    const { overlays } = get();
-    set({
-      overlays: overlays.some((o) => o.id === overlay.id)
-        ? overlays.filter((o) => o.id !== overlay.id)
-        : [...overlays, overlay].slice(-4),
-    });
-  },
   notify: (text, tone = "info") => set({ notice: { text, tone } }),
 }));
 

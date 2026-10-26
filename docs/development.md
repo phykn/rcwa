@@ -52,7 +52,7 @@ against both lock files. It accepts Node 22.13+ on the 22.x line or Node 24+; th
 locked ESLint requires a newer Node 22 minor than the locked Vite.
 
 Keep this terminal open. After **RCWA ready**, open http://127.0.0.1:5173 and wait
-for **Solver connected**. API documentation is at http://127.0.0.1:8000/docs.
+for **Local server** at the top. API documentation is at http://127.0.0.1:8000/docs.
 Press **Ctrl+C** to stop both services and their active calculations. Saved
 local-server snapshots survive restart; unfinished or unsaved jobs do not.
 No dependency downloads, browser auto-open, background service, credentials,
@@ -139,13 +139,11 @@ export DATABASE_URL='postgresql+psycopg://rcwa:local-development-only@localhost:
 
 The hosted page and the local app are the same build. Both calculate in the
 browser; the local app also uses the native solver when the API is running.
-To move a design between them, use **Share link** (the whole design lives in
-the URL fragment and is never sent to a server) or **Export → Design file** and
-**Open** it on the other side. Schema 1.0/1.1 projects open too and are
+To move a design between them, use **Export → Design file** and **Open** it on
+the other side. Schema 1.0/1.1 projects open too and are
 converted to 1.2 with a note.
 
-Edits are kept as a draft for the browser tab. **Saved** stores designs and
-their spectra in this browser (IndexedDB); export a file to keep one elsewhere.
+Edits are kept as a draft for the browser tab; export a design file to keep it.
 
 ## Checks
 
@@ -183,10 +181,10 @@ backend/api/           HTTP API, bounded jobs and project storage
 backend/mcp_adapter/   Optional local MCP tools backed by the HTTP API
 backend/rcwa_core/     Schemas, RCWA adapter, field maps and fitting (also runs in the browser)
 backend/tests/         Physics, API and persistence tests
-frontend/src/core/     Design model, files, share links, materials, colour, parameters
+frontend/src/core/     Design model, files, materials, colour, export
 frontend/src/engine/   Pyodide worker pool, browser and server engines
 frontend/src/state/    Store, undo history and the calculation controller
-frontend/src/features/ Stack, inspector, 3D view and result views
+frontend/src/features/ Stack, inspector, 3D view and spectrum view
 frontend/e2e/          Playwright end-to-end tests
 docs/                  Physical conventions and validation evidence
 ```

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { convertLayer } from "../core/design";
 import { TEMPLATES } from "../core/templates";
 import { useStore } from "./store";
 
@@ -8,7 +9,7 @@ const setThickness = (t: number) =>
   useStore.getState().edit((d) => ({ ...d, layers: d.layers.map((l, i) => (i ? l : { ...l, thickness_nm: t })) }));
 
 beforeEach(() => {
-  useStore.setState({ past: [], future: [], full: null, ghost: null, gesture: false, gestureRecorded: false });
+  useStore.setState({ past: [], future: [], full: null, gesture: false, gestureRecorded: false });
   useStore.getState().replace(design);
   useStore.setState({ past: [] });
 });
@@ -43,16 +44,25 @@ describe("history", () => {
     useStore.getState().edit((d) => ({ ...d, layers: d.layers.slice(0, 1) }));
     expect(useStore.getState().selection).toEqual({ kind: "layer", index: 0 });
   });
+
+  it("sets Fourier orders from the geometry an edit leaves", () => {
+    const lines = TEMPLATES.find((t) => t.design.layers.every((l) => l.geometry !== "rectangle_2d" && l.geometry !== "circular_hole_2d") && t.design.layers.some((l) => l.geometry === "rectangle_1d"))!;
+    useStore.getState().replace(lines.design);
+    useStore.getState().edit((d) => ({ ...d, layers: d.layers.map((l) => convertLayer(l, "homogeneous", d)) }));
+    expect(useStore.getState().design.solver).toEqual({ harmonics_x: 1, harmonics_y: 1 });
+    useStore.getState().undo();
+    expect(useStore.getState().design.solver).toEqual(lines.design.solver);
+  });
 });
 
 describe("runs", () => {
-  it("binds results to inputs and keeps the previous result as a ghost", () => {
+  it("binds results to inputs", () => {
     const result = { wavelengths_nm: [450] } as never;
     useStore.getState().setFull(useStore.getState().design, result);
     expect(useStore.getState().full!.key).toBe(useStore.getState().key);
     setThickness(150);
     expect(useStore.getState().full!.key).not.toBe(useStore.getState().key);
     useStore.getState().setFull(useStore.getState().design, result);
-    expect(useStore.getState().ghost).not.toBeNull();
+    expect(useStore.getState().full!.key).toBe(useStore.getState().key);
   });
 });

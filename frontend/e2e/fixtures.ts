@@ -27,10 +27,6 @@ async function routePyodide(page: Page) {
 export const test = base.extend<{ app: Page }>({
   app: async ({ page }, use) => {
     await routePyodide(page);
-    await page.addInitScript(() => {
-      // Skip the first-visit guide unless a test asks for it.
-      if (!sessionStorage.getItem("keep-tour")) localStorage.setItem("rcwa.tour.v2", "done");
-    });
     await use(page);
   },
 });
@@ -48,9 +44,4 @@ export async function waitUpToDate(page: Page, timeout = 180_000) {
 export async function readout(page: Page) {
   const text = await page.getByLabel("Values at the inspected wavelength").locator("dl").innerText();
   return text.replace(/\s+/g, " ");
-}
-
-/** Turn on Advanced mode before the page loads. */
-export async function useAdvanced(page: Page) {
-  await page.addInitScript(() => localStorage.setItem("rcwa.settings.v2", JSON.stringify({ advanced: true })));
 }
