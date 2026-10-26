@@ -1,5 +1,3 @@
-"""One explicit project dispatch policy across runtime and published schemas."""
-
 from copy import deepcopy
 
 import pytest

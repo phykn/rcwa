@@ -1,5 +1,3 @@
-"""Strict, atomic, read-only schema-1.2 dimension proposal boundaries."""
-
 from copy import deepcopy
 import json
 import math

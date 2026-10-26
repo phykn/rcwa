@@ -40,7 +40,6 @@ export interface Template {
   id: string;
   title: string;
   summary: string;
-  /** What to look for in the result. */
   look: string;
   design: Design;
 }

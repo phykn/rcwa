@@ -1,5 +1,3 @@
-"""Shared bounded validation diagnostics for HTTP and MCP boundaries."""
-
 import json
 
 # Limits include JSON escaping, not just character counts. Fifty diagnostics,
@@ -37,7 +35,6 @@ def _bounded_location(location):
 
 
 def structured_diagnostics(error, code):
-    """Diagnostics carried by a validation error, else one per error coded from its location."""
     for item in error.errors():
         structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
         if structured:

@@ -1,5 +1,3 @@
-"""Adapter boundary tests. Install requirements-mcp-lock.txt to run this module."""
-
 import json
 import time
 from copy import deepcopy

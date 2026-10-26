@@ -1,5 +1,3 @@
-"""Agent boundary proofs: no-job checks, lifecycle and durable input binding."""
-
 import json
 import time
 from copy import deepcopy

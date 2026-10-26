@@ -1,5 +1,3 @@
-"""Released legacy identities and one normalized UTF-8 identity for explicit 2D."""
-
 from copy import deepcopy
 import hashlib
 import json

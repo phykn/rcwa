@@ -1,5 +1,3 @@
-"""The static Pages example must remain reproducible by the actual Python solver."""
-
 import json
 from pathlib import Path
 

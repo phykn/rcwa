@@ -1,10 +1,3 @@
-"""Fit selected dimensions of a 1.2 design to a measured R or T spectrum.
-
-Bounded least squares over the real forward model, from several starts. The
-reported uncertainty is the linearized (Jacobian) estimate for the residual
-scale and says nothing about model error or uniqueness.
-"""
-
 from __future__ import annotations
 
 from copy import deepcopy
@@ -85,7 +78,6 @@ class DimensionFitResult(StrictModel):
 
 
 def validate_fit_result(result: dict, spec: dict) -> DimensionFitResult:
-    """Bind a returned fit to the request that produced it."""
     spec = FitSpec.model_validate(spec)
     fit = DimensionFitResult.model_validate(result)
     if len(fit.values) != len(spec.parameters) or fit.wavelengths_nm != list(spec.wavelengths_nm):

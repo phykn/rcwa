@@ -81,7 +81,6 @@ function build(group: THREE.Group, design: Design, selected: number) {
     mesh.userData.layer = region.layerIndex;
     group.add(mesh);
   }
-  // Schematic substrate block and incident-light arrow.
   const b = geometry.bounds;
   const width = (b.max.x - b.min.x) * scale;
   const depth = (b.max.y - b.min.y) * scale;

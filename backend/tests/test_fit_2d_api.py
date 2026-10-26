@@ -1,5 +1,3 @@
-"""Measured-spectrum dimension fits run as server jobs for schema 1.2 projects."""
-
 import json
 import time
 from pathlib import Path

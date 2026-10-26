@@ -1,9 +1,3 @@
-"""2D result validation and exact input/basis binding.
-
-Public subclasses enforce normal-job limits; offline refinements and Laurent
-diagnostics remain available only to explicit numerical reference helpers.
-"""
-
 from __future__ import annotations
 
 import math

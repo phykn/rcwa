@@ -1,10 +1,3 @@
-"""Read-only discovery and exact input projections, with independent byte limits.
-
-The caller validates the complete stored record before projecting inputs. An index
-only discovers records; it deliberately does not read or validate stored results.
-Never trim names, tables or provenance to fit either envelope.
-"""
-
 import json
 
 from .contracts import MAX_SNAPSHOT_INDEX_BYTES, MAX_SNAPSHOT_INPUT_BYTES, SnapshotIndex, SnapshotInputs

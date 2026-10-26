@@ -19,7 +19,6 @@ export interface PyRuntime {
   call(op: BridgeOp, ...args: (string | number)[]): string;
 }
 
-/** Install meent and rcwa_core into a fresh interpreter and import the bridge. */
 export async function prepareRuntime(
   py: PyodideAPI,
   wheel: Uint8Array,
@@ -52,7 +51,6 @@ export async function prepareRuntime(
   };
 }
 
-/** Map `.../rcwa_core/name.py` glob keys to bare file names. */
 export function coreSources(modules: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [path, text] of Object.entries(modules)) {

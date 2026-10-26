@@ -1,9 +1,3 @@
-"""One explicit version dispatcher for requests, workers and stored projects.
-
-Missing version remains legacy 1.0. Normalization always copies/revalidates,
-including model instances, so mutable objects cannot create another hash form.
-"""
-
 from copy import deepcopy
 import json
 from typing import Annotated

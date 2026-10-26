@@ -1,5 +1,3 @@
-"""Request-only hints; no persistent flag or change to normalized input identity."""
-
 from rcwa_core.preflight import Diagnostic, declared_materials
 
 

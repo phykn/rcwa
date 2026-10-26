@@ -23,7 +23,6 @@ export interface Conversion {
   notes: string[];
 }
 
-/** Schema 1.0/1.1 (x-periodic, y-invariant) projects become 1.2 designs. */
 export function convertLegacy(value: unknown): Conversion {
   const p = obj(value);
   const notes = [`Converted from schema ${(p.schema_version as string) ?? "1.0"}.`];

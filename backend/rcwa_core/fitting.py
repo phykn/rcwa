@@ -1,5 +1,3 @@
-"""Bounded, deterministic CD-only synthetic recovery using the real forward model."""
-
 from __future__ import annotations
 
 from time import perf_counter

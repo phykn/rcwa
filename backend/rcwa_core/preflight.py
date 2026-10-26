@@ -1,9 +1,3 @@
-"""Deterministic admissibility checks shared by HTTP validation and the solver.
-
-These checks do not start a worker, import the numerical engine, or certify
-Fourier convergence. Eigensolver and flux checks still run during calculation.
-"""
-
 from __future__ import annotations
 
 from importlib import metadata, util
@@ -141,7 +135,6 @@ def uniform_slab_permittivities(project: Project, wavelength_nm: float) -> list[
 
 
 def has_contrast(layer, wavelengths) -> bool:
-    """Whether a split layer's two materials differ at any sampled wavelength."""
     return any(refractive_index(layer.material, w) != refractive_index(layer.background, w) for w in wavelengths)
 
 
@@ -159,7 +152,6 @@ def stack_has_loss(project: Project, wavelength_nm: float) -> bool:
 
 
 def declared_materials(project):
-    """Every material a 1.0–1.2 Project names, with its location, active or not."""
     yield project.ambient, ["ambient"]
     yield project.substrate, ["substrate"]
     for i, layer in enumerate(project.layers):

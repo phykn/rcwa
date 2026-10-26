@@ -1,5 +1,3 @@
-"""Actual new coupled adapter: analytic reductions, invariants and failures."""
-
 from copy import deepcopy
 import hashlib
 import json

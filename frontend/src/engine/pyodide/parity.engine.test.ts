@@ -1,6 +1,4 @@
 /// <reference types="node" />
-// Runs the browser engine's Python stack in Node Pyodide and compares it with
-// frozen native (CPython + OpenBLAS) results. Run with `npm run test:engine`.
 import { readFileSync, readdirSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 import { dirname, resolve } from "node:path";

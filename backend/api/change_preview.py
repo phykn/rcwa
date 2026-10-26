@@ -1,5 +1,3 @@
-"""Pure bounded geometry proposals. No engine inspection, jobs, storage or apply."""
-
 from api.contracts import ChangePreviewRequest, ChangeProposal, GeometryChanges, GeometryDiff
 from api.storage import canonical_hash
 from rcwa_core.identity import same_canonical

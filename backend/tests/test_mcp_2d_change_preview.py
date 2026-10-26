@@ -1,5 +1,3 @@
-"""MCP discovery, raw proposal binding and bounded 2D dimension transport."""
-
 from copy import deepcopy
 import json
 from types import SimpleNamespace

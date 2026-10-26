@@ -1,5 +1,3 @@
-"""HTTP boundary: validate inputs, launch jobs, and save completed project snapshots."""
-
 import asyncio
 import json
 import logging

@@ -1,5 +1,3 @@
-"""Opt-in bounded agent views share full validation, storage and numerical values."""
-
 from copy import deepcopy
 import gzip
 import json

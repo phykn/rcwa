@@ -1,5 +1,3 @@
-"""The launcher's private Windows process-tree boundary (no breakaway allowed)."""
-
 from contextlib import contextmanager
 import ctypes
 import msvcrt

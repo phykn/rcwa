@@ -42,7 +42,7 @@ def input_hash(project):
 
 
 class ExampleError(Exception):
-    """A bounded, reportable client failure."""
+    pass
 
 
 class DeadlineExceeded(ExampleError):

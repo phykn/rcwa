@@ -1,5 +1,3 @@
-"""Private gated runtime. Only start_local.py should launch this entry point."""
-
 import asyncio
 from contextlib import contextmanager, nullcontext
 import json

@@ -1,10 +1,3 @@
-"""Real foreground-launcher acceptance tests. Run serially on Linux and Windows.
-
-The isolated checkout has spaces in its name. Test-only source instrumentation
-records completion of the first real layer eigensystem; it does not replace or
-sleep inside the solver. Containment fixtures separately test forced escalation.
-"""
-
 import importlib.util
 import json
 import os

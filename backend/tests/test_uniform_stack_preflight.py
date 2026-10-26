@@ -1,5 +1,3 @@
-"""Uniform stacks cannot diffract, so grating-only order checks must not reject them."""
-
 import numpy as np
 import pytest
 

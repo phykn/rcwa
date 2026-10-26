@@ -1,4 +1,3 @@
-"""Circle schema, genuine disk approximation, exact identity and public boundaries."""
 from copy import deepcopy
 import math
 from pathlib import Path

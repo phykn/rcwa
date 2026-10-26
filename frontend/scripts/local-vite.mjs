@@ -1,4 +1,3 @@
-// Private foreground editor runner. No npm shell, installations or browser open.
 import { createServer, loadEnv } from 'vite';
 import { fileURLToPath } from 'node:url';
 

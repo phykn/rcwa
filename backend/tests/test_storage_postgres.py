@@ -1,5 +1,3 @@
-"""Runs in CI with a real PostgreSQL service; explicitly skipped if unavailable."""
-
 import os
 
 import pytest

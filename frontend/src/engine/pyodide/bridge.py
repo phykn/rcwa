@@ -1,9 +1,3 @@
-"""JSON-in/JSON-out glue between the browser engine and rcwa_core.
-
-Every call returns {"ok": true, "value": ...} or {"ok": false, "code", "message"}
-so the worker never has to parse Python tracebacks.
-"""
-
 import json
 import time
 
@@ -14,6 +8,7 @@ from rcwa_core.project_io import normalized_project_and_hash, parse_project, pre
 from rcwa_core.solver_2d import assemble_forward_2d, solve_wavelengths_2d
 
 
+# Structured errors, so the worker never parses Python tracebacks.
 def _call(fn):
     try:
         return json.dumps({"ok": True, "value": fn()}, allow_nan=False)

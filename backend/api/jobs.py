@@ -1,9 +1,3 @@
-"""Bounded disposable numerical processes, without a queue broker.
-
-Run one API process. In-memory job state is intentionally not durable; save a
-completed project to retain its result. Every calculation has a hard deadline.
-"""
-
 import json
 import logging
 from copy import deepcopy
@@ -110,6 +104,8 @@ class Running:
     output_removed: bool = False
 
 
+# Job state is in memory and not durable: run one API process, and save a completed
+# project to keep its result.
 class JobManager:
     def __init__(self, max_workers: int = 2, timeout: float = 120, max_history_bytes: int = MAX_HISTORY_BYTES):
         self.max_workers = max_workers
@@ -361,7 +357,6 @@ class JobManager:
             return deepcopy(self.jobs.get(job_id))
 
     def capture(self, job_id: str) -> tuple[dict, dict] | None:
-        """Atomically capture server-owned job and input for a snapshot save."""
         with self._lock:
             self.poll()
             if job_id not in self.jobs:

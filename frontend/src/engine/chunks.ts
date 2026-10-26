@@ -5,7 +5,6 @@ export const MAX_REQUEST_WAVELENGTHS = 31;
 export const PREVIEW_WAVELENGTHS = 13;
 export const PREVIEW_HARMONICS = 2;
 
-/** Split a design into contract-sized projects with balanced wavelength counts. */
 export function chunkDesign(design: Design): Design[] {
   const all = design.illumination.wavelengths_nm;
   const count = Math.ceil(all.length / MAX_REQUEST_WAVELENGTHS);
@@ -34,7 +33,6 @@ export function previewDesign(design: Design): Design {
   };
 }
 
-/** Concatenate per-chunk contract results into one display spectrum. */
 export function mergeResults(
   results: PublicForwardResult2D[],
   engine: SpectrumResult["engine"],

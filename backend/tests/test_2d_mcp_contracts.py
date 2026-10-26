@@ -1,5 +1,3 @@
-"""Real stdio/HTTP 2D workflows and independently checked MCP schema/binding."""
-
 from copy import deepcopy
 import json
 

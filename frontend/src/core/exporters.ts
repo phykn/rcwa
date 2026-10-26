@@ -2,7 +2,6 @@ import type { SpectrumResult } from "../engine/types";
 
 const row = (values: (string | number)[]) => values.join(",");
 
-/** Every polarization's totals and specular powers, one row per wavelength. */
 export function spectrumCsv(result: SpectrumResult): string {
   const pols = (["s", "p"] as const).filter((p) => result.spectra[p]);
   const fields = ["R", "T", "A_balance", "R_specular", "T_specular"] as const;

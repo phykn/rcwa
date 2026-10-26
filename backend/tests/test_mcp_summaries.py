@@ -1,5 +1,3 @@
-"""Official SDK stdio journeys with opt-in bounded results and no HTTP escape."""
-
 from contextlib import contextmanager
 from copy import deepcopy
 import gzip

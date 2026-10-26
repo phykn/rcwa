@@ -1,8 +1,3 @@
-"""Power-observable validation, independent analytic references, and scope guards.
-
-These tests validate the numerical prototype, not measured-sample accuracy.
-"""
-
 import copy
 
 import numpy as np

@@ -1,10 +1,3 @@
-"""Explicit, bounded projections of validated records; never replacement results.
-
-No numerical quantities are recomputed. Full records remain stored and available
-through the existing routes. Warning entries are never cut mid-message: any
-omission is counted explicitly, requiring the caller to inspect the full record.
-"""
-
 from copy import deepcopy
 import json
 

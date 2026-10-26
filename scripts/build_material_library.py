@@ -1,13 +1,3 @@
-"""Build the bundled material library from refractiveindex.info (CC0) files.
-
-Usage: python scripts/build_material_library.py <dir with downloaded .yml files>
-
-Files come from https://github.com/polyanskiy/refractiveindex.info-database
-(database/data/main/<path>.yml). Formula materials are sampled every 10 nm;
-tables keep their measured points. Rows are limited to the solver's bounds
-(200-2500 nm, 0 < n <= 10, 0 <= k <= 10); no point is extrapolated.
-"""
-
 import json
 import math
 import re
@@ -114,5 +104,7 @@ def main(directory):
         print(f"{item['id']:6} {item['range_nm']} rows={len(item['material']['wavelengths_nm'])}")
 
 
+# Usage: build_material_library.py <dir of database/data/main/*.yml files from
+# github.com/polyanskiy/refractiveindex.info-database (CC0)>
 if __name__ == "__main__":
     main(sys.argv[1])

@@ -1,5 +1,3 @@
-"""Pure, bounded, atomic stack proposals with concise deterministic summaries."""
-
 import json
 import struct
 from copy import deepcopy

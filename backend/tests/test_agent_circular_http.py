@@ -1,5 +1,3 @@
-"""Runnable example -> real public HTTP only; isolated API process and durable DB."""
-
 from contextlib import contextmanager
 from copy import deepcopy
 import json

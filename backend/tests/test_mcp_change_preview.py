@@ -1,5 +1,3 @@
-"""MCP previews validate full shape, canonical data and requested-input binding."""
-
 from copy import deepcopy
 import json
 

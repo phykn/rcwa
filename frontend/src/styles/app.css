@@ -16,7 +16,6 @@ h2 { font-size: 13px; font-weight: 600; }
 .skip { position: absolute; left: -999px; }
 .skip:focus { left: 12px; top: 8px; z-index: 50; background: var(--surface); padding: 6px 10px; border-radius: var(--radius); }
 
-/* Buttons */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
   border: 1px solid var(--ink); background: transparent;
@@ -30,7 +29,6 @@ h2 { font-size: 13px; font-weight: 600; }
 .btn-primary:hover:not(:disabled) { background: var(--ink-2); border-color: var(--ink-2); }
 .danger { color: var(--danger); }
 
-/* Shell */
 .app { display: grid; grid-template-rows: auto auto 1fr; grid-template-columns: minmax(0, 1fr); height: 100dvh; }
 .topbar {
   display: flex; align-items: center; gap: 12px; padding: 8px 14px;
@@ -61,7 +59,6 @@ h2 { font-size: 13px; font-weight: 600; }
 .icon-btn { padding: 4px 7px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-/* Stack */
 .stack-panel { display: flex; flex-direction: column; min-height: 100%; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px 14px; }
 .add-wrap, .menu-wrap { position: relative; }
@@ -78,7 +75,6 @@ h2 { font-size: 13px; font-weight: 600; }
 .stack-bar { flex: 0 0 3px; align-self: stretch; }
 .stack-actions { display: flex; flex-wrap: wrap; gap: 0 2px; padding: 8px 6px 12px; margin-top: auto; border-top: 1px solid var(--line); }
 
-/* Inspector */
 .inspector-section { padding: 16px 18px 18px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .section-note { margin: -4px 0 0; color: var(--ink-2); font-size: 12px; }
@@ -105,7 +101,6 @@ h2 { font-size: 13px; font-weight: 600; }
 .segmented button:hover { color: var(--ink); }
 .segmented button.on { color: var(--ink); border-bottom-color: var(--ink); font-weight: 600; }
 
-/* Materials */
 .material-chip {
   display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; width: 100%;
   border: 0; border-bottom: 1px solid var(--line-strong); background: transparent; padding: 5px 0; cursor: pointer; text-align: left;
@@ -143,14 +138,12 @@ h2 { font-size: 13px; font-weight: 600; }
 .menu-item:disabled { color: var(--ink-3); cursor: default; }
 .menu-note { margin: 4px 10px 6px; font-size: 12px; color: var(--ink-3); }
 
-/* Viewport */
 .viewport { position: relative; height: 100%; background: var(--scene); }
 .viewport-canvas { position: absolute; inset: 0; }
 .viewport-canvas canvas { display: block; width: 100%; height: 100%; cursor: grab; }
 .viewport-canvas canvas:active { cursor: grabbing; }
 .viewport-fallback { padding: 24px; color: var(--ink-2); max-width: 480px; }
 
-/* Results */
 .results { display: flex; flex-direction: column; min-height: 100%; }
 .results-body:has(> .spectrum-view) { display: flex; flex-direction: column; }
 .results-head { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: var(--ground); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -190,7 +183,6 @@ thead th:first-child, tbody th { text-align: left; }
 tbody th { font-weight: 500; }
 tr.current { background: var(--accent-soft); }
 
-/* Dialogs */
 .dialog { border: 1px solid var(--ink); border-radius: var(--radius); padding: 0; background: var(--surface); color: var(--ink); width: min(520px, calc(100vw - 32px)); box-shadow: var(--shadow); }
 .dialog-wide { width: min(880px, calc(100vw - 32px)); }
 .dialog::backdrop { background: rgb(15 19 24 / 45%); }
@@ -204,7 +196,6 @@ tr.current { background: var(--accent-soft); }
 .template-summary { font-size: 12.5px; color: var(--ink-2); }
 .template-look { font-size: 12px; color: var(--ink-3); }
 
-/* Notice */
 .notice { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60; display: flex; gap: 10px; align-items: center; max-width: min(560px, calc(100vw - 32px)); background: var(--ink); color: var(--surface); border-radius: var(--radius); padding: 8px 8px 8px 14px; box-shadow: var(--shadow); }
 .notice .btn-quiet { color: inherit; }
 .notice-error { background: var(--danger); }

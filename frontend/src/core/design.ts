@@ -20,7 +20,6 @@ export function constantMaterial(name: string, n: number, k = 0): Material {
 
 export const AIR = constantMaterial("Air", 1);
 
-/** Evenly spaced, strictly increasing wavelengths rounded to 0.01 nm. */
 export function wavelengthRange(start: number, end: number, points: number): number[] {
   if (points <= 1 || end <= start) return [start];
   const step = (end - start) / (points - 1);
@@ -35,7 +34,7 @@ export function describeRange(wavelengths: number[]) {
   return { start, end, points: wavelengths.length, step, uniform };
 }
 
-/** Validate a design. Spectra may exceed one request; everything else follows schema 1.2. */
+/** Spectra may exceed one request; everything else follows schema 1.2. */
 export function normalizeDesign(value: unknown): Design {
   if (!value || typeof value !== "object") throw new Error("A design must be a JSON object.");
   const v = value as { illumination?: { wavelengths_nm?: unknown } };
@@ -77,7 +76,6 @@ export function designKey(design: Design): string {
   return JSON.stringify(sortKeys(design));
 }
 
-/** Which axes the patterned layers vary along: none, x only (lines), or both. */
 export function patternKind(design: Design): "film" | "1d" | "2d" {
   if (design.layers.some((l) => l.geometry === "rectangle_2d" || l.geometry === "circular_hole_2d")) return "2d";
   return design.layers.some((l) => l.geometry === "rectangle_1d") ? "1d" : "film";
@@ -111,7 +109,6 @@ export function newLayer(kind: Layer2D["geometry"], design: Design, index: numbe
   return { name, geometry: kind, thickness_nm: 100, cd_nm: Math.round(px * 0.5), material: host, background: AIR };
 }
 
-/** Change a layer's shape while keeping its name, thickness and materials. */
 export function convertLayer(layer: Layer2D, kind: Layer2D["geometry"], design: Design): Layer2D {
   const fresh = newLayer(kind, design, 0);
   const background = "background" in layer ? layer.background : AIR;

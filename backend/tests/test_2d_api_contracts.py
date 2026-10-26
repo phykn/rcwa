@@ -1,5 +1,3 @@
-"""HTTP, public result and durable snapshot integration for explicit schema 1.2."""
-
 from copy import deepcopy
 import gzip
 import json

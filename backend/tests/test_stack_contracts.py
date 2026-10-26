@@ -1,5 +1,3 @@
-"""Versioned stack schema, material coverage, output binding and fitting guards."""
-
 import copy
 
 import pytest

@@ -1,5 +1,3 @@
-"""2D dimension fitting recovers synthetic targets and validates its request."""
-
 import json
 from pathlib import Path
 

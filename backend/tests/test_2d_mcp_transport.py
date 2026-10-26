@@ -1,9 +1,3 @@
-"""Exact SDK transport byte/ID limits and recovery of an oversized real snapshot.
-
-The archived max-resource snapshot is transport/resource evidence only. It does
-not establish numerical convergence, and these tests never launch an H5 solve.
-"""
-
 from contextlib import asynccontextmanager, contextmanager
 from copy import deepcopy
 import gzip

@@ -1,5 +1,3 @@
-"""MCP stack discovery, input/response binding, historical readers and byte bounds."""
-
 from copy import deepcopy
 import json
 from pathlib import Path

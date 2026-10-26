@@ -1,5 +1,3 @@
-"""Sharded wavelength solves must assemble into exactly the whole-spectrum result."""
-
 import json
 from pathlib import Path
 

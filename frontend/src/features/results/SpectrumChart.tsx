@@ -9,7 +9,6 @@ interface Props {
   onCursor: (nm: number) => void;
 }
 
-/** How long a new result takes to morph into place. */
 const MORPH_MS = 240;
 
 const css = (el: Element, name: string) => getComputedStyle(el).getPropertyValue(name).trim() || "#888";
@@ -33,13 +32,8 @@ const STEPS: Record<string, (i: number, last: number) => number> = {
   End: (_, last) => last,
 };
 
-/**
- * R/T/A against wavelength; the vertical rule marks the inspected sample, set
- * by a click or the arrow keys. One chart lives for the whole session: a new
- * result morphs the drawn curves into place instead of rebuilding the chart.
- * It fills its container's height (at least 220 px) and is rebuilt with the
- * theme's colors when the system switches between light and dark.
- */
+// One chart lives for the session, so a new result morphs the drawn curves
+// instead of flashing a rebuilt chart; only a theme switch rebuilds it.
 export function SpectrumChart({ series, cursor, onCursor }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);

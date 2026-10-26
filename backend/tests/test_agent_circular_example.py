@@ -1,5 +1,3 @@
-"""The named circular mode shares the bounded client; legacy tests remain unchanged."""
-
 from copy import deepcopy
 import json
 from pathlib import Path

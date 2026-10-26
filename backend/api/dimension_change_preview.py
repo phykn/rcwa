@@ -1,5 +1,3 @@
-"""Strict schema-1.2 dimension proposals. No solver, storage, or application."""
-
 import math
 from copy import deepcopy
 from typing import Annotated, Literal

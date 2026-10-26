@@ -1,5 +1,3 @@
-"""Independent evidence integrity, including tail-sensitive comparison logic."""
-
 from copy import deepcopy
 import gzip
 import hashlib

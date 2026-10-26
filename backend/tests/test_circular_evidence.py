@@ -1,4 +1,3 @@
-"""Recompute circular evidence comparisons and bind current source/default exactly."""
 import gzip
 import hashlib
 import importlib.util

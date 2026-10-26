@@ -1,5 +1,3 @@
-"""Structural proposals are strict, deterministic and independent of computation."""
-
 import builtins
 from copy import deepcopy
 import json

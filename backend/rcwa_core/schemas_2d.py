@@ -1,8 +1,3 @@
-"""Explicit 1.2 bounded 2D contract; legacy defaults remain unchanged.
-
-Public requests opt in through shared version dispatch. Lengths are vacuum nm.
-"""
-
 from __future__ import annotations
 
 from typing import Annotated, Literal

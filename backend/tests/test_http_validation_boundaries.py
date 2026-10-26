@@ -1,5 +1,3 @@
-"""New HTTP input types, bounded rejection output and safe legacy imports."""
-
 import json
 from pathlib import Path
 

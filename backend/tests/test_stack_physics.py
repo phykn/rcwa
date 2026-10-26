@@ -1,10 +1,3 @@
-"""Multilayer power physics, independent planar TMM, and topology invariants.
-
-The characteristic-matrix reference below does not use meent, the application
-Fourier compiler, or its transfer recursion. Only finite-basis agreement is
-asserted for patterned layers; a single run is never convergence certification.
-"""
-
 import numpy as np
 import pytest
 

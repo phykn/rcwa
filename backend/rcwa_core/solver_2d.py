@@ -1,10 +1,3 @@
-"""Coupled-vector x/y-periodic RCWA for schema-1.2 projects.
-
-The production numerical path uses meent's directional inverse-rule Fourier
-matrices. The separately named Laurent diagnostic is restricted to reference
-harnesses; it never establishes production physical convergence.
-"""
-
 from __future__ import annotations
 
 from time import perf_counter

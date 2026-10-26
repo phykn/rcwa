@@ -1,5 +1,3 @@
-"""Event-loop isolation, worker output failures and CORS configuration."""
-
 import json
 import threading
 import time

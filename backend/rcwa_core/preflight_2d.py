@@ -1,5 +1,3 @@
-"""Numerical-only full-lattice preflight; no Fourier-convergence certification."""
-
 from __future__ import annotations
 
 from math import ceil, floor

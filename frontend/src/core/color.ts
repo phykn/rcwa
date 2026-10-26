@@ -1,10 +1,6 @@
-/**
- * Approximate perceived color of a reflection/transmission spectrum.
- * CIE 1931 2° observer via the Wyman–Sloan–Shirley (2013) multi-lobe fit,
- * a 6500 K blackbody standing in for daylight, and sRGB (D65) output.
- */
 const lobe = (x: number, mu: number, s1: number, s2: number) => Math.exp(-0.5 * ((x - mu) / (x < mu ? s1 : s2)) ** 2);
 
+// CIE 1931 2° observer, Wyman–Sloan–Shirley (2013) multi-lobe fit.
 export function cmf(nm: number): [number, number, number] {
   return [
     1.056 * lobe(nm, 599.8, 37.9, 31.0) + 0.362 * lobe(nm, 442.0, 16.0, 26.7) - 0.065 * lobe(nm, 501.1, 20.4, 26.2),
@@ -13,6 +9,7 @@ export function cmf(nm: number): [number, number, number] {
   ];
 }
 
+// A 6500 K blackbody stands in for daylight.
 function daylight(nm: number) {
   const m = nm * 1e-9;
   return 1 / (m ** 5 * (Math.exp(1.4387769e-2 / (m * 6500)) - 1));

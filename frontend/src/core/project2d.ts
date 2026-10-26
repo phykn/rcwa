@@ -1,4 +1,3 @@
-/** Strict schema-1.2 input boundary. Legacy parsing/identity deliberately stays separate. */
 import type { HomogeneousLayer, Material, RectangleLayer } from "./model";
 
 export interface Rectangle2DLayer {

@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-"""Start the already-installed local editor and solver; Ctrl+C stops this tree."""
-
 import importlib.metadata
 import json
 import os

@@ -1,5 +1,3 @@
-"""Public HTTP envelopes. Runtime models also generate the OpenAPI contract."""
-
 import json
 from typing import Annotated, Literal
 

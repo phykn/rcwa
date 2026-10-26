@@ -1,5 +1,3 @@
-"""HTTP-client behavior tests; the example never imports or calls the numerical core."""
-
 from copy import deepcopy
 import importlib.util
 from pathlib import Path

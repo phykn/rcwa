@@ -1,5 +1,3 @@
-"""Exact numerical default regression, without exposing an application default."""
-
 import gzip
 import hashlib
 from importlib.metadata import version
@@ -121,7 +119,7 @@ def test_default_evidence_package_integrity_and_frozen_core_binding():
         assert hashlib.sha256(local.read_bytes()).hexdigest() == expected_hash
     # Portable package versions and recorded source bytes must still match.
     # Platform-specific compiled BLAS hashes remain generation provenance;
-    # real H5 and independent reference CI separately check numerical behavior.
+    # the real H5 and independent reference checks cover numerical behavior.
     for dependency in ("meent", "numpy"):
         assert version(dependency) == provenance[dependency]
     import meent

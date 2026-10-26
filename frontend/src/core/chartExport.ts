@@ -3,7 +3,6 @@ import type { Design, SpectrumResult } from "../engine/types";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-/** Self-contained SVG line chart of fractions (0–1) against wavelength. */
 function spectrumSvg(ws: number[], curves: [string, number[], string][], title = "") {
   const W = 640;
   const H = 300;
@@ -43,7 +42,6 @@ export function spectrumChartSvg(design: Design, result: SpectrumResult, pol: Po
   );
 }
 
-/** Rasterize an SVG string at 2× for crisp slides and papers. */
 export async function svgToPng(svg: string, scale = 2): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
   try {

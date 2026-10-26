@@ -1,5 +1,3 @@
-"""Both real stdio protocols recover durable exact inputs without HTTP escape."""
-
 from contextlib import contextmanager
 import ast
 from copy import deepcopy

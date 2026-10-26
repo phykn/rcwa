@@ -1,9 +1,3 @@
-"""Append-only project storage, preserving the original database table.
-
-Provenance lives in a new sidecar table: old databases need no destructive column
-migration and old rows remain explicitly unverified. Never infer origin from JSON.
-"""
-
 import json
 import os
 from datetime import datetime, timezone
@@ -25,8 +19,8 @@ projects = Table(
     Column("project", Text, nullable=False),
     Column("result", Text, nullable=True),
 )
-# Additive schema evolution. create_all creates this new table; it is not used to
-# pretend that columns of an existing projects table have been migrated.
+# Provenance lives in a sidecar table that create_all adds, so old databases need no
+# destructive migration and their rows stay unverified. Never infer origin from JSON.
 run_provenance = Table(
     "run_provenance",
     metadata,

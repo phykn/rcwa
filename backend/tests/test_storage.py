@@ -1,5 +1,3 @@
-"""Snapshot storage stays idempotent by job under concurrent saves."""
-
 import threading
 
 from api.storage import ProjectStore

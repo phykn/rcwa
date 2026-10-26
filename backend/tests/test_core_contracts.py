@@ -1,5 +1,3 @@
-"""Engine-independent admissibility and strict typed numerical result contracts."""
-
 import copy
 from importlib import metadata
 

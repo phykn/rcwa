@@ -1,5 +1,3 @@
-"""Versioned stack boundary, historical-reader and read-only proposal proofs."""
-
 from copy import deepcopy
 import hashlib
 import json

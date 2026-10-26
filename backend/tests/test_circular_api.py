@@ -1,4 +1,3 @@
-"""Circle application discovery, validation, bounded real job and persisted snapshot."""
 from copy import deepcopy
 import json
 import time

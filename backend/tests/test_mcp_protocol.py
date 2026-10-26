@@ -1,5 +1,3 @@
-"""Official MCP client -> real stdio subprocess -> real local HTTP API."""
-
 import json
 import os
 from pathlib import Path
@@ -205,7 +203,6 @@ def test_stdio_closes_on_eof():
 @pytest.mark.anyio
 @pytest.mark.parametrize("mode", ["legacy", "auto"])
 async def test_stdio_discovery_and_validation(real_api, mode, monkeypatch):
-    # This exact real subprocess/HTTP smoke also runs on the Windows CI runner.
     # Capture the pinned SDK's process object only to assert its normal teardown.
     import mcp.client.stdio as stdio
 

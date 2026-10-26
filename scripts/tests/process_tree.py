@@ -1,4 +1,3 @@
-"""Read-only OS process observations used by launcher acceptance tests."""
 import ctypes
 from ctypes import wintypes
 import os

@@ -1,9 +1,3 @@
-"""Genuine 2D work uses the existing bounded process lifecycle and server input.
-
-The release watchdog is opt-in: RCWA_RUN_120S_WATCHDOG=1 pytest ... -k watchdog.
-Ordinary tests exercise real spawn/cancel/short deadlines and deterministic races.
-"""
-
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import gzip

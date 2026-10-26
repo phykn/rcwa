@@ -1,9 +1,3 @@
-"""Deterministic midpoint-strip disk approximation for directional Fourier rules.
-
-This is a real two-dimensional disk geometry, approximated by centered horizontal
-rectangles. Fourier integrals over each step are continuous/exact, not a sampled
-FFT. The independent reference uses S4's analytical circular regions instead.
-"""
 from __future__ import annotations
 
 import math

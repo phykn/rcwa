@@ -1,5 +1,3 @@
-"""Canonical bytes for already normalized project JSON, shared by every boundary."""
-
 import hashlib
 import json
 

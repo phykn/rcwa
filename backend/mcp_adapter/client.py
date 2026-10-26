@@ -1,5 +1,3 @@
-"""Bounded HTTP transport for the local MCP adapter. No retries or discovery URLs."""
-
 from __future__ import annotations
 
 import json

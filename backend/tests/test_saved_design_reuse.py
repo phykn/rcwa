@@ -1,5 +1,3 @@
-"""Read-only saved-design discovery, exact input reuse and durable recovery."""
-
 from copy import deepcopy
 import json
 from pathlib import Path

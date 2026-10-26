@@ -1,12 +1,3 @@
-"""Small meent adapter for exact-boundary 1D lamellar RCWA.
-
-Coordinates: x is periodic, y is invariant, +z points into the sample. The public
-material convention is exp(-i omega t), N=n+i*k, epsilon=N**2. This adapter uses
-meent's exp(+i omega t) convention for its internal finite-layer coefficients.
-Only power efficiencies are public: phase/Jones/ellipsometry conventions have
-not been validated and are deliberately not exported.
-"""
-
 from __future__ import annotations
 
 from time import perf_counter

@@ -1,9 +1,3 @@
-"""Strict public result contracts and input/result binding at worker boundaries.
-
-Validating these contracts establishes shape and internal consistency. It does
-not independently verify a spectrum, convergence, or real-world accuracy.
-"""
-
 from __future__ import annotations
 
 import math
