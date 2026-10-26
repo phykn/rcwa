@@ -82,6 +82,22 @@ describe("calculation controller", () => {
     expect(pending.some((p) => p.options.priority === "interactive")).toBe(true);
   });
 
+  it("falls back to the browser engine when the local server is busy", async () => {
+    calc.dispose();
+    pending = [];
+    const browser = fakeHub().engine;
+    const server = { kind: "server", validate: async () => [], solve: async () => Promise.reject(new EngineError("capacity", "busy")) };
+    calc = connectCalculation({ engine: server, browserEngine: browser } as unknown as EngineHub);
+    setThickness(111);
+    await vi.advanceTimersByTimeAsync(700);
+    const full = pending.filter((p) => p.options.priority === "interactive").at(-1)!;
+    expect(full.design).toEqual(useStore.getState().design);
+    full.resolve(result(21));
+    await vi.runOnlyPendingTimersAsync();
+    expect(useStore.getState().full!.key).toBe(useStore.getState().key);
+    expect(useStore.getState().status.phase).toBe("idle");
+  });
+
   it("reports invalid designs and engine errors without calculating", async () => {
     useStore.getState().edit((d) => ({ ...d, period_nm: 30 }));
     await vi.advanceTimersByTimeAsync(1000);

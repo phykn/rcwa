@@ -4,7 +4,7 @@ This is a bounded numerical workbench. Passing its tests does not certify arbitr
 
 ## Preserved baseline
 
-The preceding single-layer workflow release, commit `ec9fa014c7e7027d387a2fd478c0b7190b267783`, passed all four CI jobs and 51 browser check groups. Its twelve workflow screenshots were inspected. The multilayer stage preserves the existing checks instead of replacing them with a smaller stack-only suite.
+The single-layer workflow release, commit `ec9fa014c7e7027d387a2fd478c0b7190b267783`, is the historical baseline. The multilayer stage kept its checks instead of replacing them with a smaller stack-only suite.
 
 ## Multilayer numerical evidence
 
@@ -16,7 +16,7 @@ The application adapter is independently checked against a planar 2×2 character
 - Genuine pre-upgrade server-owned snapshot fixtures test old result/provenance reading without rewriting database rows.
 - Loss/dispersion in lower layers, zero-thickness removal, all-zero stacks, full/empty CD, split-layer invariance, layer reversal, passive flux and malformed output binding are checked separately.
 
-These references agree for the tested finite bases. That agreement is distinct from convergence to the continuous problem. Ordinary forward results deliberately retain `convergence_checked=false`. Materials in examples and tests are synthetic.
+These references agree for the tested finite bases. That agreement is distinct from convergence to the continuous problem. Ordinary forward results deliberately retain `convergence_checked=false`. Materials in these references are synthetic.
 
 A stack with no patterned layer couples only the specular order, so it is solved
 with that order alone; this is exact and avoids the singular modal inverse that an
@@ -26,14 +26,7 @@ as a cutoff. No hidden loss, angular perturbation or clipping is added.
 
 ## Reproducible checks
 
-```sh
-OPENBLAS_NUM_THREADS=1 .venv/bin/ruff check backend
-OPENBLAS_NUM_THREADS=1 .venv/bin/pytest backend/tests -q
-cd frontend
-npm run typecheck && npm run lint && npm test
-npm run test:engine
-RCWA_E2E_PYTHON=../.venv/bin/python npm run e2e
-```
+Run the [checks in the development guide](development.md#checks).
 
 Local PostgreSQL integration tests are explicitly skipped without `TEST_POSTGRES_URL`; `docker compose up -d db` provides a PostgreSQL 17 service for it. Current pinned Python dependencies use meent 0.13.2, NumPy 2.5.3 and SciPy 1.17.1. An upstream Starlette/AnyIO deprecation warning is not a test failure.
 
@@ -48,9 +41,6 @@ The independent reference comparison builds official S4 at the exact source comm
   H5 result to be reproduced within 1e-10 for every total and order power. It also
   checks that sharded partial solves assemble into exactly the whole-spectrum
   result, and that every template passes preflight.
-- Field maps are checked against the analytic thin-film field (rtol 1e-6) and
-  refuse cases where meent's native powers disagree with production.
-- 2D fitting recovers synthetic one- and two-parameter targets.
 - `npm run e2e` builds the static site and drives it in Chromium: first load with
   the stored example, in-browser recalculation after edits, a slider drag as one
   undo step with live preview, a polarization change, examples, a dimension

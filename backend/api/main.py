@@ -21,11 +21,11 @@ from api.diagnostics import (
     MAX_ERROR_DIAGNOSTICS as MAX_ERROR_DIAGNOSTICS,
     MAX_ERROR_LOCATION_BYTES as MAX_ERROR_LOCATION_BYTES,
     MAX_ERROR_TEXT_BYTES as MAX_ERROR_TEXT_BYTES,
-    _bounded_diagnostics, _bounded_text,
+    _bounded_diagnostics, _bounded_text, structured_diagnostics,
 )
 from api.dimension_change_preview import DimensionChangePreviewRequest, DimensionChangeProposal, preview_2d_changes
 from api.change_preview import preview_changes
-from api.stack_change_preview import ProposalTooLarge, bounded_proposal, preview_stack_changes
+from api.stack_change_preview import MAX_PROPOSAL_BYTES, ProposalTooLarge, bounded_proposal, preview_stack_changes
 from api.jobs import MAX_HISTORY_JOBS, AdmissionUnavailable, JobManager
 from api.storage import ProjectStore, canonical_hash
 from api.contracts import (
@@ -127,17 +127,20 @@ class SaveRequest(StrictModel):
 
 
 logger = logging.getLogger(__name__)
+MAX_REQUEST_BYTES = 2_000_000
 
 
 def _request_diagnostics(error):
-    for item in error.errors():
-        structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
-        if structured:
-            yield from (d.model_dump() for d in structured)
-            continue
-        location = list(item["loc"])
-        code = "unsupported_scope" if "geometry" in location or "schema_version" in location else "invalid_input"
-        yield {"code": code, "severity": "error", "location": location, "message": item["msg"]}
+    return structured_diagnostics(
+        error, lambda location: "unsupported_scope" if "geometry" in location or "schema_version" in location
+        else "invalid_input")
+
+
+def candidate_error(error: ValidationError) -> RequestValidationError:
+    """A combined candidate can break a cross-field rule (such as CD <= period)
+    even when each patched number is admissible; report it on the candidate."""
+    return RequestValidationError(
+        [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()])
 
 
 def create_app(database_url: str | None = None, job_timeout: float = 120) -> FastAPI:
@@ -224,7 +227,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
             body = bytearray()
             async for chunk in request.stream():
                 body.extend(chunk)
-                if len(body) > 2_000_000:
+                if len(body) > MAX_REQUEST_BYTES:
                     return error_response(413, "body_too_large", "Request exceeds the 2 MB limit")
             if body:
                 try:
@@ -304,8 +307,8 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
                 "job_timeout_seconds": app.state.jobs.timeout,
                 "retained_jobs": MAX_HISTORY_JOBS,
                 "retained_completed_bytes": app.state.jobs.max_history_bytes,
-                "request_bytes": 2_000_000,
-                "proposal_bytes": 8_000_000,
+                "request_bytes": MAX_REQUEST_BYTES,
+                "proposal_bytes": MAX_PROPOSAL_BYTES,
                 "layers": 8,
                 "wavelength_count": 81,
                 "material_table_rows": 2000,
@@ -400,13 +403,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         try:
             return bounded_proposal(preview_changes(request))
         except ValidationError as error:
-            # The combined candidate can violate CD <= period even when each
-            # individual patch number is admissible. Preserve structured errors.
-            errors = [
-                {**item, "loc": ("body", "candidate_project", *item["loc"])}
-                for item in error.errors()
-            ]
-            raise RequestValidationError(errors) from error
+            raise candidate_error(error) from error
 
     @app.exception_handler(SummaryUnavailable)
     async def summary_unavailable(request, error):
@@ -426,8 +423,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         try:
             return preview_stack_changes(request)
         except ValidationError as error:
-            errors = [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()]
-            raise RequestValidationError(errors) from error
+            raise candidate_error(error) from error
 
     @app.post("/api/2d-change-preview", response_model=DimensionChangeProposal)
     def dimension_change_preview(request: DimensionChangePreviewRequest):
@@ -435,8 +431,7 @@ def create_app(database_url: str | None = None, job_timeout: float = 120) -> Fas
         try:
             return preview_2d_changes(request)
         except ValidationError as error:
-            errors = [{**item, "loc": ("body", "candidate_project", *item["loc"])} for item in error.errors()]
-            raise RequestValidationError(errors) from error
+            raise candidate_error(error) from error
 
     @app.post("/api/jobs", status_code=202, response_model=JobResponse)
     def submit(request: JobRequest):

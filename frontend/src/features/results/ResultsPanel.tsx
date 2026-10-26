@@ -17,6 +17,11 @@ function Status() {
     return (
       <div className="status status-error" role="alert">
         <span>{status.error.message}</span>
+        {status.error.code !== "invalid_design" && (
+          <button type="button" className="btn btn-quiet" onClick={calc.solveNow}>
+            Try again
+          </button>
+        )}
       </div>
     );
   if (starting && engine.browser.phase === "failed")
@@ -37,7 +42,7 @@ function Status() {
       <div className="status status-busy" role="status">
         <span className="progress" style={{ "--done": status.total ? status.done / status.total : 0 } as React.CSSProperties} />
         <span>
-          Calculating {status.done} of {status.total} wavelengths
+          {status.done ? `Calculating ${status.done} of ${status.total} wavelengths` : `Calculating ${status.total} wavelengths`}
         </span>
         <button type="button" className="btn btn-quiet" onClick={calc.cancel}>
           Stop
@@ -47,7 +52,9 @@ function Status() {
   if (!current)
     return (
       <div className="status" role="status">
-        <span>{status.phase === "preview" ? "Previewing your edit…" : "Waiting for edits to settle"}</span>
+        <span>
+          {status.phase === "preview" ? "Previewing your edit…" : status.phase === "stopped" ? "Stopped" : "Waiting for edits to settle"}
+        </span>
         <button type="button" className="btn btn-primary" onClick={calc.solveNow}>
           Calculate
         </button>

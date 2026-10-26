@@ -1,5 +1,4 @@
-import type { Design, SpectrumResult } from "./types";
-import type { PublicForwardResult2D } from "../core/result2d";
+import type { Design, PublicForwardResult2D, SpectrumResult } from "./types";
 
 /** One request accepts at most this many wavelengths (schema 1.2 contract). */
 export const MAX_REQUEST_WAVELENGTHS = 31;

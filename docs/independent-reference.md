@@ -2,7 +2,7 @@
 
 ## Result and scope
 
-The current adapter `1.1.0` was compared against **official upstream S4** on 2026-10-10. It passed **40 scenarios and 276 polarization/wavelength samples**, checking total reflected/transmitted power and **every retained diffraction order**. The largest absolute cross-engine difference was **5.7477 × 10⁻¹³**; the regression threshold remains **1 × 10⁻⁹** in incident-normalized power.
+The then-current adapter `1.1.0` was compared against **official upstream S4** on 2026-10-10. It passed **40 scenarios and 276 polarization/wavelength samples**, checking total reflected/transmitted power and **every retained diffraction order**. The largest absolute cross-engine difference was **5.7477 × 10⁻¹³**; the regression threshold remains **1 × 10⁻⁹** in incident-normalized power.
 
 The default reference script retains all 19 original single-layer cases and adds 21 stack cases. These cover 2–8 layers, mixed film/pattern orderings, distinct rectangular CDs, lower-layer loss and independent n/k tables, absorbing and metal-like substrates, multiple propagating orders, zero-thickness insertions and all-zero stacks, degenerate CD limits, splitting and reversal, and separate H=3/7/11/15/19 refinement evidence. See [multilayer numerical evidence](multilayer-physics.md) and [complete current reference evidence](multilayer-reference-results.json.gz). The single-layer table below records the original regression cases, all of which remain in the current run.
 

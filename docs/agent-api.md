@@ -106,20 +106,15 @@ Obvious destination conflicts and directory targets are rejected before HTTP.
 
 ## Open the result in the UI
 
-Start the local frontend with `cd frontend && npm run dev`, then open `http://localhost:5173`.
+Start the workbench with the [local launcher](development.md#start-the-editor-and-solver),
+then use **Open** to load `artifacts/agent-best.json`. The workbench reads the
+file's `project` and recalculates its spectrum live; the result stored in the
+file is not shown. A compact summary/receipt is not an input file.
 
-- Use **Open** to load `artifacts/agent-best.json` and inspect its geometry, selected wavelength/polarization, powers, and warnings.
-- Or open **Saved projects** and choose the durable snapshot from this run. Its ID is printed by the script and recorded in `agent-report.json`.
-- Editing the input makes the displayed result stale. Recompute before interpreting it as the result of your edited input.
-
-The circular export follows the existing **full result import** route. In
-contrast, schema-1.2 **input-only** JSON opens Review imported design and requires
-Apply changes; it does not install a result or run a calculation. A compact
-summary/receipt is neither an input file nor a full result import.
-
-The JSON export preserves the server-returned project/result pair for compatibility, but importing a file does not establish trusted server provenance. Client-supplied saves are classified as unverified imports, even if a file claims otherwise. To inspect server-owned provenance, fetch the durable ID from the API or use the server's saved-project entry.
-
-The public static preview contains a precomputed result and makes **zero live API requests**. This workflow requires the local API and does not turn the static site into a hosted solver.
+Opening a file never establishes server provenance. To inspect server-owned
+provenance, fetch the durable snapshot ID (printed by the script and recorded in
+`agent-report.json`) from the API. The public Pages site calculates in the
+browser and never contacts a local API.
 
 ## HTTP contract
 
@@ -237,9 +232,8 @@ ID, normalization/hash and server input-provenance binding and retains its final
 
 `POST /api/change-preview` accepts exactly `base_project` and `changes`. These
 legacy (schema 1.0/1.1) proposals are for scripts; the workbench opens only
-`rcwa-change-proposal/1.2` dimension proposals. Use the
-current editor's exported Project as the base. A Project/result export contains
-it under `project`; pass that member as `base_project`, not the export wrapper.
+`rcwa-change-proposal/1.2` dimension proposals (see
+[exact-base 2D dimension proposals](#exact-base-2d-dimension-proposals)).
 The base must have exactly one rectangular layer, using either supported Project schema. Multi-layer and homogeneous bases are rejected rather than modifying only layer zero. The strict `changes` object accepts one or more of these finite numeric fields:
 
 - `period_nm`: 20–5000 nm
@@ -285,16 +279,8 @@ not inspect numerical-engine availability, run a solver, allocate a job, write
 storage, or apply inputs on the server. A successful preview predicts no optical
 improvement and does not certify numerical convergence.
 
-For the explicit local handoff, save the complete response object as a UTF-8 JSON
-file, then use **Open** in the workbench. The proposal is shown for review
-before an explicit Apply; cancel changes nothing and applying does not compute.
-The proposal response/import file limit is 8 MB; HTTP request bodies remain limited to 2 MB. Imported proposals are
-untrusted: the UI reconstructs the candidate and diff from the allowlisted
-patch, checks the complete base against the current editor, and rejects stale
-or unrelated proposals rather than silently rebasing them. Supplied hashes and
-diagnostics cannot establish server provenance. No result or provenance field
-is accepted in a proposal. Export the current project again to request a new
-proposal when the editor has changed.
+The proposal response limit is 8 MB; HTTP request bodies remain limited to
+2 MB. Supplied hashes and diagnostics cannot establish server provenance.
 
 The [MCP preview tool](mcp-tools.md#review-geometry-without-running-a-calculation)
 uses this same route. There is no built-in language model, live chat link,
@@ -418,9 +404,9 @@ result. The test copies that database before use.
 
 The official MCP SDK protocol suite covers both legacy initialization and current
 discovery, actual single-layer and mixed-stack calculations, snapshot reload,
-and read-only stack previews. GitHub Checks must additionally run PostgreSQL and
-live/static browser checks for the exact test-branch commit. Local tests do not
-substitute for those acceptance gates.
+and read-only stack previews. There is no CI: run the PostgreSQL integration test
+(`TEST_POSTGRES_URL`) and the browser checks locally before merging, as listed in
+[verification](validation.md#reproducible-checks).
 
 ## Explicit schema 1.2
 
@@ -493,8 +479,7 @@ admission rather than accumulating more work. An individual successful result
 larger than the history budget becomes a `history_limit` failure before acceptance.
 The byte bound applies after cleanup to evictable completed history; protected
 terminal records can temporarily exceed it while resource ownership remains.
-Unreaped children still consume numerical slots, and cleanup-pending records
-block all new admission until cleanup succeeds.
+Unreaped children still consume numerical slots.
 
 The memory budget bounds retained history, not total RSS, concurrent serialization
 copies or active solver allocations. The actual normalized maximum-table completed
@@ -517,7 +502,11 @@ HTTP persistence and does not enlarge the POST cap.
 
 `POST /api/2d-change-preview` accepts only `base_project` (explicit schema 1.2)
 and `changes`. It returns `rcwa-change-proposal/1.2`; legacy preview routes and
-proposal 1.0/1.1 behavior are unchanged. Example patch:
+proposal 1.0/1.1 behavior are unchanged. To start from the workbench, use
+**Export → Design file (.json)** and pass the file's `design` member as
+`base_project`. The API accepts at most 31 wavelengths per project, so this
+works for designs with up to 31 samples (the circular-hole example has 21).
+Example patch:
 
 ```json
 {"period_nm": 160, "period_y_nm": 150, "layers": [
@@ -546,16 +535,13 @@ lookup, job, calculation, storage, apply or convergence claim occurs. Requests
 remain bounded to 2,000,000 UTF-8 bytes; proposals to 8,000,000 bytes. MCP also
 checks its complete duplicated JSON-RPC representation against 8 MB.
 
-Import the complete response with **Project → Import JSON**. The browser strictly
-reconstructs the allowed candidate and diff, requires every canonical input key,
-and verifies both hashes before showing review. Only the exact current base can
-Apply; hashes prove consistency, never server provenance. Imported diagnostics
-are untrusted and not echoed. An inconsistent `valid`/error-severity combination
-rejects the file; a reported failure conservatively blocks Apply with a neutral
-message. A reported success does not establish numerical admissibility: the
-local server checks it when the user chooses **Run simulation**. Applying valid
-input edits makes one undo step and preserves the selected layer and old spectrum
-with its original inputs. Cancel, no-op, stale input/review and late file/hash
-responses cannot install changes. Apply does not save to the server; existing
-tab-local draft recovery still retains the edited inputs. Ordinary schema-1.2 input-only imports retain
-their non-base-bound full-input review; result-bearing imports are unchanged.
+Open the complete response with **Open** in the workbench. The browser trusts
+only the allowlisted dimension patch: it requires the file's normalized
+`base_project` to equal the current design exactly, rebuilds the candidate and
+diff itself, and ignores the file's candidate and hashes. A proposal made for
+another design is rejected rather than rebased; export again and request a new
+proposal. The file's diagnostics are shown as unverified notes. **Apply
+changes** is one undo step and is available only when the diff is nonempty;
+the usual live preview and full calculation then follow. Cancel changes
+nothing, and nothing is saved to the server. Other files opened with **Open**
+replace the design directly.

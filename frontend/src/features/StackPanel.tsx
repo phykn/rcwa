@@ -24,7 +24,6 @@ export function StackPanel() {
   const select = useStore((s) => s.select);
   const edit = useStore((s) => s.edit);
   const [adding, setAdding] = useState(false);
-  const total = design.layers.reduce((sum, l) => sum + l.thickness_nm, 0) || 1;
   const full = design.layers.length >= 8;
   const index = selection.kind === "layer" ? selection.index : -1;
 
@@ -38,16 +37,16 @@ export function StackPanel() {
     select({ kind: "layer", index: to });
   };
 
-  const row = (key: string, sel: Selection, label: string, detail: string, swatch: React.ReactNode, height?: number) => (
+  // The bar's color matches the layer in the 3D view.
+  const row = (key: string, sel: Selection, label: string, detail: string, color?: string) => (
     <li key={key}>
       <button
         type="button"
         className={`stack-row${same(sel, selection) ? " selected" : ""}`}
         aria-pressed={same(sel, selection)}
         onClick={() => select(sel)}
-        style={height ? { minHeight: height } : undefined}
       >
-        {swatch}
+        <span className="stack-bar" style={color ? { background: color } : undefined} aria-hidden />
         <span className="stack-text">
           <span className="stack-name">{label}</span>
           <span className="stack-detail">{detail}</span>
@@ -97,22 +96,9 @@ export function StackPanel() {
         </div>
       </div>
       <ol className="stack-list">
-        {row("ambient", { kind: "ambient" }, "Incident medium", design.ambient.name, <span className="stack-swatch medium" aria-hidden />)}
-        {design.layers.map((layer, i) =>
-          row(
-            `layer-${i}`,
-            { kind: "layer", index: i },
-            layer.name,
-            summary(layer),
-            <span
-              className={`stack-swatch shape-${layer.geometry}`}
-              style={{ "--layer": layerColor(i) } as React.CSSProperties}
-              aria-hidden
-            />,
-            Math.round(40 + 56 * (layer.thickness_nm / total)),
-          ),
-        )}
-        {row("substrate", { kind: "substrate" }, "Substrate", design.substrate.name, <span className="stack-swatch substrate" aria-hidden />)}
+        {row("ambient", { kind: "ambient" }, "Incident medium", design.ambient.name)}
+        {design.layers.map((layer, i) => row(`layer-${i}`, { kind: "layer", index: i }, layer.name, summary(layer), layerColor(i)))}
+        {row("substrate", { kind: "substrate" }, "Substrate", design.substrate.name)}
       </ol>
       {index >= 0 && (
         <div className="stack-actions" role="toolbar" aria-label={`Layer ${index + 1} actions`}>

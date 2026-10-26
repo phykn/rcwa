@@ -29,7 +29,7 @@ from api.contracts import (
     ValidationResponse, JobSummary, SnapshotSummary, SnapshotReceipt, SnapshotIndex, SnapshotInputs,
     MAX_SUMMARY_BYTES, MAX_SNAPSHOT_INDEX_BYTES, MAX_SNAPSHOT_INPUT_BYTES,
 )
-from api.diagnostics import _bounded_diagnostics
+from api.diagnostics import _bounded_diagnostics, structured_diagnostics
 from api.material_diagnostics import material_default_diagnostics
 from api.dimension_change_preview import (
     DimensionChangePreviewRequest, DimensionChangeProposal, validate_2d_proposal_binding,
@@ -269,6 +269,12 @@ OPERATIONS = [
               SnapshotArguments, SavedProject | SnapshotSummary | SnapshotInputs, "GET", "/api/projects/{snapshot_id}"),
 ]
 BY_NAME = {operation.name: operation for operation in OPERATIONS}
+# Each preview's response must be exactly what its arguments produce locally.
+PROPOSAL_BINDINGS = {
+    "rcwa_preview_changes": validate_proposal_binding,
+    "rcwa_preview_2d_changes": validate_2d_proposal_binding,
+    "rcwa_preview_stack_changes": validate_stack_proposal_binding,
+}
 
 
 def result(payload, *, error=False):
@@ -279,17 +285,10 @@ def result(payload, *, error=False):
 
 
 def invalid_arguments(exc):
-    def diagnostics():
-        for item in exc.errors():
-            structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
-            if structured:
-                yield from (diagnostic.model_dump() for diagnostic in structured)
-            else:
-                yield {"code": "invalid_arguments", "severity": "error",
-                       "location": list(item["loc"]), "message": item["msg"]}
+    diagnostics = structured_diagnostics(exc, lambda _: "invalid_arguments")
     message = "Tool arguments do not match the advertised schema"
     return {"detail": message, "error": {"code": "invalid_arguments", "message": message,
-                                         "diagnostics": _bounded_diagnostics(diagnostics())}}
+                                         "diagnostics": _bounded_diagnostics(diagnostics)}}
 
 
 def create_server(api: LocalAPI):
@@ -361,7 +360,7 @@ def create_server(api: LocalAPI):
             if operation.name == "rcwa_example" and values["example"] != "legacy_1d":
                 path += "?example=" + values["example"]
             body = values[operation.body_field] if operation.body_field else (
-                values if operation.name in {"rcwa_save_snapshot", "rcwa_preview_changes", "rcwa_preview_stack_changes", "rcwa_preview_2d_changes"} else None
+                values if operation.name in PROPOSAL_BINDINGS else None
             )
             if operation.name == "rcwa_save_snapshot":
                 body = {"job_id": values["job_id"]}
@@ -391,12 +390,8 @@ def create_server(api: LocalAPI):
                     # while canonical input identity deliberately preserves them.
                     if canonical_hash(payload["project"]) != expected_hash or payload["input_hash"] != expected_hash:
                         raise ValueError("API returned non-normalized or mismatched snapshot inputs")
-                if operation.name == "rcwa_preview_changes":
-                    validate_proposal_binding(payload, parsed)
-                if operation.name == "rcwa_preview_2d_changes":
-                    validate_2d_proposal_binding(payload, parsed)
-                if operation.name == "rcwa_preview_stack_changes":
-                    validate_stack_proposal_binding(payload, parsed)
+                if operation.name in PROPOSAL_BINDINGS:
+                    PROPOSAL_BINDINGS[operation.name](payload, parsed)
                 if operation.name == "rcwa_submit" and payload["kind"] != values["request"]["kind"]:
                     raise ValueError("API returned the wrong job kind")
                 if operation.name == "rcwa_cancel_job" and payload["status"] == "running":
@@ -432,9 +427,8 @@ def create_server(api: LocalAPI):
                 if isinstance(parsed, SnapshotArguments) and payload["id"] != values["snapshot_id"]:
                     raise ValueError("API returned the wrong snapshot identity")
             except (ValidationError, ValueError, KeyError) as exc:
-                mutation = operation.name in {"rcwa_submit", "rcwa_cancel_job", "rcwa_save_snapshot"}
                 raise AdapterError("invalid_api_response", "API returned an incompatible response; do not blindly "
-                                   "repeat a mutation", outcome_unknown=mutation) from exc
+                                   "repeat a mutation", outcome_unknown=not operation.read_only) from exc
             return result(payload)
         except AdapterError as exc:
             return result(exc.payload, error=True)

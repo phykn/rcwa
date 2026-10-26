@@ -158,31 +158,30 @@ def stack_has_loss(project: Project, wavelength_nm: float) -> bool:
     return any(refractive_index(material, wavelength_nm).imag != 0 for material in active_materials(project))
 
 
-def material_coverage_diagnostics(project: Project) -> list[Diagnostic]:
+def declared_materials(project):
+    """Every material a 1.0–1.2 Project names, with its location, active or not."""
+    yield project.ambient, ["ambient"]
+    yield project.substrate, ["substrate"]
+    for i, layer in enumerate(project.layers):
+        yield layer.material, ["layers", i, "material"]
+        if layer.geometry != "homogeneous":
+            yield layer.background, ["layers", i, "background"]
+
+
+def material_coverage_diagnostics(project) -> list[Diagnostic]:
     """Also used by Project validation to preserve its coverage guarantee."""
     wavelengths = project.illumination.wavelengths_nm
-    diagnostics = []
-    materials = [
-        (project.ambient, ["ambient"]),
-        (project.substrate, ["substrate"]),
+    return [
+        Diagnostic(
+            code="material_coverage",
+            severity="error",
+            location=location + ["wavelengths_nm"],
+            message=f"{material.name}: wavelength outside material table; extrapolation is forbidden",
+        )
+        for material, location in declared_materials(project)
+        if material.kind == "tabulated"
+        and (min(wavelengths) < material.wavelengths_nm[0] or max(wavelengths) > material.wavelengths_nm[-1])
     ]
-    for i, layer in enumerate(project.layers):
-        materials.append((layer.material, ["layers", i, "material"]))
-        if layer.geometry == "rectangle_1d":
-            materials.append((layer.background, ["layers", i, "background"]))
-    for material, location in materials:
-        if material.kind == "tabulated" and (
-            min(wavelengths) < material.wavelengths_nm[0] or max(wavelengths) > material.wavelengths_nm[-1]
-        ):
-            diagnostics.append(
-                Diagnostic(
-                    code="material_coverage",
-                    severity="error",
-                    location=location + ["wavelengths_nm"],
-                    message=f"{material.name}: wavelength outside material table; extrapolation is forbidden",
-                )
-            )
-    return diagnostics
 
 
 def preflight_project(project: Project) -> list[Diagnostic]:
@@ -201,6 +200,8 @@ def preflight_project(project: Project) -> list[Diagnostic]:
     # Uniform films couple only the specular order; other orders carry no power.
     orders = np.arange(-harmonics, harmonics + 1) if patterned else np.array([0])
     angle = np.deg2rad(project.illumination.angle_deg)
+    # One harmonics error covers every wavelength; repeating it would crowd out the rest.
+    too_few_harmonics = False
     for wi, wavelength in enumerate(project.illumination.wavelengths_nm):
         n0 = refractive_index(project.ambient, wavelength)
         ns = refractive_index(project.substrate, wavelength)
@@ -209,7 +210,8 @@ def preflight_project(project: Project) -> list[Diagnostic]:
         kx_outside = incident_kx + np.array([-harmonics - 1, harmonics + 1]) * wavelength / project.period_nm
         # A weakly absorbing substrate still carries nearly propagating orders out to n.
         largest_port_index = max(n0.real, ns.real)
-        if patterned and np.any(np.abs(kx_outside) <= largest_port_index):
+        if patterned and not too_few_harmonics and np.any(np.abs(kx_outside) <= largest_port_index):
+            too_few_harmonics = True
             diagnostics.append(
                 Diagnostic(
                     code="insufficient_harmonics",

@@ -64,7 +64,7 @@ export const TEMPLATES: Template[] = [
     id: "ar-coating",
     title: "Anti-reflection coating",
     summary: "Quarter-wave MgF₂ on glass at 550 nm.",
-    look: "Reflection falls from about 4% to about 1.3% near 550 nm.",
+    look: "Reflection falls from about 3.5% (bare glass) to about 1.7% near 550 nm.",
     design: design("MgF₂ anti-reflection coating", [400, 400], [film("MgF₂ quarter-wave", lib("MgF2"), 100)], { from: 400, to: 800, points: 81 }, [1, 1]),
   },
   {

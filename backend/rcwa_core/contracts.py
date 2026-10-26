@@ -15,9 +15,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .preflight import ADAPTER_VERSION, REQUIRED_ENGINE_VERSION, refractive_index, stack_has_loss
 from .schemas import FitRequest, Layer, Project
 
-RESULT_SCHEMA_VERSION = "1.1"
-
-
 class ResultModel(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False, strict=True)
 

@@ -23,29 +23,29 @@ binds that input to the complete stored result and public bundle.
 
 ## Editing
 
-Choose a layer in the scene or layer list. A circular layer exposes one Diameter
-control and its own Thickness. Shared Pitch X/Y controls the periodic unit cell
-for all layers. Diameter must fit both pitches; reducing a pitch below an
-existing diameter is rejected rather than resizing the hole. Uniform layers
-have no diameter control. Rectangular imports keep their Width X/Y controls.
+Choose a layer in the scene or the stack list. A circular layer has one **Hole
+diameter** control and its own **Thickness**. The shared **Pitch X/Y** sets the
+periodic unit cell for all layers. The diameter must fit both pitches; reducing a
+pitch below an existing diameter is rejected rather than resizing the hole.
+Uniform layers have no diameter control.
 
-Layer settings names the two material roles explicitly:
+The layer's two materials are named explicitly:
 
-- Hole material is the material filling the circular region. Air produces an
-  empty-looking hole, but a non-air fill remains real material in the model.
-- Host material fills the rest of that layer's unit cell, including the corners
-  when the diameter touches a period boundary.
+- **Hole fill** is the material inside the circle. Air gives an empty hole, but a
+  non-air fill remains real material in the model.
+- **Host** fills the rest of the layer's unit cell, including the corners when
+  the diameter touches a period boundary.
 
 Diameter zero leaves a host film. Zero layer thickness has no finite volume.
-The 3×3 shadow-free scene repeats the same canonical input in both horizontal
-axes. Its cutaway is an inspection aid only; Full stack restores the view without
-changing any input. The substrate's displayed depth is schematic.
+The scene shows a 3×3 block of unit cells, cut away so the holes inside every
+layer are visible. The substrate's displayed depth is schematic.
 
 ## Calculation and reference
 
-Pages is a static preview. It displays the complete precomputed result bound to
-the exact example input. Editing marks that result stale. Use the local Python
-API to calculate edited inputs; the browser never invents a replacement curve.
+On first load the workbench shows the stored result for this exact input, then
+recalculates live after every edit, in the browser (including on Pages) or on a
+local server. Edited inputs get their own calculated spectrum; the stored result
+is never reused for them.
 
 The `circular_hole_2d` contract keeps a true circular target geometry with a
 single `diameter_nm`. The production solver approximates that circular boundary
@@ -68,11 +68,7 @@ accuracy, and actual HBM structures do not inherit that evidence.
 
 Schema 1.2 adds the explicit `circular_hole_2d` layer tag without changing old
 rectangular or homogeneous inputs. `material` means hole fill and `background`
-means host for this tag. The diameter participates in the canonical input hash
-and all project/result binding. A result for another diameter cannot be attached
-as a current result.
-
-The explicit `?example=rectangle` URL opens the retained rectangular 2D example;
-`?example=1d` opens the retained 1D fixture. Imports are never silently converted.
-Historic rectangular references retain their original input, result and source
-provenance; they do not certify the circular solver path.
+means host for this tag. The diameter participates in the canonical input hash,
+so a result for another diameter never matches this input. Historic rectangular
+references retain their original input, result and source provenance; they do
+not certify the circular solver path.

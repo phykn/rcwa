@@ -36,6 +36,17 @@ def _bounded_location(location):
     return result
 
 
+def structured_diagnostics(error, code):
+    """Diagnostics carried by a validation error, else one per error coded from its location."""
+    for item in error.errors():
+        structured = getattr(item.get("ctx", {}).get("error"), "diagnostics", None)
+        if structured:
+            yield from (diagnostic.model_dump() for diagnostic in structured)
+        else:
+            location = list(item["loc"])
+            yield {"code": code(location), "severity": "error", "location": location, "message": item["msg"]}
+
+
 def _bounded_diagnostics(diagnostics):
     result = []
     for item in diagnostics:

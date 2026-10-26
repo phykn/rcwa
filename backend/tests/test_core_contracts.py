@@ -85,6 +85,15 @@ def test_omitted_orders_fail_both_preflight_and_worker():
         forward(project)
 
 
+def test_omitted_orders_are_reported_once_for_a_whole_spectrum():
+    project = Project()
+    project.period_nm = 4000
+    project.solver.harmonics = 1
+    project.illumination.wavelengths_nm = [450.0, 500.0, 550.0]
+    codes = [item.code for item in preflight_project(project)]
+    assert codes.count("insufficient_harmonics") == 1
+
+
 @pytest.mark.parametrize("k", [0.0, 1e-12, 1e-4, 0.1])
 def test_substrate_absorption_does_not_hide_its_open_orders(k):
     project = Project()

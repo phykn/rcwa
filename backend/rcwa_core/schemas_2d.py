@@ -81,10 +81,9 @@ class Project2D(StrictModel):
             self.ambient.kind == "tabulated" and any(self.ambient.k_values)
         ):
             raise ValueError("The incident ambient must be lossless")
-        from .preflight import PreflightError
-        from .preflight_2d import material_coverage_diagnostics_2d
+        from .preflight import PreflightError, material_coverage_diagnostics
 
-        errors = material_coverage_diagnostics_2d(self)
+        errors = material_coverage_diagnostics(self)
         if errors:
             raise PreflightError(errors)
         return self

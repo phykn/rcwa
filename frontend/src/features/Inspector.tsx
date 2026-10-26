@@ -1,6 +1,6 @@
 import type { Layer2D } from "../core/project2d";
 import type { Material } from "../core/model";
-import { convertLayer, describeRange, wavelengthRange } from "../core/design";
+import { convertLayer, describeRange, patternKind, wavelengthRange } from "../core/design";
 import type { Design } from "../engine/types";
 import { useStore } from "../state/store";
 import { MaterialField } from "../ui/MaterialField";
@@ -340,7 +340,8 @@ export function Inspector() {
       ) : (
         <MediumEditor design={design} which={selection.kind} />
       )}
-      <LatticeEditor design={design} />
+      {/* Pitch has no effect on a stack of uniform films. */}
+      {patternKind(design) !== "film" && <LatticeEditor design={design} />}
       <LightEditor design={design} />
     </div>
   );

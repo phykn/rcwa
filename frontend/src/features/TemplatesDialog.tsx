@@ -1,5 +1,4 @@
 import { TEMPLATES } from "../core/templates";
-import { layerColor } from "../core/layerColors";
 import { useStore } from "../state/store";
 import { Dialog } from "../ui/Dialog";
 
@@ -20,15 +19,6 @@ export function TemplatesDialog({ onClose }: { onClose: () => void }) {
                 onClose();
               }}
             >
-              <span className="template-stack" aria-hidden>
-                {t.design.layers.map((l, i) => (
-                  <span
-                    key={i}
-                    className={`shape-${l.geometry}`}
-                    style={{ flexGrow: Math.max(1, l.thickness_nm), "--layer": layerColor(i) } as React.CSSProperties}
-                  />
-                ))}
-              </span>
               <span className="template-title">{t.title}</span>
               <span className="template-summary">{t.summary}</span>
               <span className="template-look">{t.look}</span>

@@ -1,4 +1,4 @@
-"""Offline coupled-vector x/y-periodic RCWA, awaiting application integration.
+"""Coupled-vector x/y-periodic RCWA for schema-1.2 projects.
 
 The production numerical path uses meent's directional inverse-rule Fourier
 matrices. The separately named Laurent diagnostic is restricted to reference
@@ -144,10 +144,11 @@ def _solve_2d_with_ports(kx, ky, n0, ns, angle, phi, wavelength, thicknesses, ep
 def forward_2d(
     project: Project2D, *, reference_basis: tuple[int, int] | None = None, reference_circle_strips: int | None = None
 ) -> dict:
-    """Offline production formulation. Higher bases are an explicit test override.
+    """The production forward solve of every 1.2 API job and fit evaluation.
 
-    Public worker/API dispatch must not call this until its separate admission,
-    result/storage and UI integration gates pass. The override cannot alter the
+    Browser workers run the same solve in wavelength shards and assemble them.
+
+    Higher bases are an explicit reference-harness override. It cannot alter the
     input hash silently: actual basis and offline override are explicit metadata.
     """
     return _forward_2d(

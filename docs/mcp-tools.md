@@ -181,8 +181,10 @@ they do not authorize a client to run a calculation or save without its user's
 required approval. Submission is explicitly non-idempotent; cancellation is
 marked destructive, and snapshot save is an idempotent write.
 
-The workbench UI's **Saved projects** list can open these same snapshots. The
-public static preview is still precomputed and makes no live API requests.
+To view a saved snapshot in the workbench, save its full record as a `.json`
+file and use **Open**; the workbench reads its `project` and recalculates the
+spectrum. The public Pages site calculates in the browser and never contacts a
+local API.
 
 ## Find and reuse a saved design
 
@@ -270,8 +272,8 @@ retroactively flagged. This diagnostic changes neither normalization nor hashes.
 generate an AI design or predict an improvement. It is marked read-only and
 idempotent even though the shared HTTP route uses POST.
 
-1. Export the current workbench input. Give its Project object (the `project`
-   member of a Project/result export) to the tool as `base_project`.
+1. Start from a schema 1.0/1.1 Project with exactly one rectangular layer, such
+   as `rcwa_example({})`, and pass it as `base_project`.
 2. Supply a bounded `changes` object with one or more finite numeric
    `period_nm`, `cd_nm`, or `thickness_nm` values. No materials, illumination,
    solver settings, generic paths, code, nulls, booleans or numeric strings are
@@ -285,12 +287,10 @@ idempotent even though the shared HTTP route uses POST.
 4. Have your tool client save only the returned JSON envelope
    (`structuredContent`, or the identical JSON text content) as a UTF-8 `.json`
    file. Do not include the MCP `content`/`isError` wrapper. The MCP adapter itself
-   has no file-writing tool. Proposal files imported into the workbench are limited to
-   8 MB; HTTP requests remain limited to 2 MB.
-5. Use **Import JSON** to review that file in the workbench, then explicitly
-   Apply or cancel. Apply is available only for a nonempty applicable proposal
-   whose complete base still matches the editor; neither action launches a
-   calculation. A stale proposal needs a new preview from the current export.
+   has no file-writing tool. Proposals are limited to 8 MB; HTTP requests remain
+   limited to 2 MB.
+5. Use the envelope in your own scripts. The workbench opens only 1.2 dimension
+   proposals ([below](#review-exact-base-2d-dimensions)).
 
 For example, the default geometry permits this combined change:
 
@@ -436,9 +436,9 @@ errors, and real read-only geometry/stack previews. Genuine historical snapshot 
 strict finite patches, atomic cross-field validation, shared browser/server cases,
 engine independence, no storage or job effects, and complete response binding. Boundary tests cover generated schemas, unsafe targets/IDs, extra fields,
 finite JSON, per-tool/HTTP byte limits, deadlines, HTTP admission limits,
-failed/cancelled status, provenance preservation and ordinary SDK process cleanup. The normal backend CI installs the
-optional lock so these tests cannot silently skip there. Without MCP installed,
-the optional MCP test modules are explicitly skipped by the ordinary backend suite.
+failed/cancelled status, provenance preservation and ordinary SDK process cleanup. Install the
+optional MCP lock before running the backend suite so these tests run; without
+MCP installed, the optional MCP test modules are explicitly skipped.
 
 This is protocol integration evidence, not a claim that every vendor's AI host
 has been tested. References: [official Python SDK](https://github.com/modelcontextprotocol/python-sdk),
@@ -522,11 +522,11 @@ read-only, idempotent and closed-world; transport failures do not report an
 unknown mutation outcome. Existing 2 MB argument/request and complete 8 MB HTTP/
 stdio response bounds remain enforced, including legacy and current MCP modes.
 
-Save the returned `rcwa-change-proposal/1.2` JSON for human **Import JSON** review.
-The browser independently checks exact input/patch/hash binding, but treats file
-numerical diagnostics as unverified. Reported errors conservatively disable
-Apply without repeating the file's scientific messages; reported success is not
-a convergence or accuracy guarantee. **Run simulation** performs the local
-server's numerical admissibility check. Import, review and Apply never calculate
-or save to the server, and the old spectrum remains paired with its original
-inputs. Existing tab-local draft recovery still retains edited inputs.
+For a workbench design, use **Export → Design file (.json)** and pass the file's
+`design` member as `base_project`; the API accepts at most 31 wavelengths per
+project. Save the returned `rcwa-change-proposal/1.2` JSON and use **Open** in
+the workbench for human review. The browser requires the base to equal the
+current design exactly and rebuilds the candidate and diff from the patch alone;
+the file's diagnostics are shown as unverified notes, and reported success is
+not a convergence or accuracy guarantee. **Apply changes** is one undo step,
+after which the usual live calculation runs; nothing is saved to the server.

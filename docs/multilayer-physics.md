@@ -37,7 +37,7 @@ New cases include:
 - Distinct lower-layer ridge/background material tables
 - Absorbing and metal-like substrate ports
 
-Full inputs, totals, every order, error, package versions, compiler recipe, S4 commit, and source hashes are in the compressed evidence. The separate `independent-reference` CI gate reruns this script. This comparison establishes agreement between two independent implementations of the Fourier-modal method at matched finite bases, not independent experimental truth.
+Full inputs, totals, every order, error, package versions, compiler recipe, S4 commit, and source hashes are in the compressed evidence. Rerun this script locally when the numerical core changes. This comparison establishes agreement between two independent implementations of the Fourier-modal method at matched finite bases, not independent experimental truth.
 
 ## Geometry, contracts, and failure tests
 

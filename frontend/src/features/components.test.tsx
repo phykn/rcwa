@@ -59,6 +59,16 @@ describe("editing through the panels", () => {
     expect(screen.queryByRole("textbox", { name: "Hole diameter" })).toBeNull();
   });
 
+  it("shows the pitch only while some layer is patterned", () => {
+    useStore.getState().replace(TEMPLATES.find((t) => t.id === "ar-coating")!.design);
+    const { unmount } = render(<Inspector />);
+    expect(screen.queryByRole("heading", { name: "Pattern spacing" })).toBeNull();
+    unmount();
+    useStore.getState().replace(TEMPLATES[0].design);
+    render(<Inspector />);
+    expect(screen.getByRole("heading", { name: "Pattern spacing" })).toBeTruthy();
+  });
+
   it("selects, reorders, duplicates and deletes layers from the stack", async () => {
     render(<StackPanel />);
     const names = () => useStore.getState().design.layers.map((l) => l.thickness_nm);

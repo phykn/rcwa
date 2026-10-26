@@ -77,13 +77,6 @@ export function designKey(design: Design): string {
   return JSON.stringify(sortKeys(design));
 }
 
-export function layerFeature(layer: Layer2D): number | null {
-  if (layer.geometry === "circular_hole_2d") return layer.diameter_nm;
-  if (layer.geometry === "rectangle_2d") return layer.cd_x_nm;
-  if (layer.geometry === "rectangle_1d") return layer.cd_nm;
-  return null;
-}
-
 /** Which axes the patterned layers vary along: none, x only (lines), or both. */
 export function patternKind(design: Design): "film" | "1d" | "2d" {
   if (design.layers.some((l) => l.geometry === "rectangle_2d" || l.geometry === "circular_hole_2d")) return "2d";

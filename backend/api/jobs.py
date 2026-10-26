@@ -368,12 +368,11 @@ class JobManager:
                 return None
             return deepcopy(self.jobs[job_id]), deepcopy(self.inputs[job_id])
 
-    def cancel(self, job_id: str, error: str | None = None, status: str = "cancelled") -> dict | None:
+    def cancel(self, job_id: str) -> dict | None:
         with self._lock:
             active = self.running.get(job_id)
             if active:
-                self._finish(job_id, active, status, error=error,
-                             error_code="timeout" if status == "failed" else "cancelled")
+                self._finish(job_id, active, "cancelled", error_code="cancelled")
             elif job_id in self.cleanup_pending:
                 self._cleanup(job_id, self.cleanup_pending[job_id])
             self._prune_history()

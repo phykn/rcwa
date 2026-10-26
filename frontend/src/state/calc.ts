@@ -1,6 +1,6 @@
 import { previewDesign } from "../engine/chunks";
 import type { EngineHub } from "../engine";
-import { EngineError, type Design } from "../engine/types";
+import { EngineError, type Design, type Engine } from "../engine/types";
 import { designError } from "../core/design";
 import { useStore } from "./store";
 
@@ -48,12 +48,24 @@ export function connectCalculation(hub: EngineHub) {
     fullKey = key;
     const total = design.illumination.wavelengths_nm.length;
     useStore.getState().setStatus({ phase: "solving", done: 0, total, error: null });
-    try {
-      const result = await hub.engine.solve(design, {
+    const solve = (engine: Engine) =>
+      engine.solve(design, {
         signal: abort.signal,
         priority: "interactive",
         onProgress: (done) => !abort.signal.aborted && useStore.getState().setStatus({ done }),
       });
+    try {
+      let result;
+      try {
+        result = await solve(hub.engine);
+      } catch (error) {
+        // The local server runs one 2D job at a time; when another client holds
+        // it, the browser engine solves the same design instead of stalling.
+        const busy = error instanceof EngineError && error.code === "capacity";
+        if (!busy || hub.engine === hub.browserEngine || abort.signal.aborted) throw error;
+        useStore.getState().setStatus({ done: 0 });
+        result = await solve(hub.browserEngine);
+      }
       if (abort.signal.aborted) return;
       useStore.getState().setFull(design, result);
       useStore.getState().setStatus({ phase: "idle", error: null });
@@ -100,7 +112,7 @@ export function connectCalculation(hub: EngineHub) {
     cancel: () => {
       fullAbort?.abort();
       fullKey = "";
-      useStore.getState().setStatus({ phase: "idle" });
+      useStore.getState().setStatus({ phase: "stopped" });
     },
     dispose: () => {
       unsubscribe();

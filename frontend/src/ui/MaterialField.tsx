@@ -1,18 +1,10 @@
 import { useMemo, useState } from "react";
 import type { Material } from "../core/model";
-import { coverage, describeMaterial, indexAt, LIBRARY, parseMaterialCsv } from "../core/materials";
+import { coverage, describeMaterial, LIBRARY, parseMaterialCsv } from "../core/materials";
 import { constantMaterial } from "../core/design";
 import { Popover } from "./Popover";
 
 const FAMILY = { dielectric: "Dielectrics", semiconductor: "Semiconductors", metal: "Metals" } as const;
-
-/** Optical density as a tone: low index pale, high index deep, absorbing metallic. */
-export function materialColor(material: Material, wavelength: number) {
-  const value = indexAt(material, wavelength) ?? { n: material.n, k: material.k };
-  if (value.k > 0.5) return "var(--mat-metal)";
-  const t = Math.min(1, Math.max(0, (value.n - 1) / 3));
-  return `color-mix(in oklab, var(--mat-low) ${Math.round((1 - t) * 100)}%, var(--mat-high))`;
-}
 
 export function MaterialField({
   label,
@@ -78,7 +70,6 @@ export function MaterialField({
           setOpen(true);
         }}
       >
-        <span className="material-dot" style={{ background: materialColor(material, center) }} aria-hidden />
         <span className="material-name">{material.name}</span>
         <span className="material-value">{describeMaterial(material, center)}</span>
       </button>

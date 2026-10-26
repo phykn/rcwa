@@ -46,7 +46,7 @@ export class EngineHub {
     return this.server ?? this.browser;
   }
 
-  /** The browser engine also serves local work (preview, sweeps) when a server exists. */
+  /** The browser engine also runs live previews when a server exists. */
   get browserEngine() {
     return this.browser;
   }

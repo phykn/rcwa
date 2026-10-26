@@ -136,7 +136,7 @@ class RunningLauncher:
         self.log = LOG_DIR / f"{name}.log"
         self.stream = self.log.open("w", encoding="utf-8")
         environment = os.environ.copy()
-        for key in ("VITE_API_BASE_URL", "VITE_STATIC_PREVIEW", "DATABASE_URL"):
+        for key in ("VITE_API_BASE_URL", "DATABASE_URL"):
             environment.pop(key, None)
         environment.update({"PYTHONUNBUFFERED": "1", "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1"})
         if env:
@@ -287,8 +287,7 @@ def test_native_imports_finish_before_control_reader_starts(checkout, launch, ed
     ({"DATABASE_URL": ""}, "DATABASE_URL is empty"),
     ({"DATABASE_URL": "this-is-not-a-database"}, "DATABASE_URL"),
     ({"DATABASE_URL": "sqlite:///missing-parent/cannot-open.db"}, "DATABASE_URL"),
-    ({"VITE_STATIC_PREVIEW": "true"}, "Clear VITE_STATIC_PREVIEW"),
-    ({"VITE_API_BASE_URL": "https://example.invalid"}, "Clear VITE_STATIC_PREVIEW"),
+    ({"VITE_API_BASE_URL": "https://example.invalid"}, "Clear VITE_API_BASE_URL"),
     ({"PATH": ""}, "Node.js is missing"),
 ])
 def test_configuration_fails_closed(launch, env, expected):
@@ -299,12 +298,11 @@ def test_configuration_fails_closed(launch, env, expected):
     ports_reusable()
 
 
-@pytest.mark.parametrize("text", ["VITE_STATIC_PREVIEW=true\n", "VITE_API_BASE_URL=https://example.invalid\n"])
-def test_frontend_env_file_cannot_change_launch_meaning(checkout, launch, edit, text):
-    edit(checkout / "frontend/.env.local", text)
+def test_frontend_env_file_cannot_change_launch_meaning(checkout, launch, edit):
+    edit(checkout / "frontend/.env.local", "VITE_API_BASE_URL=https://example.invalid\n")
     running = launch()
     assert running.process.wait(timeout=40) == 1, running.text()
-    assert "Clear VITE_STATIC_PREVIEW" in running.text(), running.text()
+    assert "Clear VITE_API_BASE_URL" in running.text(), running.text()
     assert "RCWA ready" not in running.text()
     ports_reusable()
 

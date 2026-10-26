@@ -10,7 +10,7 @@ test("opens with a calculated example and recalculates edits in the browser", as
   const diameter = page.getByRole("textbox", { name: "Hole diameter", exact: true });
   await diameter.fill("110");
   await diameter.press("Enter");
-  await expect(page.getByText(/Previewing your edit|Calculating \d+ of \d+|Waiting for edits/)).toBeVisible();
+  await expect(page.getByText(/Previewing your edit|Calculating \d+|Waiting for edits/)).toBeVisible();
   await waitUpToDate(page);
   await expect(page.getByRole("status").filter({ hasText: /^Calculated in [\d.]+ s$/ })).toBeVisible();
   expect(await readout(page)).not.toBe(before);
@@ -48,7 +48,7 @@ test("examples load and calculate", async ({ app: page }) => {
   await page.getByRole("button", { name: /Anti-reflection coating/ }).click();
   await expect(page.getByRole("textbox", { name: "Design name" })).toHaveValue(/anti-reflection/i);
   await waitUpToDate(page);
-  await expect(page.getByLabel("Values at the inspected wavelength")).toContainText("Reflects as");
+  await expect(page.getByLabel("Spectrum values")).toContainText("Reflected color");
 });
 
 test("works on a phone-sized screen without sideways scrolling", async ({ app: page }) => {
@@ -61,7 +61,7 @@ test("works on a phone-sized screen without sideways scrolling", async ({ app: p
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow, section).toBeLessThanOrEqual(0);
   }
-  await expect(page.getByLabel("Values at the inspected wavelength")).toBeVisible();
+  await expect(page.getByLabel("Spectrum values")).toBeVisible();
   await tabs.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toBeVisible();
 });
@@ -78,6 +78,7 @@ test("reviews an imported dimension proposal before applying it", async ({ app: 
   });
   const dialog = page.getByRole("dialog", { name: "Review proposed changes" });
   await expect(dialog.getByRole("row")).toHaveCount(4);
+  await expect(dialog).toContainText("Layer 1 hole diameter");
   await dialog.getByRole("button", { name: "Apply changes" }).click();
   await expect(page.getByRole("textbox", { name: "Hole diameter", exact: true })).toHaveValue("70");
   await page.getByRole("button", { name: "Undo" }).click();
@@ -115,4 +116,16 @@ test("changing the polarization updates the spectrum", async ({ app: page }) => 
   await page.getByRole("radio", { name: "s (TE)" }).click();
   await waitUpToDate(page);
   expect(await readout(page)).not.toBe(before);
+});
+
+test("arrow keys move the inspected wavelength along the chart", async ({ app: page }) => {
+  await page.goto("/");
+  await waitUpToDate(page, 30_000);
+  const wavelength = page.getByLabel("Spectrum values").locator(".readout-wl");
+  const before = await wavelength.innerText();
+  await page.getByRole("slider", { name: "Inspected wavelength" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(wavelength).not.toHaveText(before);
+  await page.keyboard.press("End");
+  await expect(wavelength).toHaveText(/^850\s*nm$/);
 });

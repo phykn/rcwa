@@ -1,6 +1,5 @@
 """Strict schema-1.2 dimension proposals. No solver, storage, or application."""
 
-import json
 import math
 from copy import deepcopy
 from typing import Annotated, Literal
@@ -9,7 +8,7 @@ from pydantic import AfterValidator, ConfigDict, Field, field_validator, model_v
 from typing_extensions import NotRequired, TypedDict
 
 from api.stack_change_preview import bounded_proposal
-from rcwa_core.identity import canonical_hash
+from rcwa_core.identity import canonical_hash, same_canonical
 from rcwa_core.preflight import Diagnostic
 from rcwa_core.preflight_2d import preflight_2d
 from rcwa_core.project_io import parse_project
@@ -174,7 +173,5 @@ def validate_2d_proposal_binding(payload: dict, request: DimensionChangePreviewR
     # Compare RAW payload, including every canonical field and the exact supplied
     # patch. Python == would conceal signed-zero tampering. This is consistency,
     # not authenticated provenance or a prediction of numerical convergence.
-    def canonical(value):
-        return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
-    if canonical(payload) != canonical(preview_2d_changes(request).model_dump()):
+    if not same_canonical(payload, preview_2d_changes(request).model_dump()):
         raise ValueError("API proposal does not match the requested normalized base and 2D dimension changes")

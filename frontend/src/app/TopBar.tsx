@@ -37,9 +37,14 @@ function EngineBadge() {
     <span
       className={`engine-badge engine-${active === "server" ? "ready" : browser.phase}`}
       role="status"
-      title={browser.phase === "failed" ? browser.detail : undefined}
+      title={
+        active === "server"
+          ? "Full calculations run on the local API; previews run in this browser."
+          : browser.phase === "failed"
+            ? browser.detail
+            : undefined
+      }
     >
-      <span className="engine-dot" aria-hidden />
       {text}
     </span>
   );
@@ -91,18 +96,7 @@ export function TopBar({ onTemplates }: { onTemplates: () => void }) {
 
   return (
     <header className="topbar">
-      <div className="brand">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
-          <path
-            d="M3 18h18M5 18V9m4 9V6m4 12V9m4 9V6"
-            stroke="currentColor"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span>RCWA Workbench</span>
-      </div>
+      <span className="brand">RCWA Workbench</span>
       <input
         className="design-name"
         aria-label="Design name"
@@ -152,7 +146,6 @@ export function TopBar({ onTemplates }: { onTemplates: () => void }) {
             />
           </svg>
         </button>
-        <span className="divider" aria-hidden />
         <button type="button" className="btn btn-quiet" onClick={onTemplates}>
           Examples
         </button>

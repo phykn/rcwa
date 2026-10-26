@@ -42,6 +42,6 @@ export async function waitUpToDate(page: Page, timeout = 180_000) {
 }
 
 export async function readout(page: Page) {
-  const text = await page.getByLabel("Values at the inspected wavelength").locator("dl").innerText();
+  const text = await page.getByLabel("Spectrum values").locator("dl.readout").innerText();
   return text.replace(/\s+/g, " ");
 }

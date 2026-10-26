@@ -12,7 +12,7 @@ export interface Run {
 }
 
 export interface CalcStatus {
-  phase: "idle" | "preview" | "solving" | "error";
+  phase: "idle" | "preview" | "solving" | "stopped" | "error";
   done: number;
   total: number;
   error: { code: string; message: string } | null;
@@ -126,8 +126,3 @@ export const useStore = create<State>((set, get) => ({
   setCursor: (wavelength) => set({ cursor: wavelength }),
   notify: (text, tone = "info") => set({ notice: { text, tone } }),
 }));
-
-/** Whether the displayed full result belongs to the current inputs. */
-export function useIsCurrent() {
-  return useStore((s) => !!s.full && s.full.key === s.key);
-}

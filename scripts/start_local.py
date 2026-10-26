@@ -70,8 +70,8 @@ def check_dependencies(root=ROOT):
 
 
 def check_configuration():
-    if os.environ.get("VITE_STATIC_PREVIEW", "").lower() == "true" or os.environ.get("VITE_API_BASE_URL", ""):
-        raise StartupError("Clear VITE_STATIC_PREVIEW and VITE_API_BASE_URL for local UI + API startup.")
+    if os.environ.get("VITE_API_BASE_URL", ""):
+        raise StartupError("Clear VITE_API_BASE_URL for local UI + API startup.")
     if "DATABASE_URL" in os.environ and not os.environ["DATABASE_URL"].strip():
         raise StartupError("DATABASE_URL is empty. Unset it for repository-root SQLite, or provide a valid database URL.")
     for port in (8000, 5173):

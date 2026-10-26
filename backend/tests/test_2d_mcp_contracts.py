@@ -309,7 +309,7 @@ async def test_mcp_expanded_structured_preflight_diagnostics_are_bounded(monkeyp
 
     expanded = [Diagnostic(code="검증" * 1000, severity="error", message='"\\界🧪' * 1000,
                           location=["층" * 1000, index, *["영역" * 1000] * 20]) for index in range(100)]
-    monkeypatch.setattr("rcwa_core.preflight_2d.material_coverage_diagnostics_2d", lambda _: expanded)
+    monkeypatch.setattr("rcwa_core.preflight.material_coverage_diagnostics", lambda _: expanded)
     requests = []
     def respond(request):
         requests.append(request)

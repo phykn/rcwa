@@ -1,7 +1,8 @@
-"""Generate schema-1.2 frontend identity vectors with unchanged backend helpers.
+"""Generate schema-1.2 frontend normalization vectors with unchanged backend helpers.
 
-No forward solve is invoked. --check verifies committed vectors byte-for-byte.
-Run with the repository's pinned Python/Pydantic environment.
+Each case records whether the backend accepts a raw project and, if so, its
+normalized form. No forward solve is invoked. --check verifies committed vectors
+byte-for-byte. Run with the repository's pinned Python/Pydantic environment.
 """
 
 from __future__ import annotations
@@ -9,7 +10,6 @@ from __future__ import annotations
 import argparse
 from copy import deepcopy
 import hashlib
-import gzip
 import json
 import math
 from pathlib import Path
@@ -20,10 +20,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 import pydantic  # noqa: E402
-from rcwa_core.identity import canonical_hash  # noqa: E402
-from rcwa_core.project_io import normalized_project_and_hash, validate_result_for_project  # noqa: E402
-from rcwa_core.preflight import refractive_index  # noqa: E402
-from rcwa_core.preflight_2d import wavevectors  # noqa: E402
+from rcwa_core.project_io import normalized_project_and_hash  # noqa: E402
 
 OUTPUT = ROOT / "frontend/src/core/fixtures/project-2d-conformance.json"
 PROJECT_SHA = "8dbe8260fa61ba3ec8f82ffefc5a5749ea75587b035d9f381edf66b695755294"
@@ -47,12 +44,11 @@ def build():
         source = raw if raw is not None else json.dumps(value, ensure_ascii=True, separators=(",", ":"))
         item = {"name": name, "raw": source}
         try:
-            _, normalized, digest = normalized_project_and_hash(json.loads(source))
+            _, normalized, _ = normalized_project_and_hash(json.loads(source))
             canonical = json.dumps(
                 normalized, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
             )
-            assert digest == canonical_hash(normalized) == hashlib.sha256(canonical.encode()).hexdigest()
-            item.update(accepted=True, canonical=canonical, sha256=digest, utf8_hex=canonical.encode().hex())
+            item.update(accepted=True, canonical=canonical)
         except (ValueError, TypeError, UnicodeError) as error:
             item.update(accepted=False, error_type=type(error).__name__)
         cases.append(item)
@@ -146,167 +142,16 @@ def build():
         p["layers"][0]["thickness_nm"] = abs(float_values[rng.randrange(len(float_values))]) % 2000
         p["layers"][0]["material"]["k"] = abs(float_values[rng.randrange(len(float_values))]) % 10
         add(f"float-project-{i:03}", p)
-    floats = [{"bits": struct.pack(">d", value).hex(), "python": repr(value)} for value in float_values]
-    # Small deterministic mutations of the immutable result test contracts only.
-    # These are not forward solves, new numerical references, or accuracy evidence.
-    result_bytes = (ROOT / "backend/tests/fixtures/true-2d/default-result-H5.json.gz").read_bytes()
-    assert (
-        hashlib.sha256(result_bytes).hexdigest() == "8a978f155cdbeb5a74e258253b1aae52bf8bc0f6513e934564d725d7715cd36c"
-    )
-    result_source = json.loads(gzip.decompress(result_bytes))
-    base_project = deepcopy(default)
-    base_project["illumination"]["wavelengths_nm"] = [default["illumination"]["wavelengths_nm"][0]]
-    base_project["solver"] = {"harmonics_x": 1, "harmonics_y": 1}
-    base_result = deepcopy(result_source)
-    base_result["wavelengths_nm"] = base_project["illumination"]["wavelengths_nm"]
-    meta = base_result["metadata"]
-    meta.update(
-        harmonics_x=1, harmonics_y=1, basis_size=9, retained_orders=[[m, n] for n in range(-1, 2) for m in range(-1, 2)]
-    )
-    for series in base_result["spectra"].values():
-        orders = [o for o in series["orders"][0] if abs(o["m"]) <= 1 and abs(o["n"]) <= 1]
-        series["orders"] = [orders]
-        series["R"] = [sum(o["R"] for o in orders)]
-        series["T"] = [sum(o["T"] for o in orders)]
-        series["R_specular"] = [orders[4]["R"]]
-        series["T_specular"] = [orders[4]["T"]]
-        series["A_balance"] = [1 - series["R"][0] - series["T"][0]]
-    meta["max_lossless_flux_error"] = max(abs(s["A_balance"][0]) for s in base_result["spectra"].values())
-    binding_cases = []
-
-    def binding(name, edit=None, result_edit=None):
-        p, r = deepcopy(base_project), deepcopy(base_result)
-        if edit:
-            edit(p)
-        model, normalized, digest = normalized_project_and_hash(p)
-        r["metadata"]["input_hash"] = digest
-        r["wavelengths_nm"] = list(model.illumination.wavelengths_nm)
-        local_classification_ambiguous = False
-        r["metadata"]["layer_count"] = len(model.layers)
-        r["metadata"]["active_slab_count"] = sum(layer.thickness_nm > 0 for layer in model.layers)
-        r["metadata"]["total_thickness_nm"] = sum(layer.thickness_nm for layer in model.layers)
-        # Derive only classifications/wavevectors from unchanged binder helpers.
-        wl = model.illumination.wavelengths_nm[0]
-        n0 = refractive_index(model.ambient, wl).real
-        ns = refractive_index(model.substrate, wl)
-        kx, ky = wavevectors(model, wl, 1, 1)
-        for series in r["spectra"].values():
-            for order in series["orders"][0]:
-                x, y = float(kx[order["m"] + 1]), float(ky[order["n"] + 1])
-                qr, qt = n0**2 - x * x - y * y, ns**2 - x * x - y * y
-                local_classification_ambiguous |= abs(qr) < 1e-10 or not ns.imag and abs(qt.real) < 1e-10
-                classification = "absorbing_half_space" if ns.imag else "propagating" if qt.real > 0 else "evanescent"
-                order.update(
-                    kx_over_k0=x,
-                    ky_over_k0=y,
-                    reflection_propagating=bool(qr > 0),
-                    transmission_class=classification,
-                    transmission_propagating=None if ns.imag else bool(qt.real > 0),
-                )
-        if result_edit:
-            result_edit(r)
-        try:
-            validate_result_for_project("forward", r, normalized)
-            accepted = True
-        except ValueError:
-            accepted = False
-        binding_cases.append(
-            {
-                "name": name,
-                "project": normalized,
-                "result": r,
-                "accepted": accepted,
-                "local_classification_ambiguous": bool(local_classification_ambiguous),
-            }
-        )
-
-    binding("immutable-derived-H1-single-wave")
-    binding("active-material-loss-requires-null", lambda p: p["layers"][0]["material"].update(k=0.1))
-    binding(
-        "active-material-loss-null",
-        lambda p: p["layers"][0]["material"].update(k=0.1),
-        lambda r: r["metadata"].update(max_lossless_flux_error=None),
-    )
-    binding(
-        "inactive-zero-X-material-loss",
-        lambda p: (p["layers"][0].update(cd_x_nm=0), p["layers"][0]["material"].update(k=0.1)),
-    )
-    binding(
-        "inactive-zero-Y-material-loss",
-        lambda p: (p["layers"][0].update(cd_y_nm=0), p["layers"][0]["material"].update(k=0.1)),
-    )
-    binding(
-        "inactive-zero-thickness-material-loss",
-        lambda p: (p["layers"][0].update(thickness_nm=0), p["layers"][0]["material"].update(k=0.1)),
-    )
-    binding(
-        "inactive-full-width-background-loss",
-        lambda p: (
-            p["layers"][0].update(cd_x_nm=p["period_nm"], cd_y_nm=p["period_y_nm"]),
-            p["layers"][0]["background"].update(k=0.1),
-        ),
-    )
-    binding(
-        "active-background-loss",
-        lambda p: p["layers"][0]["background"].update(k=0.1),
-        lambda r: r["metadata"].update(max_lossless_flux_error=None),
-    )
-    binding("absorbing-substrate-is-not-finite-loss", lambda p: p["substrate"].update(k=0.1))
-    binding(
-        "absorbing-substrate-must-retain-lossless-flux",
-        lambda p: p["substrate"].update(k=0.1),
-        lambda r: r["metadata"].update(max_lossless_flux_error=None),
-    )
-    for theta in [0.0, 20.0, 37.0, 75.0]:
-        wl = base_project["illumination"]["wavelengths_nm"][0]
-        nominal = wl / (1 - math.sin(math.radians(theta)))
-        if nominal > 5000:
-            continue
-        for direction, pitch in [
-            ("below", math.nextafter(nominal, 0.0)),
-            ("at", nominal),
-            ("above", math.nextafter(nominal, math.inf)),
-        ]:
-            binding(
-                f"near-cutoff-theta-{theta}-{direction}",
-                lambda p, pitch=pitch, theta=theta: (
-                    p.update(period_nm=pitch),
-                    p["illumination"].update(angle_deg=theta, azimuth_deg=0),
-                ),
-            )
-
-    def known_trig_discrepancy(p):
-        p.update(period_nm=1863.483715055275, period_y_nm=350)
-        p["illumination"].update(wavelengths_nm=[500], angle_deg=47.027868717108475, azimuth_deg=0)
-
-    def wrong_cutoff_flag(r):
-        for series in r["spectra"].values():
-            for order in series["orders"][0]:
-                if order["m"] == 1 and order["n"] == 0:
-                    order["reflection_propagating"] = True
-
-    binding("numpy-browser-cutoff-discrepancy-correct", known_trig_discrepancy)
-    binding("numpy-browser-cutoff-discrepancy-mutated", known_trig_discrepancy, wrong_cutoff_flag)
-    for direction, sign in [("below", -1), ("above", 1)]:
-        wl = base_project["illumination"]["wavelengths_nm"][0]
-        pitch = wl / math.sqrt(1 + sign * 2e-10)
-        binding(
-            f"outside-cutoff-exclusion-{direction}",
-            lambda p, pitch=pitch: (p.update(period_nm=pitch), p["illumination"].update(angle_deg=0, azimuth_deg=0)),
-        )
     return {
         "authority": {
             "pydantic": pydantic.__version__,
             "python": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "helper": "unchanged rcwa_core.project_io.normalized_project_and_hash + identity.canonical_hash",
+            "helper": "unchanged rcwa_core.project_io.normalized_project_and_hash",
             "project_fixture_sha256": PROJECT_SHA,
             "seed": 120013,
             "solves": 0,
         },
         "projects": cases,
-        "floats": floats,
-        "binding_case_notice": "Validation-only deterministic mutations of immutable reference; not numerical solutions or convergence evidence.",
-        "bindings": binding_cases,
     }
 
 
@@ -325,8 +170,6 @@ def main():
         json.dumps(
             {
                 "project_cases": len(data["projects"]),
-                "float_cases": len(data["floats"]),
-                "binding_cases": len(data["bindings"]),
                 "sha256": hashlib.sha256(content).hexdigest(),
                 "bytes": len(content),
                 "solves": 0,

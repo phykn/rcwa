@@ -12,6 +12,7 @@ from .preflight import (
     NEAR_CUTOFF_TOLERANCE,
     PreflightError,
     has_contrast,
+    material_coverage_diagnostics,
     refractive_index,
 )
 
@@ -24,30 +25,6 @@ def widths(project, layer):
     if layer.geometry == "circular_hole_2d":
         return layer.diameter_nm, layer.diameter_nm
     return layer.cd_x_nm, layer.cd_y_nm
-
-
-def declared_materials(project):
-    yield project.ambient, ["ambient"]
-    yield project.substrate, ["substrate"]
-    for i, layer in enumerate(project.layers):
-        yield layer.material, ["layers", i, "material"]
-        if layer.geometry != "homogeneous":
-            yield layer.background, ["layers", i, "background"]
-
-
-def material_coverage_diagnostics_2d(project):
-    wavelengths = project.illumination.wavelengths_nm
-    return [
-        Diagnostic(
-            code="material_coverage",
-            severity="error",
-            location=location + ["wavelengths_nm"],
-            message=f"{material.name}: wavelength outside material table; extrapolation is forbidden",
-        )
-        for material, location in declared_materials(project)
-        if material.kind == "tabulated"
-        and (min(wavelengths) < material.wavelengths_nm[0] or max(wavelengths) > material.wavelengths_nm[-1])
-    ]
 
 
 def active_materials_2d(project):
@@ -107,7 +84,7 @@ def wavevectors(project, wavelength, hx, hy):
 
 
 def preflight_2d(project, *, basis=None):
-    diagnostics = material_coverage_diagnostics_2d(project)
+    diagnostics = material_coverage_diagnostics(project)
     if diagnostics:
         return diagnostics
     hx, hy = basis or (project.solver.harmonics_x, project.solver.harmonics_y)

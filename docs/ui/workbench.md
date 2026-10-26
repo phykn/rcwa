@@ -14,7 +14,8 @@ engine has started.
   this way.
 - **On a local server.** When the local API answers (`scripts/start_local.py`),
   full calculations go to it automatically: native BLAS, several times faster
-  at high orders. Previews still run in the browser.
+  at high orders. Previews still run in the browser, and so does a full
+  calculation while the server's single 2D slot is busy with another client.
 
 Both paths run the same `rcwa_core` code. `npm run test:engine` checks the browser
 runtime against frozen native results (agreement better than 1e-10).
@@ -22,12 +23,12 @@ runtime against frozen native results (agreement better than 1e-10).
 ## Editing
 
 - **Stack** (left) lists the incident medium, the layers from top to bottom and the
-  substrate. Swatch heights follow layer thickness; the pattern shows the shape
-  (film, lines, blocks, holes). Select a row to edit it; move, duplicate or delete
-  layers with the buttons below the list. Up to eight layers.
+  substrate. Each layer's bar has its color in the 3D view, and its second line
+  gives the shape, size and thickness. Select a row to edit it; move, duplicate or
+  delete layers with the buttons below the list. Up to eight layers.
 - **Inspector** (right) edits the selection: shape, thickness, feature size and
-  materials, then the pattern pitch and the light (spectral range, incidence θ,
-  azimuth φ and polarization: s, p or both).
+  materials, then the pattern pitch (shown once a layer is patterned) and the
+  light (spectral range, incidence θ, azimuth φ and polarization: s, p or both).
 - Every number has a field for exact values and a slider for quick changes. A
   slider drag or a held arrow key is one undo step. Arrow keys in a field step by
   1, Shift+arrow by 10.
@@ -66,13 +67,14 @@ place over a quarter second instead of redrawing the chart.
 
 - R, T and A = 1 − R − T against wavelength for the light the design asks for:
   s, p, or unpolarized (the mean of s and p) when polarization is *Both*.
-- Click the chart or use the slider below it to inspect one wavelength; the
-  values at that wavelength appear on the right, with the data table below.
+- Click the chart, or focus it and use the arrow keys (Home/End for the ends), to
+  inspect one wavelength; the values there appear beside the chart. **Show data
+  table** lists every sample.
 - **Reflected and transmitted color**: CIE 1931 2° observer (Wyman–Sloan–Shirley
   fit), a 6500 K blackbody standing in for daylight, sRGB output. It needs a
   spectrum covering 400–700 nm; with 450–650 nm it is marked approximate.
 - The solver's notes for the result (for example, that convergence was not
-  assessed) are listed under the color swatches.
+  assessed) are under **Notes**, below the colors.
 
 ## Files
 
@@ -88,6 +90,7 @@ place over a quarter second instead of redrawing the chart.
 ## Keyboard
 
 - ⌘Z / Ctrl+Z and Shift+⌘Z: undo and redo outside text fields.
+- On the focused chart: arrow keys move the inspected wavelength.
 - In the 3D view: drag to rotate, scroll to zoom, click a layer to select it.
 
 ## Limits

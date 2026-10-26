@@ -94,7 +94,7 @@ def test_unpolarized_fit_solves_both_polarizations_for_an_s_only_design():
 def test_bounds_admitting_an_unsolvable_design_fail_before_any_solve(parameters, reason, monkeypatch):
     import rcwa_core.fit_2d as module
 
-    monkeypatch.setattr(module, "solve_wavelengths_2d", lambda *a: pytest.fail("solved before checking bounds"))
+    monkeypatch.setattr(module, "forward_2d", lambda *a: pytest.fail("solved before checking bounds"))
     with pytest.raises(SolverError, match=reason):
         fit_2d(parse_project(example()), {
             "parameters": parameters, "wavelengths_nm": [450, 500, 550], "values": [0.1, 0.1, 0.1],
@@ -124,16 +124,16 @@ def test_an_unsolvable_probe_inside_the_bounds_falls_back_to_another_start(monke
 
     data = example()
     ws, values = synthetic(data, 100.0)
-    real = module.solve_wavelengths_2d
+    real = module.forward_2d
     calls = {"n": 0}
 
-    def flaky(project, indices):
+    def flaky(project):
         calls["n"] += 1
         if calls["n"] == 2:  # one probe of the first start
             raise module.SolverError("probe failed")
-        return real(project, indices)
+        return real(project)
 
-    monkeypatch.setattr(module, "solve_wavelengths_2d", flaky)
+    monkeypatch.setattr(module, "forward_2d", flaky)
     out = fit_2d(parse_project(data), {
         "parameters": [{"path": ["layers", 0, "diameter_nm"], "lower": 40, "upper": 130}],
         "wavelengths_nm": ws, "values": values, "quantity": "R", "polarization": "s",

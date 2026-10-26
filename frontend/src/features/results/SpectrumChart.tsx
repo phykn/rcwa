@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { sampleAt, type Series } from "../../core/spectrum";
+import { nearestIndex, sampleAt, type Series } from "../../core/spectrum";
 
 interface Props {
   series: Series;
@@ -14,13 +14,31 @@ const MORPH_MS = 240;
 
 const css = (el: Element, name: string) => getComputedStyle(el).getPropertyValue(name).trim() || "#888";
 
+const darkQuery = () => window.matchMedia?.("(prefers-color-scheme: dark)");
+const subscribeScheme = (onChange: () => void) => {
+  const query = darkQuery();
+  query?.addEventListener("change", onChange);
+  return () => query?.removeEventListener("change", onChange);
+};
+const isDark = () => darkQuery()?.matches ?? false;
+
 const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
+const STEPS: Record<string, (i: number, last: number) => number> = {
+  ArrowLeft: (i) => i - 1,
+  ArrowDown: (i) => i - 1,
+  ArrowRight: (i) => i + 1,
+  ArrowUp: (i) => i + 1,
+  Home: () => 0,
+  End: (_, last) => last,
+};
+
 /**
- * R/T/A against wavelength; the vertical rule marks the inspected sample.
- * One chart lives for the whole session: a new result morphs the drawn curves
- * into place instead of rebuilding the chart. It fills its container's height
- * (at least 220 px).
+ * R/T/A against wavelength; the vertical rule marks the inspected sample, set
+ * by a click or the arrow keys. One chart lives for the whole session: a new
+ * result morphs the drawn curves into place instead of rebuilding the chart.
+ * It fills its container's height (at least 220 px) and is rebuilt with the
+ * theme's colors when the system switches between light and dark.
  */
 export function SpectrumChart({ series, cursor, onCursor }: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -29,6 +47,7 @@ export function SpectrumChart({ series, cursor, onCursor }: Props) {
   const frame = useRef(0);
   const cursorRef = useRef(cursor);
   const onCursorRef = useRef(onCursor);
+  const dark = useSyncExternalStore(subscribeScheme, isDark);
   useEffect(() => {
     onCursorRef.current = onCursor;
   }, [onCursor]);
@@ -59,7 +78,8 @@ export function SpectrumChart({ series, cursor, onCursor }: Props) {
       scales: { x: { time: false }, y: { range: [0, 1] } },
       axes: [
         { ...axis, label: "Wavelength (nm)", labelSize: 22 },
-        { ...axis, label: "Fraction of incident power", labelSize: 22, values: (_, ticks) => ticks.map((t) => t.toFixed(1)) },
+        // Steps of at least 0.1 keep one-decimal tick labels distinct.
+        { ...axis, label: "Fraction of incident power", labelSize: 22, incrs: [0.1, 0.2, 0.5, 1], values: (_, ticks) => ticks.map((t) => t.toFixed(1)) },
       ],
       cursor: { y: false, points: { show: false } },
       hooks: {
@@ -102,7 +122,7 @@ export function SpectrumChart({ series, cursor, onCursor }: Props) {
       chart.destroy();
       plot.current = null;
     };
-  }, []);
+  }, [dark]);
 
   useEffect(() => {
     const chart = plot.current;
@@ -137,5 +157,25 @@ export function SpectrumChart({ series, cursor, onCursor }: Props) {
     plot.current?.redraw(false);
   }, [cursor]);
 
-  return <div ref={host} className="spectrum-chart spectrum-chart-fill" aria-hidden />;
+  const ws = series.wavelengths;
+  const index = nearestIndex(ws, cursor);
+  return (
+    <div
+      ref={host}
+      className="spectrum-chart"
+      role="slider"
+      tabIndex={0}
+      aria-label="Inspected wavelength"
+      aria-valuemin={ws[0]}
+      aria-valuemax={ws[ws.length - 1]}
+      aria-valuenow={ws[index]}
+      aria-valuetext={`${ws[index]} nm`}
+      onKeyDown={(e) => {
+        const step = STEPS[e.key];
+        if (!step) return;
+        e.preventDefault();
+        onCursor(ws[Math.min(ws.length - 1, Math.max(0, step(index, ws.length - 1)))]);
+      }}
+    />
+  );
 }

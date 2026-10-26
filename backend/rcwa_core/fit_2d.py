@@ -19,7 +19,7 @@ from .preflight import SolverError
 from .preflight_2d import preflight_2d
 from .schemas import StrictModel
 from .schemas_2d import Project2D
-from .solver_2d import assemble_forward_2d, solve_wavelengths_2d
+from .solver_2d import forward_2d
 
 MAX_EVALUATIONS = 80
 PathItem = str | int
@@ -205,9 +205,7 @@ def fit_2d(project: Project2D, spec: dict) -> dict:
         evaluations += 1
         if evaluations > MAX_EVALUATIONS:
             raise SolverError("The fit did not settle within its evaluation budget")
-        candidate = Project2D.model_validate(_apply(base, spec, x))
-        n = len(candidate.illumination.wavelengths_nm)
-        result = assemble_forward_2d(candidate, solve_wavelengths_2d(candidate, range(n)), elapsed_seconds=0.0)
+        result = forward_2d(Project2D.model_validate(_apply(base, spec, x)))
         solved[key] = _observable(result, spec)
         warned[key] = list(result["warnings"])
         return solved[key]

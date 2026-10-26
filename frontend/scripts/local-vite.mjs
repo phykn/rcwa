@@ -38,8 +38,8 @@ const logger = {
 };
 startup = (async () => {
   const env = loadEnv('development', root, 'VITE_');
-  if (env.VITE_STATIC_PREVIEW?.toLowerCase() === 'true' || env.VITE_API_BASE_URL) {
-    throw new Error('Clear VITE_STATIC_PREVIEW and VITE_API_BASE_URL in your shell and frontend .env files for local UI + API.');
+  if (env.VITE_API_BASE_URL) {
+    throw new Error('Clear VITE_API_BASE_URL in your shell and frontend .env files for local UI + API.');
   }
   server = await createServer({
     root, mode: 'development', configFile: `${root}vite.config.ts`, customLogger: logger,

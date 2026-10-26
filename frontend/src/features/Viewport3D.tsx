@@ -35,9 +35,23 @@ function disposeGroup(group: THREE.Group) {
   group.clear();
 }
 
-function build(group: THREE.Group, design: Design, selected: number, cutaway: boolean) {
+const VIEW_DIRECTION = new THREE.Vector3(0.62, 0.5, 0.74).normalize();
+
+/** Back the camera off until the whole scene, light arrow included, fits both ways. */
+function frame(s: Scene) {
+  const sphere = new THREE.Box3().setFromObject(s.group).getBoundingSphere(new THREE.Sphere());
+  if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) return;
+  const half = THREE.MathUtils.degToRad(s.camera.fov) / 2;
+  const narrowest = Math.min(half, Math.atan(Math.tan(half) * s.camera.aspect));
+  s.controls.target.copy(sphere.center);
+  s.camera.position.copy(sphere.center).addScaledVector(VIEW_DIRECTION, sphere.radius / Math.sin(narrowest));
+  s.controls.update();
+}
+
+function build(group: THREE.Group, design: Design, selected: number) {
   disposeGroup(group);
-  const geometry = buildStructureGeometry2D(design, { cutaway });
+  // A cutaway shows the patterns inside every layer.
+  const geometry = buildStructureGeometry2D(design, { cutaway: true });
   const height = geometry.bounds.max.z;
   const scale = structureScale2D(design);
   const tone = (layerIndex: number, role: string) => {
@@ -95,7 +109,6 @@ export function Viewport3D() {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<Scene | null>(null);
   const framed = useRef(0);
-  const [cutaway, setCutaway] = useState(true);
   const [failed, setFailed] = useState(false);
   const selected = selection.kind === "layer" ? selection.index : -1;
 
@@ -137,6 +150,7 @@ export function Viewport3D() {
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      if (sceneRef.current) frame(sceneRef.current);
       render();
     };
     const observer = new ResizeObserver(resize);
@@ -181,7 +195,7 @@ export function Viewport3D() {
     if (!s) return;
     let extent: number;
     try {
-      extent = build(s.group, design, selected, cutaway);
+      extent = build(s.group, design, selected);
     } catch {
       // Invalid intermediate dimensions keep the previous picture; the form shows why.
       return;
@@ -189,15 +203,10 @@ export function Viewport3D() {
     // Refit only when the structure's size changes a lot, so orbiting survives edits.
     if (!framed.current || Math.abs(extent / framed.current - 1) > 0.35) {
       framed.current = extent;
-      const direction = new THREE.Vector3(0.62, 0.5, 0.74).normalize();
-      // Narrow views need more distance to keep the whole 3×3 cell in frame.
-      const widthFactor = Math.max(1, 1.5 / Math.max(0.5, s.camera.aspect));
-      s.camera.position.copy(direction.multiplyScalar(extent * 2.6 * widthFactor));
-      s.controls.target.set(0, 0, 0);
-      s.controls.update();
+      frame(s);
     }
     s.render();
-  }, [design, selected, cutaway]);
+  }, [design, selected]);
 
   return (
     <div className="viewport">
@@ -208,15 +217,6 @@ export function Viewport3D() {
       ) : (
         <div ref={host} className="viewport-canvas" />
       )}
-      <div className="viewport-tools">
-        <label className="toggle">
-          <input type="checkbox" checked={cutaway} onChange={(e) => setCutaway(e.target.checked)} />
-          Cutaway
-        </label>
-        <span className="viewport-scale">
-          {design.period_nm} × {design.period_y_nm} nm cell, 3 × 3 shown
-        </span>
-      </div>
     </div>
   );
 }

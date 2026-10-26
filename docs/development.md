@@ -56,19 +56,18 @@ for **Local server** at the top. API documentation is at http://127.0.0.1:8000/d
 Press **Ctrl+C** to stop both services and their active calculations. Saved
 local-server snapshots survive restart; unfinished or unsaved jobs do not.
 No dependency downloads, browser auto-open, background service, credentials,
-tunnel, reload process or extra API worker is started. The optional external-API
-MCP adapter and its lifetime behavior are unchanged.
+tunnel, reload process or extra API worker is started.
 
 The default SQLite database is `rcwa-demo.db` in the cloned repository root, even
 when you invoke the script from another directory using its full path. An explicit
 `DATABASE_URL` is preserved and must work; relative SQLite paths also resolve from
 the repository root. Occupied ports fail with an explanation and are never reused
-or cleared automatically. Clear `VITE_STATIC_PREVIEW` and `VITE_API_BASE_URL` in
-your shell and frontend `.env` files before using this local launcher.
+or cleared automatically. Clear `VITE_API_BASE_URL` in your shell and frontend
+`.env` files before using this local launcher.
 
-Use the local editor for calculations; the hosted Pages preview cannot contact
-or run your solver. Keep the API bound to 127.0.0.1; do not expose this
-unauthenticated development service through public hosting or a tunnel.
+The hosted Pages site calculates in the browser and never contacts your local
+API. Keep the API bound to 127.0.0.1; do not expose this unauthenticated
+development service through public hosting or a tunnel.
 
 ### Local launcher troubleshooting and shutdown
 
@@ -80,9 +79,9 @@ unauthenticated development service through public hosting or a tunnel.
 - Invalid or unavailable `DATABASE_URL`: fix it, or unset it to select the demo
   SQLite database. An explicit empty value is an error. The launcher never falls
   back from a configured database. `.env.example` is not loaded automatically.
-- Static preview or external API settings: clear `VITE_STATIC_PREVIEW=true` and
-  any nonempty `VITE_API_BASE_URL` in the shell and frontend `.env` files. The
-  local launcher is always the owned editor plus its own local API.
+- External API setting: clear any nonempty `VITE_API_BASE_URL` in the shell and
+  frontend `.env` files. The local launcher is always the owned editor plus its
+  own local API.
 - Repository paths may contain spaces. Invoke the virtual-environment Python
   and launcher by quoted absolute paths from another directory; both services
   still use the repository root for relative database paths.
@@ -104,8 +103,8 @@ development launcher, not a persistent service manager.
 
 ### Advanced: start two terminals separately
 
-For separate server logs or debugging, retain the original workflow after the
-same dependency installation. Run both commands from the cloned repository root.
+For separate server logs or debugging, run the API and the editor yourself after
+the same dependency installation. Run both commands from the cloned repository root.
 
 Terminal 1, using the zero-setup SQLite demo:
 
@@ -149,9 +148,10 @@ Edits are kept as a draft for the browser tab; export a design file to keep it.
 
 ```sh
 . .venv/bin/activate
-ruff check backend scripts/start_local.py scripts/local_runtime.py scripts/local_windows.py scripts/tests/*.py scripts/tests/fixtures/*.py
-pytest -q
+ruff check backend scripts
+OPENBLAS_NUM_THREADS=1 pytest -q
 pytest scripts/tests/test_local_startup.py -q
+python scripts/generate_frontend_2d_conformance.py --check   # browser parser vectors match the backend
 cd frontend
 npm run typecheck
 npm run lint
@@ -179,7 +179,7 @@ The PostgreSQL integration test runs when `TEST_POSTGRES_URL` is configured
 ```text
 backend/api/           HTTP API, bounded jobs and project storage
 backend/mcp_adapter/   Optional local MCP tools backed by the HTTP API
-backend/rcwa_core/     Schemas, RCWA adapter, field maps and fitting (also runs in the browser)
+backend/rcwa_core/     Schemas, RCWA adapter and fitting (the forward solve also runs in the browser)
 backend/tests/         Physics, API and persistence tests
 frontend/src/core/     Design model, files, materials, colour, export
 frontend/src/engine/   Pyodide worker pool, browser and server engines
@@ -226,7 +226,7 @@ calculation; unavailable slots return HTTP 429 without a queue. Each job has a
 Save useful completed results promptly. Snapshot save is append-only and
 idempotent by server job ID, never overwriting an existing project.
 
-Lengths are in nm. Public passive-material input uses n > 0 and k ≥ 0. Internal complex signs, diffraction-order conventions, and power normalization are documented in result metadata and [the physics contract](physics.md). Example optical constants are synthetic values, not a calibrated material database.
+Lengths are in nm. Public passive-material input uses n > 0 and k ≥ 0. Internal complex signs, diffraction-order conventions, and power normalization are documented in result metadata and [the physics contract](physics.md). The circular-hole example and the tests use synthetic optical constants. The other workbench examples use the bundled library in `frontend/src/core/materials/library.json`, built from refractiveindex.info data by `scripts/build_material_library.py`; these are literature values, not calibrated to any process.
 
 ## Programmatic local access
 
